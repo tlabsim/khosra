@@ -1,19 +1,24 @@
 # Khosra · খসড়া
 
-Khosra is a private, local-first manuscript workspace for writing and revising books with chat models. It keeps your manuscript, feedback, proposed rewrites and revision history together while you remain in control of every accepted change.
+Khosra is a private manuscript workspace designed to be hosted on your own domain and connected to chat models such as ChatGPT. Develop a book through text conversations or, where the connected client supports tool access in voice mode, spoken discussions. Khosra keeps the source manuscript, feedback, proposed rewrites and revision history available between conversations.
 
-Write and read on desktop or mobile, discuss passages in a connected chat client, then review its suggestions back in Khosra. The application exposes authenticated **Model Context Protocol (MCP)** tools; it does not call model or speech-to-text APIs and needs no provider API key. The current collaboration workflow is designed for ChatGPT. Compatibility with other MCP clients must be verified individually.
+Discuss a scene, ask for a different direction, review the saved proposal in Khosra, then continue the next conversation from the accepted revision. You remain in control of every manuscript change.
+
+The hosted application exposes authenticated **Model Context Protocol (MCP)** tools so a connected model can retrieve source passages and save proposals. Voice conversation and transcription belong to the chat client; Khosra handles manuscript storage, reading, editing and review. It makes no model or speech-to-text API calls and needs no provider API key. The current workflow is designed for ChatGPT; other MCP clients and voice-mode tool availability require verification in the intended client.
+
+**Start here:** [Host Khosra](#deploy-upload-extract-and-configure), then [connect and iterate through chat](#iterate-through-text-or-voice-chat). Desktop and mobile editing remain local-first, with offline access after the application has loaded.
 
 ## Objective and goals
 
 Khosra gives authors a reliable source of truth outside a chat conversation. Its goals are to:
 
+- Support a continuing manuscript-development conversation through text and voice, with the hosted manuscript available to connected models.
 - Keep current prose, earlier drafts and approved revisions recoverable.
 - Let a model retrieve exact source passages instead of relying on conversation memory.
 - Turn model rewrites into reviewable proposals that require author acceptance.
 - Preserve stable paragraph identities for feedback, references and historical recovery.
 - Support Bengali and English writing, comfortable reading and private reader feedback.
-- Run on ordinary PHP/MySQL hosting, with local editing available without a server connection.
+- Run on ordinary PHP hosting with portable SQLite storage, optional MySQL support and local editing without a server connection.
 
 Khosra is currently a **single-owner application**. Guest readers can read and comment on shared snapshots; simultaneous multi-author editing is outside the current scope.
 
@@ -32,6 +37,23 @@ Khosra is currently a **single-owner application**. Guest readers can read and c
 
 ## Everyday use
 
+### Iterate through text or voice chat
+
+Hosting is the recommended setup for the full workflow: the chat client needs to reach Khosra’s authenticated HTTPS endpoint. Once configured:
+
+1. In **Settings**, sign in to your Khosra server and choose **Upload local workspace**.
+2. Connect your chat client to the authenticated MCP endpoint using OAuth. **Copy project instructions** in Settings provides the collaboration guidance.
+3. Ask the model to call `get_khosra_guide`, then `list_books` and `read_chapter` for the intended manuscript and chapter.
+4. Discuss the source through text chat, or use the client’s voice conversation when it supports the connected tools. Request a focused rewrite; the model saves it through `save_proposal` against the exact source revision.
+5. In Khosra, choose **Download server workspace**, then open **Proposals**. Compare the source and suggestion, edit if needed, and explicitly accept or reject it.
+6. Upload the accepted revision so the next model iteration sees the new source.
+
+**Sync is manual.** Models see the last uploaded workspace, not unsent browser edits. Upload local work before downloading; if both sides changed, preserve a recovery archive and resolve the conflict rather than replacing unreviewed work. Version checks reject stale writes, and retries use durable operation IDs. No MCP tool can accept a proposal or directly overwrite the working manuscript.
+
+The 11 tools cover onboarding, book discovery, references, chapter reads, flags, proposals, history and context. Context can become stale; source text remains authoritative. Saving a proposal does not mean the manuscript has changed.
+
+For example: “Read chapter two and help me make the dialogue less formal,” “Compare this scene with the earlier revision,” or “Keep the ending, but propose a slower reveal.” Start by having the model retrieve the relevant source. Review saved proposals in Khosra before continuing from an accepted revision.
+
 ### Write and organize
 
 1. Create or open a manuscript in **Library**.
@@ -41,21 +63,6 @@ Khosra is currently a **single-owner application**. Guest readers can read and c
 5. Use **Flags** to record feedback and **History** to inspect earlier text or restore deleted passages. Deleted chapters remain in **Contents → Deleted chapters** until restored.
 
 Paragraphs have permanent UUIDs behind readable addresses such as `R1:C1-P1`. Explicit renumbering changes the reference edition, not the paragraph UUID. Use these references when discussing passages with a model; reader page numbers depend on typography.
-
-### Iterate with a chat model
-
-A deployed backend is required for connected collaboration. Once configured:
-
-1. In **Settings**, sign in to your Khosra server and choose **Upload local workspace**.
-2. Connect your chat client to the authenticated MCP endpoint using OAuth. **Copy project instructions** in Settings provides the collaboration guidance.
-3. Ask the model to call `get_khosra_guide`, then `list_books` and `read_chapter` for the intended manuscript and chapter.
-4. Discuss the source and request a focused rewrite. The model saves it through `save_proposal` against the exact source revision.
-5. In Khosra, choose **Download server workspace**, then open **Proposals**. Compare the source and suggestion, edit if needed, and explicitly accept or reject it.
-6. Upload the accepted revision so the next model iteration sees the new source.
-
-**Sync is manual.** Models see the last uploaded workspace, not unsent browser edits. Upload local work before downloading; if both sides changed, preserve a recovery archive and resolve the conflict rather than replacing unreviewed work. Version checks reject stale writes, and retries use durable operation IDs. No MCP tool can accept a proposal or directly overwrite the working manuscript.
-
-The 11 tools cover onboarding, book discovery, references, chapter reads, flags, proposals, history and context. Context can become stale; source text remains authoritative. Saving a proposal does not mean the manuscript has changed.
 
 ### Share with trusted readers
 
@@ -69,7 +76,9 @@ Use **Settings → Backups & recovery → Download full archive** regularly and 
 
 Restore accepts only the current, checksummed `khosra-archive` format; early prototype exports are unsupported. Browser archives contain workspace history. Guest invitations and reader feedback are stored separately on the server and require a database backup.
 
-## Run locally
+## Local development and standalone editing
+
+Local mode is useful for development, writing and reading. Connected chat-model access requires the hosted backend described below.
 
 Requirements: **Node.js 22.16+** or a compatible current LTS, and npm. No PHP server is needed for local writing and reading.
 
