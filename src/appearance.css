@@ -1,0 +1,219 @@
+/* Contrast boost: retain the existing colors, textures and translucent surfaces. */
+:root[data-contrast="high"] {
+  color: #26362a;
+  --green: #244f3e;
+  --muted: #46563e;
+  --line: #9aa58f;
+}
+:root[data-contrast="high"]
+  :where(
+    h1,
+    h2,
+    h3,
+    h4,
+    strong,
+    p,
+    small,
+    label,
+    summary,
+    pre,
+    code,
+    blockquote
+  ) {
+  color: #26362a;
+}
+:root[data-contrast="high"] :where(button, a, input, textarea, select) {
+  color: #244f3e;
+}
+:root[data-contrast="high"] :where(svg) {
+  color: inherit;
+}
+/* Match the existing important secondary-text rule without changing its layout. */
+:root[data-contrast="high"]
+  :where(
+    .muted,
+    .saved,
+    .chapter-meta,
+    .caption,
+    .document-footer,
+    .document-toolbar,
+    .breadcrumb,
+    .workspace-label,
+    .chapter-heading,
+    .eyebrow,
+    .context-card p,
+    .quiet-tip,
+    .empty-mini,
+    .flag-card small,
+    .chapter-list small,
+    .private-note,
+    .welcome > p,
+    .welcome-features span,
+    .reader-controls
+  ) {
+  color: #46563e !important;
+}
+:root[data-contrast="high"]
+  :where(
+    .chapter-action small,
+    .chapter-paragraph-preview,
+    .paragraph-keyboard-hint,
+    .paragraph-id,
+    .placeholder,
+    .settings-note,
+    .settings-connection-state,
+    .settings-appearance-row > span > span,
+    .sharing-hint,
+    .sharing-manuscript > div > span,
+    .chapter-trash-heading p
+  ) {
+  color: #46563e;
+}
+:root[data-contrast="high"]
+  :where(
+    .paper,
+    .settings-panel,
+    .modal,
+    .sharing-dialog,
+    .reader-preferences-dialog,
+    .contents-drawer,
+    .desk-header,
+    .workspace-nav,
+    .reading-toolbar,
+    .guest-header,
+    input:not([type="checkbox"]):not([type="radio"]),
+    textarea,
+    select,
+    .button,
+    .icon,
+    .workspace-add-chapter,
+    .reader-size-stepper,
+    .sharing-connection-state
+  ) {
+  border-color: #9aa58f;
+}
+:root[data-contrast="high"] :where(input, textarea)::placeholder {
+  color: #59664f;
+  opacity: 1;
+}
+:root[data-contrast="high"]
+  :where(
+    .chapter-action,
+    .chapter-sections,
+    .chapter-trash-item,
+    .settings-backup-row,
+    .settings-panel-heading,
+    .contents-library,
+    .chapter-list > button,
+    .sharing-dialog > header,
+    .chapter-section-list .section-row,
+    .book-cover,
+    .book-cover::after,
+    .sharing-book-icon,
+    .chapter-trash-preview,
+    .chapter-delete-action,
+    .reader-color-choice > span
+  ) {
+  border-color: #9aa58f;
+}
+:root[data-contrast="high"]
+  :where(
+    .workspace-options > button.active,
+    .chapter-list > button.selected,
+    [aria-current="page"]
+  ) {
+  color: #244f3e;
+  border-color: #637c56;
+}
+:root[data-contrast="high"] :where(.button.primary, .button.primary:hover) {
+  color: #fff;
+  border-color: #244f3e;
+}
+:root[data-contrast="high"]
+  :where(.button.primary)
+  :where(span, strong, small, svg) {
+  color: inherit;
+}
+:root[data-contrast="high"] :where(.button.danger, .button.danger:hover) {
+  color: #fff;
+  border-color: #853c31;
+}
+:root[data-contrast="high"]
+  :where(.button.danger.quiet, .chapter-delete-button, .paragraph-delete) {
+  color: #853c31;
+  border-color: #a47968;
+}
+:root[data-contrast="high"]
+  :where(
+    button,
+    a,
+    input,
+    textarea,
+    select,
+    summary,
+    [tabindex]
+  ):focus-visible {
+  outline-color: #244f3e;
+}
+:root[data-contrast="high"]
+  :where(.settings-switch-track, .reader-switch-track) {
+  border-color: #7c8b70;
+}
+:root[data-contrast="high"]
+  :where(.settings-switch, .reader-switch)
+  input:checked
+  + span {
+  border-color: #244f3e;
+}
+:root[data-contrast="high"] .book-reader {
+  --page-ink: #26362a;
+}
+:root[data-contrast="high"]
+  :where(
+    .reading-text,
+    .turn-text,
+    .reading-text p,
+    .turn-text p,
+    .reader-page,
+    .reader-page p
+  ) {
+  color: #26362a;
+}
+:root[data-contrast="high"]
+  :is(
+    .settings-panel,
+    .reader-preferences-dialog,
+    .sharing-dialog,
+    .chapter-actions-modal,
+    .contents-drawer
+  )
+  :where(p, small, label, h1, h2, h3, h4, strong, summary) {
+  color: #26362a;
+}
+:root[data-contrast="high"] .book-reader.is-immersive .reading-toolbar {
+  border-color: #9aa58f;
+}
+:root[data-contrast="high"]
+  .book-reader
+  .reading-toolbar
+  :where(button, select) {
+  color: #244f3e;
+}
+:root[data-contrast="high"]
+  .book-reader
+  :where(.reading-folios, .turn-folio, .reading-title > span) {
+  color: #46563e;
+}
+:root[data-contrast="high"] .reading-text p::before {
+  color: #46563e;
+}
+:root[data-contrast="high"] .book-reader .reading-sheet {
+  border-color: #9aa58f;
+}
+:root[data-contrast="high"] .reading-title i {
+  border-color: #9aa58f;
+}
+
+:root[data-contrast="high"] .chapter-meta > .status-pill {
+  color: #3d5138;
+}

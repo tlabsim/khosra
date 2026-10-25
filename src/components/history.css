@@ -1,0 +1,81 @@
+.history-filters {
+  display: flex;
+  gap: 8px;
+  margin: 20px 0;
+}
+.history-filters .button[aria-pressed="true"] {
+  background: #e8eddf;
+  color: #2f594b;
+}
+.history-passages {
+  margin: 8px 0 20px 48px;
+  border-left: 2px solid #d5dbcd;
+  padding-left: 16px;
+}
+.history-passages summary {
+  cursor: pointer;
+  color: #576951;
+  padding: 8px 0;
+}
+.history-passage {
+  padding: 12px 0;
+  border-bottom: 1px solid #ddded5;
+}
+.history-passage-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  font: 13px var(--sans);
+  color: #66745f;
+}
+.history-passage p {
+  white-space: pre-wrap;
+  font-family: var(--serif);
+  max-height: 200px;
+  overflow: auto;
+  margin: 12px 0;
+}
+.history-passage .caption {
+  font-family: var(--sans);
+  font-size: 12px;
+}
+@media (max-width: 600px) {
+  .history-passages {
+    margin-left: 0;
+  }
+}
+.recent-history {
+  padding-bottom: 20px;
+  margin-bottom: 26px;
+  border-bottom: 1px solid var(--line);
+}
+.recent-history ol {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+.recent-history-item {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 0;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: #42563b;
+}
+.recent-history-item:hover {
+  background: #e9eddf;
+}
+.recent-history-item > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+}
+.recent-history-item small {
+  color: #657359;
+  font-size: 11px;
+}

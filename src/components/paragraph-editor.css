@@ -1,0 +1,79 @@
+.paragraph-row .paragraph-content > p {
+  margin: 0 0 0.5em;
+}
+.paragraph-content > p[tabindex] {
+  touch-action: manipulation;
+}
+.paragraph-content > p[tabindex]:focus-visible {
+  outline: 1px solid #9bac91;
+  outline-offset: 5px;
+  border-radius: 3px;
+}
+.paragraph-edit-session {
+  margin: 4px 0 18px;
+}
+.paragraph-edit-session .paragraph-editor {
+  min-height: 72px;
+  margin: 0;
+  resize: none;
+  overflow: hidden;
+  scroll-margin-bottom: 112px;
+}
+.paragraph-edit-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.paragraph-edit-controls .button,
+.paragraph-edit-controls .icon {
+  min-height: 40px;
+}
+.paragraph-edit-controls .button {
+  padding: 8px;
+}
+.paragraph-edit-spacer {
+  flex: 1;
+}
+.paragraph-edit-controls .paragraph-delete {
+  color: #885d4c;
+}
+.paragraph-keyboard-hint {
+  display: block;
+  margin: 2px 8px 0;
+  font: 11px/1.5 var(--sans);
+  color: #6e7966;
+}
+
+@media (max-width: 600px) {
+  .paragraph-new-caption {
+    display: none;
+  }
+}
+@media (pointer: coarse) {
+  .paragraph-edit-controls :is(.button, .icon) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+.paragraph-content {
+  position: relative;
+}
+.empty-paragraph-remove {
+  position: absolute;
+  right: 4px;
+  top: 2px;
+  color: #885d4c;
+}
+.paragraph-content:has(.empty-paragraph-remove) > p {
+  padding-right: 46px;
+}
+.paragraph-delete-question {
+  font: 13px var(--sans);
+  color: #885d4c;
+  margin-right: 8px;
+}
+.paragraph-edit-controls.confirming-delete {
+  justify-content: flex-end;
+}

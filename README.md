@@ -1,0 +1,218 @@
+# Khosra · খসড়া
+
+Khosra is a private, local-first manuscript workspace for writing and revising books with chat models. It keeps your manuscript, feedback, proposed rewrites and revision history together while you remain in control of every accepted change.
+
+Write and read on desktop or mobile, discuss passages in a connected chat client, then review its suggestions back in Khosra. The application exposes authenticated **Model Context Protocol (MCP)** tools; it does not call model or speech-to-text APIs and needs no provider API key. The current collaboration workflow is designed for ChatGPT. Compatibility with other MCP clients must be verified individually.
+
+## Objective and goals
+
+Khosra gives authors a reliable source of truth outside a chat conversation. Its goals are to:
+
+- Keep current prose, earlier drafts and approved revisions recoverable.
+- Let a model retrieve exact source passages instead of relying on conversation memory.
+- Turn model rewrites into reviewable proposals that require author acceptance.
+- Preserve stable paragraph identities for feedback, references and historical recovery.
+- Support Bengali and English writing, comfortable reading and private reader feedback.
+- Run on ordinary PHP/MySQL hosting, with local editing available without a server connection.
+
+Khosra is currently a **single-owner application**. Guest readers can read and comment on shared snapshots; simultaneous multi-author editing is outside the current scope.
+
+## What you can do
+
+| Area | Features |
+| --- | --- |
+| Organize | Multiple manuscripts, premises, outlines, chapter ordering, optional subsection headings and recoverable chapter Trash |
+| Write | Direct paragraph editing, Word clipboard import, paragraph split/join, autosave and stable references |
+| Review | Passage/chapter flags, before/after/current proposal comparison, editable suggestions and explicit accept/reject |
+| Recover | Immutable revision snapshots, deleted/cleared paragraph restoration, historical reading and full-history archives |
+| Read | Continuous, single-page and two-page layouts; physical page proportions; 8–16pt type with a 14pt default; paper, margins, gestures, progress and fullscreen preferences |
+| Collaborate | Authenticated MCP source/history retrieval, revision-linked proposals and evidence-linked chapter context |
+| Share | Expiring, revocable guest reading links for a whole manuscript or selected chapters, with passage/chapter feedback |
+| Export | Selected manuscript as Markdown text, or the entire local workspace and history as a validated archive |
+
+## Everyday use
+
+### Write and organize
+
+1. Create or open a manuscript in **Library**.
+2. Add chapters through **Contents → Add chapter**, or the plus below the desktop tool rail.
+3. Write directly, or use **Chapter actions → Paste or replace chapter text** to import a draft. Formatted Word clipboard paragraphs are preserved as plain text; plain-text imports offer paragraph-break choices.
+4. Double-click a paragraph, or focus it and press Enter, to edit. Enter starts/splits a paragraph; Shift+Enter inserts a line break. Changes autosave on this device.
+5. Use **Flags** to record feedback and **History** to inspect earlier text or restore deleted passages. Deleted chapters remain in **Contents → Deleted chapters** until restored.
+
+Paragraphs have permanent UUIDs behind readable addresses such as `R1:C1-P1`. Explicit renumbering changes the reference edition, not the paragraph UUID. Use these references when discussing passages with a model; reader page numbers depend on typography.
+
+### Iterate with a chat model
+
+A deployed backend is required for connected collaboration. Once configured:
+
+1. In **Settings**, sign in to your Khosra server and choose **Upload local workspace**.
+2. Connect your chat client to the authenticated MCP endpoint using OAuth. **Copy project instructions** in Settings provides the collaboration guidance.
+3. Ask the model to call `get_khosra_guide`, then `list_books` and `read_chapter` for the intended manuscript and chapter.
+4. Discuss the source and request a focused rewrite. The model saves it through `save_proposal` against the exact source revision.
+5. In Khosra, choose **Download server workspace**, then open **Proposals**. Compare the source and suggestion, edit if needed, and explicitly accept or reject it.
+6. Upload the accepted revision so the next model iteration sees the new source.
+
+**Sync is manual.** Models see the last uploaded workspace, not unsent browser edits. Upload local work before downloading; if both sides changed, preserve a recovery archive and resolve the conflict rather than replacing unreviewed work. Version checks reject stale writes, and retries use durable operation IDs. No MCP tool can accept a proposal or directly overwrite the working manuscript.
+
+The 11 tools cover onboarding, book discovery, references, chapter reads, flags, proposals, history and context. Context can become stale; source text remains authoritative. Saving a proposal does not mean the manuscript has changed.
+
+### Share with trusted readers
+
+Upload the latest workspace, then open **Share for reading** from the desktop rail or Chapter actions. All chapters are selected initially; narrow the selection if needed. Enter a reader label, choose an expiry, create the link and send it yourself. Review feedback and revoke access from the same dialog.
+
+Each link grants access to a fixed snapshot, not future edits or private history, flags and proposals. Create another invitation to share an updated draft. Anyone holding the link can use it; the reader label is not identity verification. Revocation blocks subsequent requests but cannot recall text already copied. Guest reading requires an internet connection.
+
+### Back up and export
+
+Use **Settings → Backups & recovery → Download full archive** regularly and keep a copy outside the browser. To export one manuscript, open it first, then use **Settings → Export this book as text**; the Export section names the selected manuscript.
+
+Restore accepts only the current, checksummed `khosra-archive` format; early prototype exports are unsupported. Browser archives contain workspace history. Guest invitations and reader feedback are stored separately on the server and require a database backup.
+
+## Run locally
+
+Requirements: **Node.js 22.16+** or a compatible current LTS, and npm. No PHP server is needed for local writing and reading.
+
+```sh
+npm ci
+npm run dev
+```
+
+Open the URL printed by Vite. The development server proxies `/api` to `http://127.0.0.1:8081` when a local PHP backend is available. The production application uses same-origin `/api` requests.
+
+Run verification and produce the static build with:
+
+```sh
+npm run typecheck
+npm run lint
+npm test
+npx playwright install chromium
+npm run test:e2e
+npm run build
+npm run test:offline
+```
+
+Playwright may need its browser system dependencies on Linux. Offline verification uses the production build, so build first. Windows users can run the npm commands in PowerShell or Command Prompt.
+
+## Deploy: upload, extract and configure
+
+Khosra works on any HTTPS domain at its document root. Browser requests and the MCP URL shown in Settings follow the current domain; set `origin` in your server config to match. No source-code domain edits are needed.
+
+The simplest installation uses **SQLite**. No database account, SQL import or server-side Node setup is needed.
+
+1. Back up any existing browser manuscripts and server data.
+2. Upload `releases/khosra-0.2.0-upload-extract.zip` into the HTTPS domain document root, extract it there, then remove the uploaded ZIP. Keep the hidden `.htaccess` files.
+3. Rename `khosra.config.example.php` to **`khosra.config.php`** and set your HTTPS `origin` and a unique `owner_password` of at least 16 characters.
+4. Open Khosra → Settings and sign in. The first correct owner sign-in initializes the SQLite tables.
+5. Upload your local workspace, then connect the chat client through OAuth.
+
+Requirements: PHP 8.2+ with **PDO SQLite**, HTTPS and Apache/LiteSpeed support for `.htaccess` and rewrites. The server automatically creates a private data directory outside the website folder. If hosting permissions prevent that, set `data_dir` in the same config to an existing writable directory outside **all** public website roots. There are no API paths to edit.
+
+Updates: back up first, then extract a newer upload-extract ZIP over the same installation. Release archives never contain your real `khosra.config.php` or SQLite data. Keep the same data location. Verify that HTTP requests to `/khosra.config.php` and `/khosra-server/lib.php` are denied, and check the MCP/OAuth routes before connecting a model.
+
+SQLite stores manuscripts, operation history, invitations, reader feedback and OAuth records together. For a complete server backup, pause writes and copy the private data directory, or use a SQLite-consistent backup tool. Browser archives are still useful but exclude invitations and feedback. To move hosts, copy the config and private data securely and set the new `origin`/`data_dir`; do not place the database in the webroot.
+
+**Existing MySQL installation:** it remains supported. Keep the original DSN, credentials and owner password hash in the new config, or continue with the advanced package below. Merely changing a DSN does not migrate data. A workspace archive/upload transfers manuscripts and history to a fresh SQLite installation, but not existing reading links, feedback or OAuth credentials; preserve the original database before switching.
+
+## Advanced deployment: separate private backend / MySQL
+
+Build locally and upload through your hosting provider's FTPS/SFTP tools. Production needs no Node runtime, SSH, queue, cron or WebSockets.
+
+### 1. Check hosting and preserve existing data
+
+You need:
+
+- HTTPS and PHP **8.2+**, with PDO MySQL enabled.
+- MySQL/MariaDB with InnoDB.
+- Apache/LiteSpeed-compatible rewrite, header and access-denial support.
+- A private directory outside **all** public document roots.
+- The `Authorization` request header forwarded to PHP.
+
+Export existing browser data from every device before replacing an installation, and back up the database and previous release. Browser-local drafts are not contained in the server files. Remove obsolete public files when updating; uploading a new release does not remove them automatically.
+
+### 2. Build the deployment package
+
+After the checks above pass:
+
+```sh
+npm run build
+python3 scripts/package.py
+```
+
+On Windows, use `py scripts/package.py`. Two packages are produced with companion SHA-256 checksums: `releases/khosra-0.2.0-upload-extract.zip` for the simpler SQLite flow above, and `releases/khosra-0.2.0-ftp.zip` for this separate-private-directory MySQL layout. Extract it locally:
+
+| Package directory | Destination |
+| --- | --- |
+| `webroot/` contents | Domain document root, including the hidden `.htaccess` file |
+| `private/` contents | Private directory outside every public document root |
+| `database/` | Import through a database administration tool; do not upload publicly |
+| `instructions/` | Deployment/reference documents; keep outside the public webroot |
+
+Never upload the complete ZIP, repository, tests, SQL, backups, real configuration or `node_modules` into the public directory.
+
+### 3. Create and initialize the database
+
+Create a database and restricted application user through the hosting control panel. For a fresh installation, import `database/schema.sql` from the package using phpMyAdmin or an equivalent tool, then run:
+
+```sql
+INSERT IGNORE INTO workspace(id,version,payload) VALUES
+(1,0,'{"schemaVersion":1,"books":[],"chapters":[],"revisions":[],"flags":[],"proposals":[],"contexts":[]}');
+```
+
+For an existing installation that predates guest sharing, back up first and import the additive `database/sharing-upgrade.sql`. Fresh installations already include those tables. Restore workspace and operation-ledger data together; include invitation/session/feedback tables in database backups.
+
+### 4. Configure the private backend
+
+Rename the packaged `private/config.example.php` to `config.php` in the private directory. Configure:
+
+- `dsn`, `db_user` and `db_password` for your database.
+- `owner_password_hash`, generated locally using PHP's `password_hash($password, PASSWORD_DEFAULT)`.
+- `origin`, set to the exact HTTPS origin of your installation.
+- `oauth_redirect_allowlist`, containing the exact callback URI supplied by the intended chat client.
+
+Leave `tool_token_hash` empty for normal OAuth use. Keep passwords and tokens out of browser environment variables, repository files, screenshots and chat messages.
+
+Keep `lib.php`, `guide.php`, `oauth.php` and `sharing.php` together in that private directory. Before uploading, edit the private file paths near the top of `webroot/api/index.php` to match the host. For example:
+
+```php
+require '/home/YOUR_ACCOUNT/khosra-private/lib.php';
+require '/home/YOUR_ACCOUNT/khosra-private/oauth.php';
+require '/home/YOUR_ACCOUNT/khosra-private/sharing.php';
+// Set the existing $file assignment inside the try block:
+$file = '/home/YOUR_ACCOUNT/khosra-private/config.php';
+```
+
+`lib.php` loads `guide.php` from its own directory; no extra public path is needed.
+
+### 5. Upload and verify
+
+Upload the private backend files, then the built `webroot/` contents. Upload static assets before `index.html`, keep frontend/backend versions aligned and refresh author clients after an upgrade. Preserve `.htaccess`; it provides API routing, SPA routes, authorization forwarding and access restrictions.
+
+Before trusting the deployment:
+
+1. Confirm private files and configuration cannot be retrieved over HTTP.
+2. Confirm `/.well-known/oauth-protected-resource` and `/.well-known/oauth-authorization-server` return the expected JSON.
+3. Confirm an unauthenticated request to `/api/mcp` returns **401** with a Bearer authentication challenge, rather than an HTML page or 404.
+4. Sign in through Settings, upload a small workspace, and verify download, logout and a stale-upload conflict.
+5. Connect the actual chat client through OAuth. Verify **guide → read → save proposal → author review/accept → upload → reread**.
+6. Check archive recovery, guest expiry/revocation and offline reload after an initial online load and service-worker activation.
+
+The MCP URL is `https://YOUR_DOMAIN/api/mcp`. It uses stateless Streamable HTTP with JSON responses; GET/SSE streaming is unsupported. OAuth supports discovery, dynamic client registration, owner consent, S256 PKCE, scoped tokens, refresh rotation and revocation. Client/account availability and mobile or voice tool support must be checked in the intended client.
+
+## Privacy and current limits
+
+- Local writing is stored in IndexedDB. Production offline reload requires a successful initial load and service-worker activation; browser storage can be evicted. Keep independent backups.
+- Server sign-in protects remote endpoints, not an existing browser profile. No end-to-end encryption is provided.
+- Connected tool retrieval sends requested source text to the chat provider under that account's data controls. Khosra itself makes no paid model/STT API calls; hosting and any chat subscription remain separate costs.
+- The owner MCP connection can access the uploaded workspace; OAuth is not currently restricted to one manuscript.
+- The server stores a versioned workspace document with a **20 MB request limit**. Large histories may exceed it. Sync is explicit, with conservative conflict checks rather than automatic paragraph-level merging.
+- Prose is plain text with optional subsection headings. Rich inline formatting, EPUB/PDF export and multi-author editing are not implemented.
+- Local automated checks do not establish hosted compatibility or a successful real chat-model connection. In the **2026-10-26 audit**, the configured live domain's MCP and OAuth discovery routes returned **404**; deployment and a real-client pilot were still required.
+
+## Technology
+
+React, TypeScript and Vite provide the interface; Dexie/IndexedDB stores the local workspace. A PHP API with PDO SQLite (or MySQL) handles owner access, synchronization, MCP/OAuth and guest invitations. A service worker caches static application assets and self-hosted fonts, excluding API responses.
+
+## Attribution
+
+The Share glyph is from Microsoft Fluent UI System Icons (MIT); its license ships as `Fluent-UI-System-Icons-LICENSE.txt`. Phosphor Icons and bundled libraries retain their licenses in the production `THIRD-PARTY-NOTICES.txt`. Self-hosted Noto Sans Bengali and Noto Serif Bengali use the SIL Open Font License, included under `public/fonts/`. No font CDN is required.

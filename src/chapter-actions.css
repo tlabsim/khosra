@@ -1,0 +1,209 @@
+.modal.chapter-actions-modal {
+  max-width: 640px;
+  max-height: calc(100dvh - 40px);
+  padding: 26px 28px;
+}
+.chapter-actions-modal h2 {
+  margin: 0 48px 20px 0;
+  line-height: 1.25;
+}
+.chapter-action-list {
+  display: grid;
+}
+.chapter-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 14px 8px;
+  border: 0;
+  border-bottom: 1px solid #daded2;
+  border-radius: 4px;
+  color: #31473d;
+  background: transparent;
+  cursor: pointer;
+  font: 500 14px/1.4 var(--sans);
+}
+.chapter-action:hover {
+  background: #eef1e7;
+}
+.chapter-action > svg {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+.chapter-action > span {
+  flex: 1;
+}
+.chapter-action small {
+  display: block;
+  margin-top: 3px;
+  font: 400 12px/1.5 var(--sans);
+  color: #6d7765;
+}
+.chapter-action .action-chevron {
+  width: 16px;
+  color: #7b8972;
+}
+.chapter-order {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 0;
+}
+.chapter-order h3 {
+  font: 500 13px var(--sans);
+  margin: 0;
+  flex-shrink: 0;
+}
+.chapter-order-buttons {
+  display: flex;
+  gap: 10px;
+  flex: 1;
+}
+.chapter-order-buttons .button {
+  flex: 1;
+  min-height: 44px;
+  padding: 8px;
+}
+.chapter-sections {
+  border-top: 1px solid #daded2;
+}
+.chapter-sections summary {
+  cursor: pointer;
+  padding: 16px 0;
+  font-size: 14px;
+  color: #31473d;
+}
+.chapter-sections summary > span {
+  font: 12px var(--sans);
+  color: #6c7963;
+  margin-left: 8px;
+}
+.chapter-sections > p {
+  margin: 12px 0;
+}
+.chapter-section-list {
+  max-height: 260px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+}
+.chapter-section-list .section-row {
+  padding: 8px 0;
+  align-items: start;
+}
+.chapter-section-list .section-row > span {
+  min-width: 30px;
+  padding-top: 13px;
+}
+.chapter-section-field {
+  min-width: 0;
+  flex: 1;
+}
+.chapter-section-field input {
+  width: 100%;
+}
+.chapter-paragraph-preview {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 12px/1.6 var(--sans);
+  color: #6e7966;
+  margin-top: 5px;
+}
+.chapter-section-list .icon {
+  min-width: 36px;
+  min-height: 44px;
+}
+@media (max-width: 600px) {
+  .modal.chapter-actions-modal {
+    padding: 24px 20px;
+    max-height: calc(100dvh - 24px);
+  }
+  .chapter-action {
+    gap: 10px;
+    padding: 13px 2px;
+  }
+  .chapter-action small {
+    font-size: 12px;
+  }
+}
+
+.chapter-actions-modal .chapter-delete-action {
+  margin-top: 18px;
+  padding: 16px;
+  gap: 18px;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+  background: #f7f1ec;
+  border: 1px solid #e6dcd2;
+  border-radius: 10px;
+}
+.chapter-delete-action h3 {
+  margin: 0 0 5px;
+  font: 500 14px/1.4 var(--sans);
+  color: #614c40;
+}
+.chapter-actions-modal .chapter-delete-action p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #726759;
+}
+.chapter-delete-button {
+  flex-shrink: 0;
+  color: #883e35;
+  border-color: #d4b8ac;
+  background: #fffdf8;
+}
+.chapter-delete-button:hover {
+  background: #f3e4dc;
+  border-color: #b88f7f;
+}
+@media (max-width: 600px) {
+  .chapter-order {
+    display: block;
+    padding: 16px 0;
+  }
+  .chapter-order h3 {
+    margin-bottom: 10px;
+  }
+  .chapter-actions-modal .chapter-delete-action {
+    padding: 14px;
+    gap: 12px;
+  }
+}
+@media (max-width: 360px) {
+  .chapter-actions-modal .chapter-delete-action {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .chapter-delete-button {
+    align-self: flex-end;
+  }
+}
+@media (min-width: 761px) and (max-height: 700px) {
+  .modal.chapter-actions-modal {
+    padding: 20px 26px;
+    max-height: calc(100dvh - 24px);
+  }
+  .chapter-actions-modal h2 {
+    margin-bottom: 12px;
+  }
+  .chapter-action {
+    padding-block: 10px;
+  }
+  .chapter-order {
+    padding-block: 12px;
+  }
+  .chapter-sections summary {
+    padding-block: 12px;
+  }
+  .chapter-actions-modal .chapter-delete-action {
+    margin-top: 12px;
+    padding: 12px 16px;
+  }
+}

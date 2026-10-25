@@ -1,0 +1,338 @@
+.sharing-dialog {
+  width: min(560px, calc(100% - 24px));
+  max-height: calc(100dvh - 40px);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 0;
+  color: #343e34;
+  background: #fffef9;
+  box-shadow: 0 24px 80px #263b2829;
+}
+.sharing-dialog::backdrop {
+  background: #25352655;
+  backdrop-filter: blur(4px);
+}
+.sharing-dialog > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--line);
+}
+.sharing-dialog h2 {
+  margin: 0;
+  font: 25px var(--serif);
+}
+.sharing-body {
+  padding: 24px;
+}
+.sharing-body form {
+  display: grid;
+  gap: 16px;
+}
+.sharing-body label {
+  display: grid;
+  gap: 7px;
+  font-size: 13px;
+  color: #4b6048;
+}
+.sharing-body :is(input:not([type="checkbox"]), select, textarea) {
+  width: 100%;
+  min-width: 0;
+}
+.sharing-fields {
+  display: grid;
+  grid-template-columns: 1fr 140px;
+  gap: 16px;
+}
+.sharing-body .caption {
+  margin: 0;
+  font-size: 12px;
+}
+.sharing-body .text-button {
+  margin-top: 16px;
+  gap: 8px;
+}
+.sharing-body .text-button small {
+  font-weight: 400;
+}
+.sharing-chapters summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: #4b6048;
+}
+.sharing-chapters label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+}
+.sharing-chapters input {
+  width: 16px;
+  height: 16px;
+}
+.sharing-link {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+  padding: 16px;
+  border-radius: 10px;
+  background: #eef2e7;
+}
+.sharing-link small {
+  font-size: 12px;
+  color: #5e6d56;
+}
+.sharing-invitations {
+  margin-top: 28px;
+}
+.sharing-invitations h3,
+.sharing-body > h3 {
+  font: 20px var(--serif);
+  margin-top: 24px;
+}
+.sharing-invitations > article {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding: 14px 0;
+}
+.sharing-invitations strong {
+  font-size: 14px;
+}
+.sharing-invitations small {
+  display: block;
+  color: #657359;
+  font-size: 12px;
+  margin-top: 4px;
+}
+.sharing-invitation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.sharing-error {
+  color: #934d3c;
+  font-size: 13px;
+  margin: 16px 0;
+}
+.reader-comments {
+  width: 100%;
+}
+.reader-comments article {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  margin-top: 16px;
+}
+.reader-comments small {
+  color: #657359;
+  font-size: 12px;
+}
+.reader-comments :is(p, blockquote) {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+.reader-comments blockquote {
+  margin: 10px 0;
+  border-left: 2px solid #ccd4c1;
+  padding-left: 12px;
+  color: #657359;
+}
+.guest-app {
+  min-height: 100dvh;
+}
+.guest-header {
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 4vw;
+  border-bottom: 1px solid var(--line);
+  background: #faf9f3;
+}
+.guest-header .brand {
+  font-size: 29px;
+  margin: 0;
+}
+.guest-header h1 {
+  font: 20px var(--serif);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.guest-header > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.guest-header select {
+  max-width: 220px;
+}
+.guest-app .reader-page {
+  margin-left: auto;
+  margin-right: auto;
+}
+.guest-message {
+  text-align: center;
+  max-width: 600px;
+  margin: 12vh auto;
+  padding: 24px;
+}
+.guest-message h2 {
+  font: 30px var(--serif);
+}
+@media (max-width: 600px) {
+  .sharing-fields {
+    grid-template-columns: 1fr 120px;
+    gap: 12px;
+  }
+  .sharing-body {
+    padding: 20px;
+  }
+  .guest-header {
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px;
+  }
+  .guest-header .brand {
+    font-size: 25px;
+  }
+  .guest-header h1 {
+    max-width: calc(100% - 130px);
+    font-size: 17px;
+  }
+  .guest-header > div {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .guest-header select {
+    max-width: 65%;
+  }
+}
+.sharing-connection-state > svg {
+  color: #68785d;
+  margin-bottom: 12px;
+}
+.sharing-connection-state h3,
+.sharing-signin-intro h3 {
+  font: 21px/1.35 var(--serif);
+  margin: 0 0 10px;
+}
+.sharing-connection-state p,
+.sharing-signin-intro p {
+  font-size: 14px;
+  line-height: 1.65;
+  color: #53674c;
+  margin: 0 0 14px;
+}
+.sharing-connection-state .button-row {
+  margin-top: 22px;
+}
+.sharing-signin-intro p {
+  margin: 0;
+}
+.manuscript-sharing-dialog {
+  width: min(600px, calc(100% - 24px));
+}
+.manuscript-sharing-dialog > header {
+  padding: 20px 26px;
+}
+.manuscript-sharing-dialog .sharing-body {
+  padding: 22px 26px 26px;
+}
+.sharing-manuscript {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 20px 26px 0;
+  padding: 16px;
+  border-radius: 10px;
+  background: #f1f3eb;
+}
+.sharing-book-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 48px;
+  flex-shrink: 0;
+  border: 1px solid #d4ddca;
+  border-radius: 5px 9px 9px 5px;
+  background: #fffef9;
+  color: #466749;
+}
+.sharing-manuscript > div {
+  min-width: 0;
+}
+.sharing-manuscript strong {
+  display: block;
+  overflow-wrap: anywhere;
+  font: 500 20px/1.4 var(--serif);
+  color: #304c38;
+}
+.sharing-manuscript > div > span {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #617254;
+}
+.sharing-connection-state {
+  padding: 18px;
+  border: 1px solid #e0e5d7;
+  border-radius: 10px;
+}
+.sharing-state-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  color: #607453;
+}
+.sharing-state-heading h3 {
+  font: 500 18px/1.4 var(--serif);
+  margin: 0;
+  color: #3c5037;
+}
+.sharing-connection-state p {
+  font-size: 13px;
+}
+.sharing-connection-state .button-row {
+  gap: 8px;
+  margin-top: 16px;
+}
+.sharing-scope-actions {
+  display: flex;
+  gap: 18px;
+  padding: 10px 0 4px;
+}
+.sharing-scope-actions button {
+  background: transparent;
+  border: 0;
+  padding: 5px 0;
+  color: #37634d;
+  font-size: 12px;
+  cursor: pointer;
+}
+@media (max-width: 600px) {
+  .manuscript-sharing-dialog > header {
+    padding: 18px 20px;
+  }
+  .manuscript-sharing-dialog .sharing-body {
+    padding: 18px 20px 20px;
+  }
+  .sharing-manuscript {
+    margin: 16px 20px 0;
+    padding: 12px;
+  }
+  .sharing-manuscript strong {
+    font-size: 18px;
+  }
+  .sharing-connection-state {
+    padding: 14px;
+  }
+}
