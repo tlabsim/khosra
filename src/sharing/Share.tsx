@@ -15,12 +15,14 @@ import {
 import Dialog from "./Dialog";
 import Comments from "./Comments";
 export default function Share({
+  centralized = false,
   book,
   chapters,
   onClose,
   onSettings,
   onConnected,
 }: {
+  centralized?: boolean;
   book: Book;
   chapters: Chapter[];
   onClose: () => void;
@@ -150,7 +152,9 @@ export default function Share({
           </div>
           <p>
             {notConfigured
-              ? "Set up Khosra on your server, then upload your manuscript to create reading links."
+              ? centralized
+                ? "Configure this Khosra server and sign in before creating reading links."
+                : "Set up Khosra on your server, then upload your manuscript to create reading links."
               : "We couldn’t reach your Khosra sharing service. Try again or check your server settings."}
           </p>
           <p className="caption">You can keep writing on this device.</p>
@@ -446,7 +450,12 @@ export default function Share({
       )}
       {connection === "ready" && (
         <button className="text-button" onClick={onSettings}>
-          Server settings<small>Upload the latest manuscript</small>
+          {centralized ? "Workspace settings" : "Server settings"}
+          <small>
+            {centralized
+              ? "Check server save status"
+              : "Upload the latest manuscript"}
+          </small>
         </button>
       )}
       {connection === "signin" && (

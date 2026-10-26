@@ -1,0 +1,171 @@
+.workspace-access {
+  min-height: 100dvh;
+  padding: 32px clamp(24px, 6vw, 88px) 64px;
+  background: #f7f6f0;
+}
+.access-masthead {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+.access-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -1px;
+  color: #34463b;
+}
+.access-brand svg {
+  color: var(--green);
+}
+.access-host {
+  color: #667060;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+.access-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+  max-width: 440px;
+  margin: clamp(48px, 9vh, 88px) auto 0;
+}
+.access-intro h1 {
+  font: 400 42px/1.15 var(--serif);
+  letter-spacing: -1px;
+  color: #303e33;
+  margin: 0 0 14px;
+}
+.access-intro p {
+  font-size: 16px;
+  line-height: 1.7;
+  color: #596654;
+  margin: 0;
+}
+.access-controls form {
+  display: grid;
+  gap: 12px;
+}
+.access-controls label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #3b4c3f;
+}
+.access-controls input {
+  width: 100%;
+  min-height: 50px;
+  border-radius: 3px;
+  background: #fffef9;
+  border-color: #aeb8a6;
+}
+.access-controls .button {
+  min-height: 48px;
+  border-radius: 3px;
+  box-shadow: none;
+  font-size: 14px;
+  padding: 12px 20px;
+}
+.access-controls form > .primary {
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.access-controls .caption {
+  border-top: 1px solid var(--line);
+  margin: 16px 0 0;
+  padding-top: 20px;
+  font-size: 13px;
+  line-height: 1.75;
+  color: #667060;
+}
+.access-controls > p {
+  margin: 0 0 24px;
+  line-height: 1.75;
+  color: #52604f;
+}
+.access-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+.access-actions .button:not(.primary) {
+  background: transparent;
+  border-color: transparent;
+  justify-content: flex-start;
+  padding-left: 0;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+@media (max-width: 680px) {
+  .workspace-access {
+    padding: 24px 24px 48px;
+  }
+  .access-masthead {
+    align-items: baseline;
+    padding-bottom: 22px;
+  }
+  .access-brand {
+    font-size: 26px;
+  }
+  .access-host {
+    font-size: 12px;
+    max-width: 45%;
+  }
+  .access-layout {
+    margin-top: 40px;
+  }
+  .access-intro p {
+    font-size: 15px;
+  }
+}
+.desk-header .server-sync {
+  position: relative;
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+}
+.desk-header .topbar-actions > .server-sync.is-saved {
+  color: #587a5e;
+}
+.desk-header .topbar-actions > .server-sync.is-warning {
+  color: #884534;
+  background: #fcf4ed;
+}
+.server-sync-message {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: #fffef9;
+  color: #465943;
+  font: 13px/1.6 var(--sans);
+  text-align: left;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+}
+.server-sync:hover .server-sync-message,
+.server-sync:focus .server-sync-message {
+  opacity: 1;
+}
+.server-sync.is-saving > svg {
+  animation: save-status-spin 1s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .server-sync.is-saving > svg {
+    animation: none;
+  }
+}

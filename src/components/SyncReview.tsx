@@ -5,10 +5,12 @@ export default function SyncReview({
   local,
   remote,
   onMerge,
+  automatic = false,
 }: {
   local: State;
   remote: State;
   onMerge: (state: State) => void;
+  automatic?: boolean;
 }) {
   const [choices, setChoices] = useState<Choices>({});
   let original: ReturnType<typeof reconcile>,
@@ -66,8 +68,10 @@ export default function SyncReview({
       )}
       <p className="caption">
         Completed server proposal decisions are retained; local flag statuses
-        are retained. This merges locally; upload afterwards to save the result
-        on the server.
+        are retained.{" "}
+        {automatic
+          ? "Server saving resumes automatically after review."
+          : "This merges locally; upload afterwards to save the result on the server."}
       </p>
       <button
         className="button primary"

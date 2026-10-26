@@ -6,12 +6,12 @@ function shareToken():string{return rtrim(strtr(base64_encode(random_bytes(32)),
 function sharePreview(string $text):string{preg_match('/^.{0,240}/us',$text,$m);return $m[0]??'';}
 function shareSnapshot(array $s,array $body):array{
  $book=record($s['books'],shareReference($body['bookId']??null));
- if(($body['title']??null)!==$book['title']||($body['language']??null)!==$book['language'])fail(409,'Upload the latest manuscript in Settings before sharing.');
+ if(($body['title']??null)!==$book['title']||($body['language']??null)!==$book['language'])fail(409,'Sync the current manuscript with the server before sharing.');
  $selected=$body['chapters']??null;if(!is_array($selected)||!count($selected)||count($selected)>1000)fail(422,'Select at least one chapter.');
  $chapters=array_values(array_filter($s['chapters'],fn($c)=>$c['bookId']===$book['id']&&empty($c['deletedAt'])));usort($chapters,fn($a,$b)=>$a['position']<=>$b['position']);
  $requested=[];foreach($selected as $item){if(!is_array($item)||!idvalid($item['id']??null)||isset($requested[$item['id']]))fail(422,'Invalid chapter selection.');$requested[$item['id']]=$item;}
- $out=[];foreach($chapters as $number=>$c){if(!isset($requested[$c['id']]))continue;$expected=$requested[$c['id']];if(($expected['headId']??null)!==$c['headId']||($expected['title']??null)!==$c['title'])fail(409,'Upload the latest manuscript in Settings before sharing.');$r=record($s['revisions'],$c['headId']);$out[]=['id'=>$c['id'],'title'=>$c['title'],'number'=>$number+1,'revisionId'=>$r['id'],'paragraphs'=>array_map(fn($p)=>['id'=>$p['id'],'label'=>$p['label'],'text'=>$p['text'],'section'=>$p['section']??''],$r['paragraphs'])];}
- if(count($out)!==count($selected))fail(409,'Selected chapters are not uploaded. Upload the latest manuscript in Settings.');
+ $out=[];foreach($chapters as $number=>$c){if(!isset($requested[$c['id']]))continue;$expected=$requested[$c['id']];if(($expected['headId']??null)!==$c['headId']||($expected['title']??null)!==$c['title'])fail(409,'Sync the current manuscript with the server before sharing.');$r=record($s['revisions'],$c['headId']);$out[]=['id'=>$c['id'],'title'=>$c['title'],'number'=>$number+1,'revisionId'=>$r['id'],'paragraphs'=>array_map(fn($p)=>['id'=>$p['id'],'label'=>$p['label'],'text'=>$p['text'],'section'=>$p['section']??''],$r['paragraphs'])];}
+ if(count($out)!==count($selected))fail(409,'Selected chapters are not saved on the server. Sync the current manuscript before sharing.');
  return ['title'=>$book['title'],'language'=>$book['language'],'chapters'=>$out];
 }
 function shareSummary(array $r):array{return ['id'=>$r['id'],'recipient'=>$r['recipient'],'bookId'=>$r['book_id'],'title'=>$r['book_title'],'chapterCount'=>(int)$r['chapter_count'],'createdAt'=>(int)$r['created_at'],'expiresAt'=>(int)$r['expires_at'],'revokedAt'=>$r['revoked_at']===null?null:(int)$r['revoked_at']];}

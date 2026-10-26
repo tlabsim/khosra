@@ -14,6 +14,7 @@ self.addEventListener("install", (event) =>
       await cache.addAll([
         "/",
         "/manifest.webmanifest",
+        "/favicon.svg?v=3",
         "/fonts/NotoSerifBengali.ttf",
         "/fonts/NotoSansBengali.ttf",
         ...assets,
@@ -45,7 +46,8 @@ self.addEventListener("fetch", (event) => {
     url.pathname === "/index.html" ||
     url.pathname.startsWith("/assets/") ||
     url.pathname.startsWith("/fonts/") ||
-    url.pathname === "/manifest.webmanifest"
+    url.pathname === "/manifest.webmanifest" ||
+    url.pathname === "/favicon.svg"
   ))
     return;
   event.respondWith(

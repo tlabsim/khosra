@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+- Refreshed the favicon from the latest supplied logomark and advanced its cache version for the fresh upload release.
+
+- Show HTTP status and structured server errors when opening a hosted workspace fails, instead of reporting every API failure as a connection problem. Retained recovery and offline behavior.
+
+- Fixed release ZIP permissions: files now extract as 0644 and explicit directories as 0755. Previously generated .htaccess files were 0600 and unreadable by LiteSpeed, while Windows-mounted source files inherited 0777. Added existing-installation recovery guidance.
+
+- Moved hosted sync status into the header tools, removing the separate strip and its overlap with workspace navigation. Retained retry, conflict review and accessible status messages.
+
+- Added the supplied SVG logomark as the browser favicon and cached it for offline use. Updated to the brighter supplied artwork for dark browser tabs.
+
+- Replaced the English header wordmark with the supplied Bengali SVG in the owner workspace, sign-in and guest reader, using the earlier logo text color.
+
+- Simplified sign-in to a compact, centered single-column form with the heading and status directly above the password field.
+
+- Added a sign-out icon and a lightly tinted, outlined button to make the session action easier to find.
+
+- Redesigned sign-in and Settings & connections with a flat editorial layout, open sections, fine rules, plain icons and more legible text. Removed rounded card containers and shortened explanatory copy while retaining all controls and behavior.
+
+- Made hosted workspaces server-central: required sign-in, automatic saves, cross-device/model refresh, explicit adoption of existing browser drafts, conflict review, offline recovery and stale-tab protection. Replaced optional Private server controls with Workspace & sign-in and Sync now. Updated MCP onboarding and deployment guidance.
+
 - Removed the early browser-prototype importer and automatic prototype-format detection. Archive restore now accepts only validated current Khosra archives. Updated deployment guidance and rejection coverage while retaining current workspace history and attachment data.
 
 - Removed fixed deployment-domain assumptions. Settings displays/copies the current origin’s MCP URL; templates, package instructions and connection documentation are generic. Added browser coverage on two alternate HTTPS origins, including a custom port, and configured-origin OAuth metadata checks.

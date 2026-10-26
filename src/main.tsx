@@ -22,6 +22,7 @@ import {
 } from "./domain/paragraphEditing";
 import PasteChapter from "./components/PasteChapter";
 import Settings from "./components/Settings";
+import AppLogo from "./components/AppLogo";
 import WorkspaceNav from "./components/WorkspaceNav";
 import Reader from "./reader/Reader";
 import Library from "./components/Library";
@@ -90,6 +91,14 @@ import {
   db,
 } from "./storage/db";
 import * as server from "./sync/client";
+import {
+  DeviceSaveError,
+  HostedWorkspace,
+  type HostedStatus,
+} from "./sync/hosted";
+import WorkspaceAccess from "./components/WorkspaceAccess";
+import "./hosted.css";
+const hosted = import.meta.env.PROD;
 import "./style.css";
 import "./desk.css";
 import "./settings.css";
@@ -123,6 +132,14 @@ function App() {
     [proposalId, setProposalId] = useState(""),
     [scrolled, setScrolled] = useState(false),
     [serverReady, setServerReady] = useState(false);
+  const [hostedStatus, setHostedStatus] = useState<HostedStatus>({
+    phase: "checking",
+    message: "Opening your workspace…",
+  });
+  const central = useRef<HostedWorkspace | null>(null);
+  const syncBlocked = useRef(false);
+  syncBlocked.current = !!editing || !!modal || shareOpen;
+  const localSaveError = useRef<unknown>(null);
   const [incoming, setIncoming] = useState<{
     state: State;
     version: string;
@@ -151,6 +168,7 @@ function App() {
         setLoaded(true);
       })
       .catch((e) => {
+        localSaveError.current = e;
         setError(String(e));
         setLoaded(true);
       });
@@ -162,6 +180,99 @@ function App() {
       window.removeEventListener("offline", on);
     };
   }, []);
+  useEffect(() => {
+    if (!loaded || !hosted) return;
+    const controller = new HostedWorkspace({
+      local: () => latest.current,
+      persist: async () => {
+        for (;;) {
+          await writeQueue.current;
+          if (localSaveError.current)
+            throw new DeviceSaveError(String(localSaveError.current));
+          const expected = latest.current,
+            queue = writeQueue.current;
+          const cached = await db.workspace.get("owner");
+          // A keystroke may have queued another local save while IndexedDB was reading.
+          if (expected !== latest.current || queue !== writeQueue.current)
+            continue;
+          if (
+            cached &&
+            JSON.stringify(validateState(cached.state)) !==
+              JSON.stringify(expected)
+          ) {
+            const error = new DeviceSaveError(
+              "Another tab updated this device’s workspace. Download a device backup if needed, then reload this page.",
+            );
+            localSaveError.current = error;
+            throw error;
+          }
+          return;
+        }
+      },
+      canApply: () => !syncBlocked.current,
+      apply: async (next, expected) => {
+        if (JSON.stringify(latest.current) !== expected || syncBlocked.current)
+          return false;
+        latest.current = next;
+        setState(next);
+        writeQueue.current = writeQueue.current.then(() => saveState(next));
+        try {
+          await writeQueue.current;
+        } catch (error) {
+          localSaveError.current = error;
+          throw new DeviceSaveError(
+            "The device copy could not be saved. Download a backup, then reload this page.",
+          );
+        }
+        return true;
+      },
+      baseline: async () => (await db.meta.get("serverState"))?.value,
+      acknowledge: async (remote) => {
+        await db.transaction("rw", db.meta, async () => {
+          await db.meta.put({ id: "serverVersion", value: remote.version });
+          await db.meta.put({
+            id: "serverState",
+            value: JSON.stringify(remote.state),
+          });
+        });
+      },
+      session: () => server.request("session"),
+      login: server.login,
+      logout: () => server.request("logout", {}),
+      pull: server.pull,
+      push: server.push,
+      conflict: (remote) => {
+        setEditing(null);
+        setIncoming(remote);
+        setModal("syncConflict");
+      },
+      status: (next) => {
+        setHostedStatus(next);
+        setServerReady(next.phase === "ready" || next.phase === "adopt");
+      },
+    });
+    central.current = controller;
+    void controller.start();
+    const refresh = () => {
+      if (
+        document.visibilityState === "visible" &&
+        !["login", "adopt", "checking"].includes(controller.status.phase)
+      )
+        void controller.retry();
+    };
+    const interval = setInterval(refresh, 10000);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("online", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      controller.stop();
+      central.current = null;
+      clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [loaded]);
   useEffect(() => {
     if (!notice) return;
     const timer = setTimeout(() => setNotice(""), 4500);
@@ -209,11 +320,16 @@ function App() {
       setSaveStatus("Saving locally…");
       writeQueue.current = writeQueue.current
         .then(() => saveState(next))
-        .then(() => setSaveStatus("Saved on this device"))
+        .then(() => {
+          localSaveError.current = null;
+          setSaveStatus("Saved on this device");
+        })
         .catch((e) => {
+          localSaveError.current = e;
           setSaveStatus("Save failed — export a backup");
           setError(String(e));
         });
+      central.current?.notify();
     } catch (e) {
       setError(String(e));
     }
@@ -234,6 +350,7 @@ function App() {
     }
   }
   function choose(c: Chapter) {
+    finishActiveParagraph();
     setChapterId(c.id);
     setHistoricalId("");
     setEditing(null);
@@ -241,6 +358,7 @@ function App() {
     setSelection({ ids: [], quote: "" });
   }
   function openBook(b: Book) {
+    finishActiveParagraph();
     setBookId(b.id);
     const first = latest.current.chapters
       .filter((c) => c.bookId === b.id && !c.deletedAt)
@@ -283,6 +401,12 @@ function App() {
         `Author session ${session.current.ids[0]}`,
       ),
     );
+  }
+  function finishActiveParagraph() {
+    if (!editing || !current) return;
+    const paragraph = current.paragraphs.find((p) => p.id === editing);
+    if (paragraph) finishParagraph(paragraph);
+    else setEditing(null);
   }
   function finishParagraph(p: Paragraph) {
     if (editTimer.current) clearTimeout(editTimer.current);
@@ -351,6 +475,30 @@ function App() {
       quote: sel.toString(),
     });
   }
+  async function openSharing() {
+    try {
+      if (editing && current) {
+        const paragraph = current.paragraphs.find((p) => p.id === editing);
+        if (paragraph) finishParagraph(paragraph);
+      }
+      setModal("");
+      syncBlocked.current = false;
+      if (hosted && central.current) {
+        await central.current.sync();
+        if (central.current.status.phase !== "ready") return;
+        const saved = (await db.meta.get("serverState"))?.value;
+        if (saved !== JSON.stringify(latest.current)) {
+          setError(
+            "Wait until this workspace is saved to the server before creating a reading link.",
+          );
+          return;
+        }
+      }
+      setShareOpen(true);
+    } catch (error) {
+      setError(String(error));
+    }
+  }
   async function upload() {
     try {
       await writeQueue.current;
@@ -369,7 +517,8 @@ function App() {
     }
   }
   async function backup() {
-    await writeQueue.current;
+    finishActiveParagraph();
+    await writeQueue.current.catch(() => undefined);
     download(
       await exportBackup(latest.current),
       "khosra-" + new Date().toISOString().slice(0, 10) + ".json",
@@ -461,6 +610,7 @@ function App() {
     setSidebar(false);
   }
   function changeView(v: View) {
+    finishActiveParagraph();
     if (v === "settings") {
       if (view === "settings" && !libraryOpen && !reading) {
         leaveSettings();
@@ -491,6 +641,29 @@ function App() {
         <p>Opening your writing room…</p>
       </div>
     );
+  if (hosted && hostedStatus.phase !== "ready")
+    return (
+      <WorkspaceAccess
+        status={hostedStatus}
+        onLogin={async (password) => {
+          await central.current?.start(password);
+        }}
+        onRetry={() =>
+          localSaveError.current
+            ? window.location.reload()
+            : void central.current?.start()
+        }
+        onAdopt={() =>
+          void central.current?.adopt().catch((e) => setError(String(e)))
+        }
+        onOffline={() => void central.current?.offline()}
+        onBackup={() => void backup().catch((e) => setError(String(e)))}
+      />
+    );
+  const displaySaveStatus =
+    hosted && !saveStatus.startsWith("Save failed")
+      ? hostedStatus.message
+      : saveStatus;
   return (
     <div className={"app " + (reading ? "reading" : "")}>
       {sidebar && book && !reading && !libraryOpen && (
@@ -572,6 +745,7 @@ function App() {
             <button
               className="contents-library"
               onClick={() => {
+                finishActiveParagraph();
                 setLibraryOpen(true);
                 setReading(false);
                 setSidebar(false);
@@ -594,15 +768,13 @@ function App() {
               aria-label="Khosra library"
               onClick={(e) => {
                 e.preventDefault();
+                finishActiveParagraph();
                 setLibraryOpen(true);
                 setReading(false);
                 setSidebar(false);
               }}
             >
-              <span className="brand-mark">
-                <Leaf size={23} weight="fill" />
-              </span>
-              khosra<span className="brand-dot">.</span>
+              <AppLogo />
             </a>
             <button
               className={
@@ -615,6 +787,7 @@ function App() {
                   : undefined
               }
               onClick={() => {
+                finishActiveParagraph();
                 setLibraryOpen(true);
                 setReading(false);
                 setSidebar(false);
@@ -651,22 +824,55 @@ function App() {
             </div>
           )}
           <div className="topbar-actions">
-            {!reading && book && !libraryOpen && (
+            {hosted && (
+              <button
+                className={`icon server-sync ${displaySaveStatus === "Saved to server" ? "is-saved" : displaySaveStatus.startsWith("Saving") ? "is-saving" : "is-warning"}`}
+                aria-label={
+                  hostedStatus.conflict ? "Review changes" : "Sync now"
+                }
+                title={displaySaveStatus}
+                onClick={() =>
+                  hostedStatus.conflict
+                    ? central.current?.reviewAgain()
+                    : void central.current?.retry()
+                }
+              >
+                {displaySaveStatus === "Saved to server" ? (
+                  <Check size={18} aria-hidden="true" />
+                ) : displaySaveStatus.startsWith("Saving") ? (
+                  <SpinnerGap size={18} aria-hidden="true" />
+                ) : (
+                  <WarningCircle size={18} aria-hidden="true" />
+                )}
+                <span
+                  className="server-sync-message"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  {displaySaveStatus}
+                  {hostedStatus.conflict && " — Review changes"}
+                </span>
+              </button>
+            )}
+            {!hosted && !reading && book && !libraryOpen && (
               <span
-                className={`saved ${saveStatus === "Saved on this device" ? "is-saved" : saveStatus.startsWith("Saving") ? "is-saving" : "is-failed"}`}
+                className={`saved ${["Saved on this device", "Saved to server"].includes(displaySaveStatus) ? "is-saved" : displaySaveStatus.startsWith("Saving") ? "is-saving" : "is-failed"}`}
                 tabIndex={0}
                 role="status"
                 aria-live="polite"
                 aria-atomic="true"
               >
-                {saveStatus === "Saved on this device" ? (
+                {["Saved on this device", "Saved to server"].includes(
+                  displaySaveStatus,
+                ) ? (
                   <Check size={16} aria-hidden="true" />
-                ) : saveStatus.startsWith("Saving") ? (
+                ) : displaySaveStatus.startsWith("Saving") ? (
                   <SpinnerGap size={16} aria-hidden="true" />
                 ) : (
                   <WarningCircle size={16} aria-hidden="true" />
                 )}
-                <span className="saved-label">{saveStatus}</span>
+                <span className="saved-label">{displaySaveStatus}</span>
               </span>
             )}
             {!online && <span className="offline-status">Offline</span>}
@@ -693,6 +899,7 @@ function App() {
                 className={reading ? "button workspace-return" : "button quiet"}
                 aria-label={reading ? "Back to workspace" : "Read"}
                 onClick={() => {
+                  finishActiveParagraph();
                   setReading(!reading);
                   setEditing(null);
                   setSidebar(false);
@@ -710,7 +917,7 @@ function App() {
         </header>
         {!reading && book && !libraryOpen && view !== "settings" && (
           <WorkspaceNav
-            onShare={() => setShareOpen(true)}
+            onShare={() => void openSharing()}
             onAddChapter={() => setModal("chapter")}
             current={view}
             onChange={(id) => changeView(id as View)}
@@ -765,12 +972,25 @@ function App() {
             onBack={leaveSettings}
             bookTitle={book?.title}
             serverReady={serverReady}
+            centralized={hosted}
+            syncMessage={hostedStatus.message}
             onConnect={async (password) => {
               await server.login(password);
               setServerReady(true);
               setNotice("Connected to private server");
             }}
             onDisconnect={() => {
+              if (hosted) {
+                void central.current
+                  ?.signOut()
+                  .then(() => {
+                    setModal("");
+                    setIncoming(null);
+                    setEditing(null);
+                  })
+                  .catch((e) => setError(String(e)));
+                return;
+              }
               void server
                 .request("logout", {})
                 .then(() => {
@@ -779,8 +999,16 @@ function App() {
                 })
                 .catch((e) => setError(String(e)));
             }}
-            onUpload={() => void upload()}
-            onPull={() => setModal("pull")}
+            onUpload={() =>
+              hosted
+                ? hostedStatus.conflict
+                  ? central.current?.reviewAgain()
+                  : void central.current?.retry()
+                : void upload()
+            }
+            onPull={() =>
+              hosted ? void central.current?.retry() : setModal("pull")
+            }
             onBackup={() => void backup().catch((e) => setError(String(e)))}
             onRestore={() => importRef.current?.click()}
             onExport={() =>
@@ -1244,7 +1472,7 @@ function App() {
                     <div className="paper-end">❧</div>
                   </article>
                   <div className="document-footer">
-                    <span>{saveStatus}</span>
+                    <span>{displaySaveStatus}</span>
                     <span>
                       {words.toLocaleString()} words ·{" "}
                       {book.language === "bn" ? "বাংলা" : "English"}
@@ -1790,6 +2018,7 @@ function App() {
       )}
       {shareOpen && book && (
         <Share
+          centralized={hosted}
           onConnected={() => setServerReady(true)}
           book={book}
           chapters={chapters}
@@ -2085,10 +2314,7 @@ function App() {
                   </button>
                   <button
                     className="chapter-action"
-                    onClick={() => {
-                      setModal("");
-                      setShareOpen(true);
-                    }}
+                    onClick={() => void openSharing()}
                   >
                     <ShareIcon />
                     <span>
@@ -2402,11 +2628,21 @@ function App() {
             )}
             {modal === "syncConflict" && incoming && (
               <SyncReview
+                automatic={hosted}
                 local={state}
                 remote={incoming.state}
                 onMerge={(merged) => {
                   void (async () => {
                     await backup();
+                    if (hosted && central.current) {
+                      const remote = incoming;
+                      setIncoming(null);
+                      setModal("");
+                      syncBlocked.current = false;
+                      await central.current.resolve(merged, remote);
+                      setNotice("Changes reconciled and server save resumed.");
+                      return;
+                    }
                     await db.meta.put({
                       id: "serverVersion",
                       value: incoming.version,

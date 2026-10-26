@@ -10,12 +10,15 @@ import { ChatCircleText } from "@phosphor-icons/react/dist/csr/ChatCircleText";
 import { Archive } from "@phosphor-icons/react/dist/csr/Archive";
 import { Copy } from "@phosphor-icons/react/dist/csr/Copy";
 import { FileText } from "@phosphor-icons/react/dist/csr/FileText";
+import { SignOut } from "@phosphor-icons/react/dist/csr/SignOut";
 
 export default function Settings({
   backLabel,
   onBack,
   bookTitle,
   serverReady,
+  centralized = false,
+  syncMessage = "",
   onConnect,
   onDisconnect,
   onUpload,
@@ -30,6 +33,8 @@ export default function Settings({
   onBack: () => void;
   bookTitle?: string;
   serverReady: boolean;
+  centralized?: boolean;
+  syncMessage?: string;
   onConnect: (password: string) => Promise<void>;
   onDisconnect: () => void;
   onUpload: () => void;
@@ -72,15 +77,25 @@ export default function Settings({
             <span className="settings-panel-icon">
               <Cloud size={22} />
             </span>
-            <h2 id="server-heading">Private server</h2>
+            <h2 id="server-heading">
+              {centralized ? "Workspace & sign-in" : "Private server"}
+            </h2>
             <span
               className={`settings-connection-state ${serverReady ? "connected" : ""}`}
             >
               <i />
-              {serverReady ? "Connected" : "Not connected"}
+              {serverReady
+                ? centralized
+                  ? "Signed in"
+                  : "Connected"
+                : "Not connected"}
             </span>
           </div>
-          <p>Keep a copy on your server and exchange revisions with ChatGPT.</p>
+          <p>
+            {centralized
+              ? "Your manuscripts save automatically and stay in sync across your signed-in devices."
+              : "Keep a copy on your server and exchange revisions with ChatGPT."}
+          </p>
           {!serverReady ? (
             <form className="settings-login" onSubmit={(e) => void connect(e)}>
               <label htmlFor="owner-password">Owner password</label>
@@ -107,7 +122,8 @@ export default function Settings({
             <div className="settings-session">
               <span>Signed in to your private workspace</span>
               <button className="settings-text-button" onClick={onDisconnect}>
-                Disconnect
+                <SignOut size={18} aria-hidden="true" />
+                {centralized ? "Sign out" : "Disconnect"}
               </button>
             </div>
           )}
@@ -118,16 +134,23 @@ export default function Settings({
               onClick={onUpload}
             >
               <UploadSimple size={18} />
-              Upload local workspace
+              {centralized ? "Sync now" : "Upload local workspace"}
             </button>
-            <button className="button" disabled={!serverReady} onClick={onPull}>
-              <DownloadSimple size={18} />
-              Download server workspace
-            </button>
+            {!centralized && (
+              <button
+                className="button"
+                disabled={!serverReady}
+                onClick={onPull}
+              >
+                <DownloadSimple size={18} />
+                Download server workspace
+              </button>
+            )}
           </div>
           <p className="settings-note">
-            Sync is manual. Download after ChatGPT saves a proposal. Conflicting
-            changes are kept for review.
+            {centralized
+              ? `${syncMessage}. Incoming changes from other devices and ChatGPT refresh automatically.`
+              : "Sync is manual. Download after ChatGPT saves a proposal. Conflicting changes are kept for review."}
           </p>
         </section>
         <section className="settings-panel" aria-labelledby="chatgpt-heading">
@@ -138,8 +161,8 @@ export default function Settings({
             <h2 id="chatgpt-heading">ChatGPT</h2>
           </div>
           <p>
-            Read passages and save proposed rewrites from your conversation. You
-            approve changes in Khosra.
+            Connect your chat client to read passages and save proposals for
+            your review.
           </p>
           <div className="settings-endpoint">
             <span>Connection URL</span>

@@ -54,8 +54,9 @@ export async function pull() {
   const data = await request("workspace");
   return { state: validateState(data.state), version: String(data.version) };
 }
-export async function push(state: State) {
-  const base = (await db.meta.get("serverVersion"))?.value || "0";
+export async function push(state: State, expectedVersion?: string) {
+  const base =
+    expectedVersion ?? (await db.meta.get("serverVersion"))?.value ?? "0";
   const serialized = JSON.stringify(state);
   const pending = await db.meta.get("pendingPush");
   let operationId = uid();

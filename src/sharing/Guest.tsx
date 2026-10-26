@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import AppLogo from "../components/AppLogo";
 import { z } from "zod";
 import { ChatCircleText } from "@phosphor-icons/react/dist/csr/ChatCircleText";
 import Reader from "../reader/Reader";
@@ -167,7 +168,7 @@ export default function Guest() {
     <div className="guest-app">
       <header className="guest-header">
         <span className="brand">
-          khosra<span className="brand-dot">.</span>
+          <AppLogo />
         </span>
         <h1>{session?.title || "Private reading"}</h1>
         {session && (

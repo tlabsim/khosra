@@ -6,6 +6,31 @@ import { chromium } from "playwright";
 const root = resolve("dist");
 const server = createServer(async (req, res) => {
   try {
+    if (req.url === "/api/session" || req.url === "/api/workspace") {
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+      });
+      res.end(
+        JSON.stringify(
+          req.url === "/api/session"
+            ? { csrf: "offline-test" }
+            : {
+                version: 0,
+                state: {
+                  schemaVersion: 1,
+                  books: [],
+                  chapters: [],
+                  revisions: [],
+                  flags: [],
+                  proposals: [],
+                  contexts: [],
+                },
+              },
+        ),
+      );
+      return;
+    }
     const url = new URL(req.url, "http://localhost");
     const path = resolve(
       root,
@@ -45,6 +70,9 @@ try {
   });
   await context.setOffline(true);
   await page.reload();
+  await page
+    .getByRole("button", { name: "Open cached workspace offline" })
+    .click();
   await page.getByRole("button", { name: "Begin a manuscript" }).waitFor();
   const cached = await page.evaluate(async () => {
     const names = await caches.keys();
@@ -58,7 +86,7 @@ try {
   assert(!cached.some((u) => u.includes("/api/")));
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: production app reloads fully offline; Bengali fonts and hashed assets cached, API excluded.",
+    "PASS: authenticated production cache reloads offline through explicit offline access; Bengali fonts and hashed assets cached, API excluded.",
   );
 } finally {
   await browser.close();
