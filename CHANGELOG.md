@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add icons to proposal review, accept/reject and confirmation actions. Shorten the all-selected action to Accept all on mobile and allow status filters to wrap so every tab remains visible, with a thick active underline replacing the pill background.
+
+- Hide repetitive linked labels from review paragraph statuses, retaining grouped selection and its shared explanation. Let the mobile review dialog fill the viewport without outer margins or rounded borders, with safe-area space for footer actions.
+
 - Put review checkboxes in a dedicated column before paragraph IDs; keep omitted-gap alignment with prose. Restrict Show current/original to modifications, removing redundant controls from deleted and newly added paragraphs.
 
 - Replaced parallel proposal comparisons with one continuous review modal, per-change Accept checkboxes, linked structural selections, inline editing/current-text comparisons and a fixed decision footer. Added Partially accepted filtering, durable review receipts and confirmation for every acceptance/rejection, including quick actions. Unchecked changes preserve the latest draft; stale confirmations cannot save. Updated sync/backend validation and MCP guide/read metadata.

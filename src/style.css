@@ -1677,10 +1677,21 @@ textarea::placeholder {
   flex-wrap: wrap;
 }
 
+.proposal-filters {
+  border-bottom: 1px solid var(--line);
+}
 .proposal-filters button {
+  border-bottom: 4px solid transparent;
+  border-radius: 0;
+  background: transparent;
   font-size: 14px;
   min-height: 44px;
   color: var(--muted);
+}
+.proposal-filters button.active {
+  border-bottom-color: var(--green);
+  color: var(--green);
+  background: transparent;
 }
 .proposal-filters span {
   margin-left: 6px;
@@ -1689,8 +1700,8 @@ textarea::placeholder {
 @media (max-width: 600px) {
   .proposal-filters {
     display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
+    flex-wrap: wrap;
+    overflow: visible;
     gap: 8px;
   }
   .proposal-filters button {
@@ -1926,4 +1937,16 @@ textarea::placeholder {
 }
 :root[data-contrast="high"] .paragraph-id.proposal-changed {
   color: #704020;
+}
+
+.proposal-action-mobile-label {
+  display: none;
+}
+@media (max-width: 760px) {
+  .proposal-accept-action .proposal-action-desktop-label {
+    display: none;
+  }
+  .proposal-accept-action .proposal-action-mobile-label {
+    display: inline;
+  }
 }

@@ -164,8 +164,8 @@ export default function ProposalReadingDialog({
                 Accept
               </label>
               <span>
-                Uncheck changes to decline them. Linked replacements are
-                selected together.
+                Uncheck changes to decline them. Related changes are selected
+                together.
               </span>
             </div>
           ) : (
@@ -241,7 +241,6 @@ export default function ProposalReadingDialog({
                       : row.change === "added"
                         ? "Added"
                         : "Modified"}
-                    {group?.linked ? " · linked" : ""}
                     {!checked ? " · declined" : !pending ? " · accepted" : ""}
                   </small>
                 )}

@@ -112,11 +112,67 @@ test("one continuous review has colors, compact windows, current text, deleted t
   page,
 }) => {
   const before = await readState(page);
+  const filters = page.getByRole("group", { name: "Filter proposals" });
+  await expect(filters.getByRole("button")).toHaveCount(5);
+  const activeTab = filters.getByRole("button", {
+    name: "Pending proposals",
+    exact: true,
+  });
+  const activeStyle = await activeTab.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return {
+      border: style.borderBottomWidth,
+      color: style.borderBottomColor,
+      background: style.backgroundColor,
+      radius: style.borderRadius,
+    };
+  });
+  expect(activeStyle.border).toBe("4px");
+  expect(activeStyle.background).toBe("rgba(0, 0, 0, 0)");
+  expect(activeStyle.radius).toBe("0px");
+  expect(activeStyle.color).not.toBe("rgba(0, 0, 0, 0)");
+  for (const tab of await filters.getByRole("button").all())
+    await expect(tab).toBeInViewport();
+  const firstTab = await filters.getByRole("button").first().boundingBox();
+  const lastTab = await filters.getByRole("button").last().boundingBox();
+  const accept = page.getByRole("button", {
+    name: "Accept all proposed changes",
+    exact: true,
+  });
+  for (const action of [
+    "Review proposal",
+    "Accept all proposed changes",
+    "Reject this proposal",
+  ])
+    await expect(
+      page.getByRole("button", { name: action, exact: true }).locator("svg"),
+    ).toHaveCount(1);
+  if (test.info().project.name === "android") {
+    expect(lastTab!.y).toBeGreaterThan(firstTab!.y);
+    expect(await accept.innerText()).toBe("Accept all");
+  } else expect(await accept.innerText()).toBe("Accept all proposed changes");
+  await page.screenshot({
+    path: `test-results/${test.info().project.name}-proposal-action-icons.png`,
+  });
   await expect(page.locator(".proposal-reading-prose")).toHaveCount(0);
   await page
     .getByRole("button", { name: "Review proposal", exact: true })
     .click();
   const dialog = review(page);
+  await expect(
+    dialog.locator(".proposal-reading-id").filter({ hasText: /linked/i }),
+  ).toHaveCount(0);
+  if (test.info().project.name === "android") {
+    const bounds = await dialog.boundingBox();
+    const viewport = page.viewportSize()!;
+    expect(bounds!.x).toBeCloseTo(0, 0);
+    expect(bounds!.y).toBeCloseTo(0, 0);
+    expect(bounds!.width).toBeCloseTo(viewport.width, 0);
+    expect(bounds!.height).toBeCloseTo(viewport.height, 0);
+    expect(
+      await dialog.evaluate((el) => getComputedStyle(el).borderRadius),
+    ).toBe("0px");
+  }
   await expect(
     dialog.getByRole("button", { name: "Before", exact: true }),
   ).toHaveCount(0);

@@ -1,4 +1,7 @@
 import { useMemo, useState } from "react";
+import { Check } from "@phosphor-icons/react/dist/csr/Check";
+import { X } from "@phosphor-icons/react/dist/csr/X";
+import { BookOpen } from "@phosphor-icons/react/dist/csr/BookOpen";
 import type { Proposal, Revision, Paragraph } from "../domain/model";
 import {
   mergeProposal,
@@ -132,17 +135,23 @@ export default function ProposalCard({
   const actions = pending ? (
     <div className="proposal-decision-actions">
       <button
-        className="button primary"
+        className="button primary proposal-accept-action"
+        aria-label={acceptLabel}
         disabled={!canAccept}
         onClick={() => setConfirmation({ kind: "accept", signature })}
       >
-        {acceptLabel}
+        <Check aria-hidden="true" />
+        <span className="proposal-action-desktop-label">{acceptLabel}</span>
+        <span className="proposal-action-mobile-label">
+          {selectedGroups === total ? "Accept all" : acceptLabel}
+        </span>
       </button>
       <button
         className="button quiet"
         onClick={() => setConfirmation({ kind: "reject", signature })}
       >
-        Reject this proposal
+        <X aria-hidden="true" />
+        <span>Reject this proposal</span>
       </button>
     </div>
   ) : null;
@@ -170,6 +179,7 @@ export default function ProposalCard({
       )}
       <footer className="proposal-card-actions">
         <button className="button" onClick={() => setOpen(true)}>
+          <BookOpen aria-hidden="true" />
           {pending ? "Review proposal" : "View reviewed proposal"}
         </button>
         {actions}
@@ -224,6 +234,7 @@ export default function ProposalCard({
               className="button proposal-confirm-cancel"
               onClick={() => setConfirmation(null)}
             >
+              <X aria-hidden="true" />
               Cancel
             </button>
             <button
@@ -245,6 +256,11 @@ export default function ProposalCard({
                 setConfirmation(null);
               }}
             >
+              {confirmation.kind === "reject" ? (
+                <X aria-hidden="true" />
+              ) : (
+                <Check aria-hidden="true" />
+              )}
               {confirmation.kind === "reject"
                 ? "Confirm rejection"
                 : "Confirm acceptance"}
