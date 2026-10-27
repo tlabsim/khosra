@@ -1,0 +1,13 @@
+KHOSRA PORTABLE INSTALL
+
+1. Back up existing browser manuscripts and server data.
+2. Upload this ZIP to your HTTPS website document root, extract it there, then remove the uploaded ZIP. Keep hidden .htaccess files; files use 0644 and directories 0755.
+3. Rename khosra.config.example.php to khosra.config.php. Set origin and a unique owner_password (16+ characters). Restrict the real config to 0600 when PHP runs as your account, or the restricted mode required by your host.
+4. Open Khosra and sign in. SQLite tables are created on the first correct owner sign-in. No SQL import or database account needed.
+5. Bring an existing device draft online when prompted, or create a manuscript. Changes save automatically. Connect your chat client through OAuth.
+
+Requires PHP 8.2+, PDO SQLite, HTTPS and Apache/LiteSpeed .htaccess/rewrite support. Backend/config HTTP requests must be denied. SQLite data is automatically placed outside the website directory; if hosting disallows that location, set data_dir to an existing writable directory outside ALL public roots. Config is a server secret. Future ZIPs never contain khosra.config.php or the database.
+
+Existing MySQL: retain your prior private configuration credentials in khosra.config.php; do not switch an existing database silently. A workspace archive/upload moves manuscript/history, but not reading links, reader feedback or OAuth credentials. Back up those separately.
+
+Backup: stop server writes and copy the private data directory, or use a SQLite-consistent backup. Do not copy a live database casually. Never upload database files into the webroot.
