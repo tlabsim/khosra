@@ -155,7 +155,58 @@
   padding-left: 0.8rem;
 }
 .material-empty {
-  padding: 2rem 0;
+  padding: 3rem 1rem 3.5rem;
+  text-align: center;
+  max-width: 36rem;
+  margin-inline: auto;
+}
+.materials .material-empty h3 {
+  font-family: var(--serif);
+  font-size: clamp(1.8rem, 4vw, 2.25rem);
+  font-weight: 400;
+  margin: 1.2rem 0 0.8rem;
+}
+.material-empty > p {
+  color: var(--muted);
+  line-height: 1.8;
+  margin: 0 auto 1.5rem;
+  max-width: 31rem;
+}
+.material-empty .material-empty-note {
+  font-size: 0.85rem;
+  margin: 1rem auto 0;
+}
+.material-empty-art {
+  position: relative;
+  width: 180px;
+  height: 136px;
+  margin: 0 auto;
+  color: var(--green);
+}
+.material-empty-art > svg:first-child {
+  width: 100%;
+  height: 100%;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.material-empty-art .material-art-paper {
+  fill: var(--paper, #fffefa);
+  stroke: var(--line);
+}
+.material-empty-art .material-art-route {
+  stroke-dasharray: 3 5;
+}
+.material-empty-art > svg + svg {
+  position: absolute;
+  left: 66px;
+  top: 35px;
+}
+@media (max-width: 600px) {
+  .material-empty {
+    padding: 1.5rem 0 2rem;
+  }
 }
 @media (max-width: 600px) {
   .material-fields {

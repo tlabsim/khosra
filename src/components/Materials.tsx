@@ -213,16 +213,18 @@ export default function Materials({
               : "Private maps, images, documents and reference links for this manuscript."}
           </p>
         </div>
-        <button
-          className="button primary"
-          disabled={!!form}
-          onClick={() => open()}
-        >
-          <Plus size={18} />
-          Add {kind}
-        </button>
+        {(heads.length > 0 || form) && (
+          <button
+            className="button primary"
+            disabled={!!form}
+            onClick={() => open()}
+          >
+            <Plus size={18} />
+            Add {kind}
+          </button>
+        )}
       </div>
-      {kind === "artifact" && (
+      {kind === "artifact" && (heads.length > 0 || form) && (
         <p className="caption">
           PNG, JPEG, WebP or PDF · 2 MiB per file ·{" "}
           {(used / 1048576).toFixed(1)} of {WORKSPACE_FILE_LIMIT / 1048576} MiB
@@ -380,47 +382,111 @@ export default function Materials({
           </div>
         </form>
       )}
-      <div className="material-filters">
-        <label>
-          Show
-          <select
-            aria-label="Material status"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          >
-            {[
-              "active",
-              "all",
-              ...(kind === "idea"
-                ? ["idea", "planned", "used", "discarded"]
-                : ["archived"]),
-            ].map((v) => (
-              <option key={v} value={v}>
-                {v === "active" ? "Active" : v[0].toUpperCase() + v.slice(1)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Chapter
-          <select
-            aria-label="Material chapter"
-            value={scope}
-            onChange={(e) => setScope(e.target.value)}
-          >
-            <option value="">All chapters and manuscript-wide</option>
-            {chapters.map((c) => (
-              <option key={c.id} value={c.id}>
-                C{c.code}: {c.title}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      {!visible.length && (
-        <p className="material-empty">
-          No {kind === "idea" ? "ideas" : "artifacts"} in this view.
-        </p>
+      {heads.length > 0 && (
+        <div className="material-filters">
+          <label>
+            Show
+            <select
+              aria-label="Material status"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            >
+              {[
+                "active",
+                "all",
+                ...(kind === "idea"
+                  ? ["idea", "planned", "used", "discarded"]
+                  : ["archived"]),
+              ].map((v) => (
+                <option key={v} value={v}>
+                  {v === "active" ? "Active" : v[0].toUpperCase() + v.slice(1)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Chapter
+            <select
+              aria-label="Material chapter"
+              value={scope}
+              onChange={(e) => setScope(e.target.value)}
+            >
+              <option value="">All chapters and manuscript-wide</option>
+              {chapters.map((c) => (
+                <option key={c.id} value={c.id}>
+                  C{c.code}: {c.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
+      {!visible.length && !form && (
+        <div className={`material-empty material-empty-${kind}`}>
+          {heads.length === 0 ? (
+            <>
+              <div className="material-empty-art" aria-hidden="true">
+                <svg viewBox="0 0 180 136" fill="none">
+                  {kind === "idea" ? (
+                    <>
+                      <path
+                        className="material-art-paper"
+                        d="M42 12h88l16 16v94H42z"
+                      />
+                      <path d="M130 12v16h16M56 88h58M56 98h76M56 108h44" />
+                      <path d="m30 37-8-5m11 22H20m19-32-3-9m110 37 12-4m-9 23 10 5" />
+                    </>
+                  ) : (
+                    <>
+                      <path
+                        className="material-art-paper"
+                        d="m18 30 48-14 48 14 48-14v90l-48 14-48-14-48 14z"
+                      />
+                      <path d="M66 16v90m48-76v90" />
+                      <path
+                        className="material-art-route"
+                        d="M35 88c5-33 40 10 52-20s31 11 48-18"
+                      />
+                      <circle cx="35" cy="88" r="4" />
+                      <path d="m130 39 10 10m0-10-10 10" />
+                    </>
+                  )}
+                </svg>
+                {kind === "idea" && <Lightbulb size={38} weight="light" />}
+              </div>
+              <h3>{kind === "idea" ? "No ideas yet" : "No artifacts yet"}</h3>
+              <p>
+                {kind === "idea"
+                  ? "An alternate ending, a character’s secret, a scene for later. Keep possibilities here until you’re ready to bring them into the story."
+                  : "Keep the story’s reference material close: a map of the setting, a character sketch, a photograph or a useful link."}
+              </p>
+              <button className="button primary" onClick={() => open()}>
+                <Plus size={18} /> Add {kind}
+              </button>
+              <p className="material-empty-note">
+                {kind === "idea"
+                  ? "Ideas stay separate from your manuscript."
+                  : "Private to your workspace. Never included in reader shares."}
+              </p>
+            </>
+          ) : (
+            <>
+              <h3>No {kind === "idea" ? "ideas" : "artifacts"} in this view</h3>
+              <p>
+                Try another status or chapter, or show the whole collection.
+              </p>
+              <button
+                className="button"
+                onClick={() => {
+                  setFilter("all");
+                  setScope("");
+                }}
+              >
+                Show all {kind === "idea" ? "ideas" : "artifacts"}
+              </button>
+            </>
+          )}
+        </div>
       )}
       <PaginatedList
         key={`${kind}:${filter}:${scope}`}

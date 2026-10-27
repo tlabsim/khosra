@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Redesigned Ideas and Artifacts empty states with distinct notebook/map illustrations, a single creation action and privacy/story guidance. Hide unused filters before the first item; filtered-empty collections offer Show all. Cleaned obsolete bundles from the local live assets mirror.
+
 - Limited the chapter title/metadata banner to Manuscript, removing it from Flags, Proposals, History and Context. Restyled Context/Ideas/Artifacts with larger text and a thick active underline.
 
 - Made proposal acceptance compare the base/proposed/current paragraphs so edits elsewhere are retained automatically. Added explicit author choices for overlapping paragraphs and incompatible ordering, preserved latest revision parentage and stable labels across concurrent insertions/renumbering, and recheck reviewed choices only when the relevant passage changes. Simplified comparison tabs to compact underlines, explained Before versus Current, removed repeated range IDs and compacted read-only paragraphs with inline references.
