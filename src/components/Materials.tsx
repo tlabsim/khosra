@@ -39,7 +39,6 @@ export function ContextTabs({
       ).map(([id, label]) => (
         <button
           key={id}
-          className="button quiet"
           aria-current={section === id ? "page" : undefined}
           onClick={() => onChange(id)}
         >

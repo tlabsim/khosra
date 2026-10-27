@@ -1,14 +1,37 @@
 .material-tabs {
   display: flex;
-  gap: 0.5rem;
+  gap: 16px;
   border-bottom: 1px solid var(--line);
   margin-bottom: 1.8rem;
-  padding-bottom: 0.6rem;
   flex-wrap: wrap;
 }
+.material-tabs button {
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 4px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 18px;
+  font-weight: 550;
+  line-height: 1.4;
+}
+.material-tabs button:hover {
+  color: var(--green);
+}
 .material-tabs button[aria-current="page"] {
-  background: var(--accent-soft, #e6ecdf);
-  color: var(--ink);
+  border-bottom-color: var(--green);
+  color: var(--green);
+}
+@media (max-width: 600px) {
+  .material-tabs {
+    gap: 8px;
+  }
+  .material-tabs button {
+    font-size: 16px;
+    padding-inline: 10px;
+  }
 }
 .materials .section-heading {
   align-items: start;

@@ -1119,62 +1119,67 @@ function App() {
           />
         ) : (
           <>
-            <div className="chapter-banner">
-              <div>
-                <div className="eyebrow">
-                  CHAPTER{" "}
-                  {String(chapters.indexOf(chapter) + 1).padStart(2, "0")}{" "}
+            {view === "manuscript" && (
+              <div className="chapter-banner">
+                <div>
+                  <div className="eyebrow">
+                    CHAPTER{" "}
+                    {String(chapters.indexOf(chapter) + 1).padStart(
+                      2,
+                      "0",
+                    )}{" "}
+                  </div>
+                  <button
+                    className="title-button"
+                    aria-label="Rename chapter"
+                    onClick={() => setModal("rename")}
+                  >
+                    <h1>{chapter.title}</h1>
+                    <span className="rename-chapter">
+                      <PencilSimple size={16} />
+                      <span className="rename-caption">Rename</span>
+                    </span>
+                  </button>
+                  <div className="chapter-meta">
+                    <span className="status-pill">
+                      {chapter.approvedId === chapter.headId
+                        ? "Approved"
+                        : "Working draft"}
+                    </span>
+                    <span>{words.toLocaleString()} words</span>
+                    <span>
+                      {contentParagraphs}{" "}
+                      {contentParagraphs === 1 ? "paragraph" : "paragraphs"}
+                    </span>
+                    <span>{reference(chapter, displayed!)}</span>
+                  </div>
                 </div>
-                <button
-                  className="title-button"
-                  aria-label="Rename chapter"
-                  onClick={() => setModal("rename")}
-                >
-                  <h1>{chapter.title}</h1>
-                  <span className="rename-chapter">
-                    <PencilSimple size={16} />
-                    <span className="rename-caption">Rename</span>
-                  </span>
-                </button>
-                <div className="chapter-meta">
-                  <span className="status-pill">
-                    {chapter.approvedId === chapter.headId
-                      ? "Approved"
-                      : "Working draft"}
-                  </span>
-                  <span>{words.toLocaleString()} words</span>
-                  <span>
-                    {contentParagraphs}{" "}
-                    {contentParagraphs === 1 ? "paragraph" : "paragraphs"}
-                  </span>
-                  <span>{reference(chapter, displayed!)}</span>
+                <div className="button-row">
+                  <button
+                    className="button"
+                    onClick={() => {
+                      setSelection({ ids: [], quote: "" });
+                      setModal("flag");
+                    }}
+                  >
+                    <FlagIcon size={18} />
+                    Add flag
+                  </button>
+                  <button
+                    className="button primary"
+                    onClick={() =>
+                      void copy(
+                        `Book: ${book.title}\nChapter: ${reference(chapter, current!)}\nchapter_id: ${chapter.id}\nrevision_id: ${current!.id}\nUse Khosra tools to retrieve the latest chapter or selected passages. Save revisions as proposals for author review.`,
+                      )
+                    }
+                  >
+                    <ChatCircleText size={18} />
+                    Discuss in ChatGPT
+                    <ArrowRight size={16} />
+                  </button>
                 </div>
               </div>
-              <div className="button-row">
-                <button
-                  className="button"
-                  onClick={() => {
-                    setSelection({ ids: [], quote: "" });
-                    setModal("flag");
-                  }}
-                >
-                  <FlagIcon size={18} />
-                  Add flag
-                </button>
-                <button
-                  className="button primary"
-                  onClick={() =>
-                    void copy(
-                      `Book: ${book.title}\nChapter: ${reference(chapter, current!)}\nchapter_id: ${chapter.id}\nrevision_id: ${current!.id}\nUse Khosra tools to retrieve the latest chapter or selected passages. Save revisions as proposals for author review.`,
-                    )
-                  }
-                >
-                  <ChatCircleText size={18} />
-                  Discuss in ChatGPT
-                  <ArrowRight size={16} />
-                </button>
-              </div>
-            </div>
+            )}
             {historical && (
               <div className="history-banner">
                 <ClockCounterClockwise />
@@ -1873,9 +1878,16 @@ function App() {
                       onToggle={() =>
                         setProposalId(proposalId === p.id ? "" : p.id)
                       }
-                      onAccept={(paragraphs) =>
+                      onAccept={(paragraphs, resolution) =>
                         act(() => {
-                          update(acceptProposal(latest.current, p, paragraphs));
+                          update(
+                            acceptProposal(
+                              latest.current,
+                              p,
+                              paragraphs,
+                              resolution,
+                            ),
+                          );
                           setNotice(
                             "Revision accepted. Earlier text is preserved.",
                           );

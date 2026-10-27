@@ -72,7 +72,7 @@ describe("manuscript integrity", () => {
       r.paragraphs.map((p) => p.id),
     );
   });
-  it("blocks stale proposals and keeps author edits", () => {
+  it("blocks overlapping edits until the author resolves them", () => {
     const s = fixture(),
       c = s.chapters[0],
       r = head(s, c);
@@ -82,10 +82,11 @@ describe("manuscript integrity", () => {
       baseRevisionId: r.id,
       title: "Rewrite",
       rationale: "Tone",
-      paragraphs: r.paragraphs,
+      paragraphs: r.paragraphs.map((x) => ({ ...x, text: "Proposed edit" })),
       status: "pending",
       createdAt: now(),
     };
+    s.proposals.push(p);
     const next = commit(
       s,
       c.id,

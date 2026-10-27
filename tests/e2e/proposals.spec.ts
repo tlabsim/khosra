@@ -404,3 +404,157 @@ test("separate middle changes retain five read-only neighbours across comparison
     page.locator(".paper").getByText("Original paragraph 398", { exact: true }),
   ).toBeAttached();
 });
+
+test("older proposals accept safely after unrelated edits and comparison stays compact", async ({
+  page,
+}) => {
+  // Simulate an already-synced author edit in a different paragraph.
+  await page.evaluate(async () => {
+    const modulePath = "/src/storage/db.ts";
+    const { db } = await import(/* @vite-ignore */ modulePath);
+    const row = (await db.workspace.get("owner"))!;
+    const s = row.state as State,
+      c = s.chapters[0],
+      base = s.revisions.find((r) => r.id === c.headId)!;
+    const revision = {
+      ...base,
+      id: crypto.randomUUID(),
+      parentId: base.id,
+      source: "author" as const,
+      createdAt: new Date().toISOString(),
+      message: "Author changed ending",
+      paragraphs: base.paragraphs.map((p, i) =>
+        i === 397 ? { ...p, text: "Latest author ending" } : p,
+      ),
+    };
+    c.headId = revision.id;
+    s.revisions.push(revision);
+    await db.workspace.put({ ...row, version: (row.version || 0) + 1 });
+  });
+  await page.reload();
+  await page
+    .getByRole("button", { name: /^Proposals/ })
+    .filter({ visible: true })
+    .first()
+    .click();
+  const card = page
+    .locator("section.card")
+    .filter({
+      has: page.getByRole("heading", { name: "First rewrite", exact: true }),
+    });
+  const accept = card.getByRole("button", { name: "Accept this revision" });
+  await expect(accept).toBeEnabled();
+  await card.getByRole("button", { name: "Compare before & after" }).click();
+  await card.getByRole("button", { name: "Before", exact: true }).click();
+  await expect(card.locator(".comparison-explanation")).toContainText(
+    "Text used to create",
+  );
+  await expect(card.locator(".proposal-range-heading")).toHaveCount(0);
+  await expect(card.locator(".compare-paragraph .comparison-id")).toHaveText([
+    "P1",
+  ]);
+  const active = card.getByRole("button", { name: "Before", exact: true });
+  expect(
+    await active.evaluate((el) => getComputedStyle(el).borderBottomWidth),
+  ).toBe("3px");
+  await card.locator(".proposal-context summary").click();
+  await expect(card.locator(".proposal-context .comparison-id")).toHaveText([
+    "P2",
+    "P3",
+    "P4",
+    "P5",
+    "P6",
+  ]);
+  const paragraph = card
+    .locator(".proposal-context .compare-paragraph")
+    .first();
+  expect(
+    await paragraph.evaluate((el) => getComputedStyle(el).borderLeftWidth),
+  ).toBe("0px");
+  expect(
+    await paragraph.evaluate((el) =>
+      parseFloat(getComputedStyle(el).marginBottom),
+    ),
+  ).toBeLessThan(10);
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+  await page.screenshot({
+    path: `test-results/${test.info().project.name}-compact-comparison.png`,
+    fullPage: true,
+  });
+  await card
+    .getByRole("button", { name: "Current manuscript", exact: true })
+    .click();
+  await expect(card.locator(".comparison-explanation")).toContainText(
+    "latest saved draft",
+  );
+  await accept.click();
+  const stored = await page.evaluate(async () => {
+    const modulePath = "/src/storage/db.ts";
+    const { db } = await import(/* @vite-ignore */ modulePath);
+    const s = (await db.workspace.get("owner"))!.state as State;
+    const c = s.chapters[0];
+    return s.revisions.find((r) => r.id === c.headId)!.paragraphs;
+  });
+  expect(stored[0].text).toBe("First rewrite");
+  expect(stored[397].text).toBe("Latest author ending");
+});
+
+test("overlapping paragraphs can be resolved explicitly without losing other edits", async ({
+  page,
+}) => {
+  const first = page
+    .locator("section.card")
+    .filter({
+      has: page.getByRole("heading", { name: "First rewrite", exact: true }),
+    });
+  await first.getByRole("button", { name: "Accept this revision" }).click();
+  const alternative = page
+    .locator("section.card")
+    .filter({
+      has: page.getByRole("heading", {
+        name: "Alternative rewrite",
+        exact: true,
+      }),
+    });
+  await expect(
+    alternative.getByRole("button", { name: "Accept this revision" }),
+  ).toBeDisabled();
+  await alternative
+    .getByRole("button", { name: "Compare before & after" })
+    .click();
+  await expect(
+    alternative.getByRole("textbox", { name: "Proposed P1", exact: true }),
+  ).toHaveValue("Alternative rewrite");
+  await alternative
+    .getByRole("button", { name: "Keep current P1", exact: true })
+    .click();
+  await expect(alternative.getByRole("textbox")).toHaveCount(0);
+  await expect(
+    alternative.locator(".proposal-range > .compare-paragraph"),
+  ).toContainText("First rewrite");
+  await alternative
+    .getByRole("button", { name: "Use proposed P1", exact: true })
+    .click();
+  await alternative
+    .getByRole("textbox", { name: "Proposed P1", exact: true })
+    .fill("Combined and reviewed opening");
+  await expect(
+    alternative.getByRole("button", { name: "Accept this revision" }),
+  ).toBeEnabled();
+  await alternative
+    .getByRole("button", { name: "Accept this revision" })
+    .click();
+  await page
+    .getByRole("button", { name: "Manuscript", exact: true })
+    .filter({ visible: true })
+    .first()
+    .click();
+  await expect(
+    page
+      .locator(".paper")
+      .getByText("Combined and reviewed opening", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Original paragraph 398", { exact: true }),
+  ).toBeAttached();
+});

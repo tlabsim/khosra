@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Limited the chapter title/metadata banner to Manuscript, removing it from Flags, Proposals, History and Context. Restyled Context/Ideas/Artifacts with larger text and a thick active underline.
+
+- Made proposal acceptance compare the base/proposed/current paragraphs so edits elsewhere are retained automatically. Added explicit author choices for overlapping paragraphs and incompatible ordering, preserved latest revision parentage and stable labels across concurrent insertions/renumbering, and recheck reviewed choices only when the relevant passage changes. Simplified comparison tabs to compact underlines, explained Before versus Current, removed repeated range IDs and compacted read-only paragraphs with inline references.
+
 - Updated the Bengali app wordmark from the revised supplied SVG geometry, retaining its established dark green fill.
 
 - Added manuscript-wide Ideas and private Artifacts under Context, optional chapter links, author-controlled planning statuses, immutable note history, concurrent version retention, 100-item pages, and archive/restore. Added image/PDF attachments and HTTP(S) references, private image previews and downloads, and full-archive inclusion. Attachments are bounded to 2 MiB each and 8 MiB per workspace including history; reader shares exclude all materials. Added four scoped MCP tools for discovery, exact reads, new speculative ideas and new references, with native image/embedded PDF responses on explicit request.

@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  mergeProposal,
+  validProposalChoices,
+  type ProposalResolution,
+} from "./proposalMerge";
 import { FileSchema, MaterialSchema, validateMaterials } from "./materials";
 export const ParagraphSchema = z.object({
   id: z.string().uuid(),
@@ -290,23 +295,96 @@ export function acceptProposal(
   s: State,
   p: Proposal,
   paragraphs = p.paragraphs,
+  resolution?: ProposalResolution,
 ) {
-  if (p.status !== "pending") throw Error("Proposal already reviewed.");
+  const saved = s.proposals.find((item) => item.id === p.id);
+  if (!saved || saved.status !== "pending" || p.status !== "pending")
+    throw Error("Proposal already reviewed or missing.");
+  const chapter = s.chapters.find((c) => c.id === saved.chapterId);
+  const original = s.revisions.find(
+    (r) => r.id === saved.baseRevisionId && r.chapterId === saved.chapterId,
+  );
+  if (!chapter || !original) throw Error("Missing proposal source.");
+  if (chapter.deletedAt)
+    throw Error("Restore this chapter from Trash before accepting a proposal.");
+  const current = head(s, chapter);
+  let choices = resolution?.choices ?? {};
+  if (
+    resolution &&
+    resolution.revisionId !== current.id &&
+    Object.keys(choices).length
+  ) {
+    const reviewed = s.revisions.find(
+      (r) => r.id === resolution.revisionId && r.chapterId === chapter.id,
+    );
+    if (!reviewed)
+      throw Error("Missing reviewed revision. Review the latest draft.");
+    choices = validProposalChoices(
+      reviewed.paragraphs,
+      current.paragraphs,
+      choices,
+    );
+  }
+  const merged = mergeProposal(
+    original.paragraphs,
+    paragraphs,
+    current.paragraphs,
+    choices,
+  );
+  if (
+    merged.unresolved.some((x) => resolution?.choices[x.id] && !choices[x.id])
+  )
+    throw Error(
+      "The conflicting passage changed again. Review the latest edits before accepting.",
+    );
+  if (merged.unresolved.length)
+    throw Error(
+      "These paragraphs changed in both versions: " +
+        merged.unresolved.map((x) => x.label).join(", ") +
+        ". Choose which version to keep in comparison.",
+    );
+  // Preserve the latest edition's addresses, including labels reserved by older
+  // snapshots. Concurrent/new insertions must never steal an existing address.
+  const labels = new Map<number, string>(),
+    identities = new Map<string, number>();
+  for (const r of s.revisions.filter(
+    (r) => r.chapterId === chapter.id && r.edition === current.edition,
+  ))
+    for (const block of r.paragraphs) {
+      if (!labels.has(block.label)) labels.set(block.label, block.id);
+      if (!identities.has(block.id)) identities.set(block.id, block.label);
+    }
+  for (const block of current.paragraphs) {
+    labels.set(block.label, block.id);
+    identities.set(block.id, block.label);
+  }
+  let nextLabel = nextParagraphLabel(s, chapter);
+  const accepted = merged.paragraphs.map((block) => {
+    let label = identities.get(block.id) ?? block.label;
+    if (labels.has(label) && labels.get(label) !== block.id) {
+      while (labels.has(nextLabel)) nextLabel++;
+      label = nextLabel++;
+    }
+    labels.set(label, block.id);
+    identities.set(block.id, label);
+    return { ...block, label };
+  });
   const next = commit(
     s,
-    p.chapterId,
-    p.baseRevisionId,
-    paragraphs,
-    p.title +
-      (JSON.stringify(paragraphs) !== JSON.stringify(p.paragraphs)
+    saved.chapterId,
+    current.id,
+    accepted,
+    saved.title +
+      (JSON.stringify(paragraphs) !== JSON.stringify(saved.paragraphs)
         ? " · edited by author before acceptance"
-        : ""),
+        : "") +
+      (current.id !== original.id ? " · merged with current draft" : ""),
     "proposal",
   );
   return {
     ...next,
     proposals: next.proposals.map((x) =>
-      x.id === p.id ? { ...x, status: "accepted" as const } : x,
+      x.id === saved.id ? { ...x, status: "accepted" as const } : x,
     ),
   };
 }
