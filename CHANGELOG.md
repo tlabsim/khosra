@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added visible OAuth connection progress and blocked duplicate consent submissions while preserving Allow/Cancel POST decisions. Versioned the consent script URL so browsers fetch the updated password reveal and submission controls.
+
+- Kept independent OAuth consent forms valid across repeated authorization requests, bounded to ten pending forms per session. Invalid form submissions no longer erase other pending requests. Persist consent before rendering and distinguish missing sessions, invalid/reused forms and expired forms.
+
 - Moved the SFTP deployment mirror to Git-tracked `live/`, preserving ignored host config and runtime data. Updated the staging helper and local SFTP context.
 
 - Added a checksum-verified differential release staging helper for the local SFTP mirror. It copies only changed release files and preserves real config, private data and older assets without uploading or deleting files.
