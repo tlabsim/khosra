@@ -14,6 +14,7 @@ import {
 } from "./contracts";
 import Dialog from "./Dialog";
 import Comments from "./Comments";
+import PasswordInput from "../components/PasswordInput";
 export default function Share({
   centralized = false,
   book,
@@ -209,16 +210,14 @@ export default function Share({
               Use your Khosra password. Guests only need their reading link.
             </p>
           </div>
-          <label>
-            Your Khosra password
-            <input
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </label>
+          <label htmlFor="share-password">Your Khosra password</label>
+          <PasswordInput
+            id="share-password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
           <button className="button primary" disabled={busy}>
             {busy ? "Signing in…" : "Sign in"}
           </button>

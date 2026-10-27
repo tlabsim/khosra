@@ -10,6 +10,7 @@ await writeFile(
 await mkdir("dist/api", { recursive: true });
 await copyFile("server/public/api/index.php", "dist/api/index.php");
 await copyFile("server/public/.htaccess", "dist/.htaccess");
+await copyFile("server/public/oauth-consent.js", "dist/oauth-consent.js");
 console.log(
   "FTP webroot prepared in dist/. Keep server configuration and lib.php outside the document root.",
 );

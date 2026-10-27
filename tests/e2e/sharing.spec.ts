@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { checkPasswordReveal } from "./password";
 const chapterId = "22222222-2222-4222-8222-222222222222";
 const revisionId = "33333333-3333-4333-8333-333333333333";
 const paragraphId = "44444444-4444-4444-8444-444444444444";
@@ -233,9 +234,7 @@ test("share dialog creates, copies, reviews and revokes a named invitation", asy
   await page.screenshot({
     path: `test-results/${info.project.name}-share-signin.png`,
   });
-  await page
-    .getByLabel("Your Khosra password", { exact: true })
-    .fill("fixture-only");
+  await checkPasswordReveal(page, "Your Khosra password", "fixture-only");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(dialog.locator(".sharing-manuscript")).toContainText(
     "A manuscript for friends",

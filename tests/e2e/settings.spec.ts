@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { checkPasswordReveal } from "./password";
 test("settings returns to the previous view and keeps connection and backup actions usable", async ({
   page,
 }, info) => {
@@ -71,7 +72,7 @@ test("settings returns to the previous view and keeps connection and backup acti
   await page.route("**/api/login", (route) =>
     route.fulfill({ json: { csrf: "synthetic-csrf" } }),
   );
-  await page.getByLabel("Owner password").fill("synthetic-test-password");
+  await checkPasswordReveal(page, "Owner password", "synthetic-test-password");
   await page.getByRole("button", { name: "Connect", exact: true }).click();
   await expect(page.locator(".settings-connection-state")).toHaveText(
     "Connected",

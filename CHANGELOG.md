@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Moved the SFTP deployment mirror to Git-tracked `live/`, preserving ignored host config and runtime data. Updated the staging helper and local SFTP context.
+
+- Added a checksum-verified differential release staging helper for the local SFTP mirror. It copies only changed release files and preserves real config, private data and older assets without uploading or deleting files.
+
+- Fixed OAuth consent origin/referrer handling and callback CSP so ChatGPT connections can complete without weakening consent POST, nonce, PKCE or redirect checks. Added accessible show/hide controls to every password field, including server-rendered consent.
+
 - Refreshed the favicon from the latest supplied logomark and advanced its cache version for the fresh upload release.
 
 - Show HTTP status and structured server errors when opening a hosted workspace fails, instead of reporting every API failure as a connection problem. Retained recovery and offline behavior.

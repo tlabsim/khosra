@@ -1,4 +1,5 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
+import { checkPasswordReveal } from "./password";
 import {
   emptyState,
   addChapter,
@@ -144,6 +145,7 @@ test("login, automatic saving and another device opening the same manuscript", a
     path: `test-results/${info.project.name}-sign-in.png`,
     fullPage: true,
   });
+  await checkPasswordReveal(page, "Owner password", "owner-test-password");
   await signIn(page);
   await page.getByRole("button", { name: "Begin a manuscript" }).click();
   await page.getByLabel("Working title").fill("Shared manuscript");

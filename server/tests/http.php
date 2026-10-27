@@ -2,7 +2,7 @@
 declare(strict_types=1);
 require dirname(__DIR__).'/lib.php';
 require dirname(__DIR__).'/oauth.php';
-$cfg=require dirname(__DIR__).'/config.php';
+$cfg=require (getenv('KHOSRA_HTTP_TEST_CONFIG')?:dirname(__DIR__).'/config.php');
 $origin=rtrim($cfg['origin'],'/');
 $resource=oauthResource($cfg);
 $checks=0;
@@ -20,17 +20,29 @@ $r=http('/api/workspace','GET',null,['Cookie: '.$ownerCookie]);verify($r['status
 $r=http('/api/oauth/register','POST',['redirect_uris'=>['https://attacker.invalid/callback'],'token_endpoint_auth_method'=>'none']);verify($r['status']===400,'Unapproved redirect rejected');
 $redirect='https://chatgpt.com/connector_platform_oauth_redirect';$r=http('/api/oauth/register','POST',['redirect_uris'=>[$redirect],'token_endpoint_auth_method'=>'none']);verify($r['status']===201,'OAuth dynamic client registration');$client=$r['json']['client_id'];
 $verifier=str_repeat('a',64);$challenge=rtrim(strtr(base64_encode(hash('sha256',$verifier,true)),'+/','-_'),'=');$args=['response_type'=>'code','client_id'=>$client,'redirect_uri'=>$redirect,'code_challenge_method'=>'S256','code_challenge'=>$challenge,'resource'=>$resource,'scope'=>'manuscript.read manuscript.propose','state'=>'test-state'];
+foreach(['https://chatgpt.com','null','https://other-client.invalid'] as $incomingOrigin){$r=http('/api/oauth/authorize?'.http_build_query($args),'GET',null,['Origin: '.$incomingOrigin]);verify($r['status']===200&&str_contains($r['text'],'Allow connection'),'Authorization navigation accepts Origin '.$incomingOrigin);}
+$r=http('/api/oauth/authorize','GET',null,['Origin: https://chatgpt.com']);verify($r['status']===400&&str_contains($r['json']['error_description']??'','PKCE'),'External navigation still requires OAuth arguments');
+$badArgs=$args;$badArgs['redirect_uri']='https://attacker.invalid/callback';$r=http('/api/oauth/authorize?'.http_build_query($badArgs),'GET',null,['Origin: https://chatgpt.com']);verify($r['status']===400,'External navigation cannot bypass redirect allowlist');
+$r=http('/oauth-consent.js');verify($r['status']===200&&str_contains($r['text'],'aria-pressed'),'Consent reveal script served as static asset');
 $r=http('/api/oauth/authorize?'.http_build_query($args));verify($r['status']===200&&str_contains($r['text'],'Allow connection'),'Owner consent page');$consentCookie=cookie($r);preg_match('/name="nonce" value="([^"]+)"/',$r['text'],$matches);$nonce=$matches[1];
-$r=http('/api/oauth/authorize','POST',['nonce'=>$nonce,'password'=>'khosra-test-only','decision'=>'allow'],['Cookie: '.$consentCookie],true);verify($r['status']===303,'Owner consent redirect');$location='';foreach($r['headers'] as $h)if(str_starts_with($h,'Location: '))$location=substr($h,10);parse_str(parse_url($location,PHP_URL_QUERY),$query);verify($query['state']==='test-state'&&$query['iss']===$origin,'OAuth state and issuer preserved');
+verify(str_contains($r['text'],'name="referrer" content="same-origin"'),'Consent document preserves same-origin POST Origin');
+$consentHeaders=implode("\n",$r['headers']);verify(str_contains($consentHeaders,"form-action 'self' https://chatgpt.com;"),'Consent CSP permits only self and validated callback origin');
+verify(str_contains($consentHeaders,'Referrer-Policy: same-origin'),'Consent response uses same-origin referrer policy');
+verify(str_contains($r['text'],'/oauth-consent.js')&&str_contains($r['text'],'id="reveal-password"'),'Consent password reveal control is present');
+foreach(['https://chatgpt.com','null'] as $incomingOrigin){$r=http('/api/oauth/authorize','POST',['nonce'=>$nonce,'password'=>'khosra-test-only','decision'=>'allow'],['Cookie: '.$consentCookie,'Origin: '.$incomingOrigin],true);verify($r['status']===403,'Cross-origin consent submission denied for '.$incomingOrigin);}
+$r=http('/api/oauth/authorize','POST',['nonce'=>$nonce,'password'=>'khosra-test-only','decision'=>'allow'],['Cookie: '.$consentCookie,'Origin: '.$origin],true);verify($r['status']===303,'Owner consent redirect');$location='';foreach($r['headers'] as $h)if(str_starts_with($h,'Location: '))$location=substr($h,10);parse_str(parse_url($location,PHP_URL_QUERY),$query);verify($query['state']==='test-state'&&$query['iss']===$origin,'OAuth state and issuer preserved');
 $exchange=['grant_type'=>'authorization_code','client_id'=>$client,'redirect_uri'=>$redirect,'resource'=>$resource,'code'=>$query['code'],'code_verifier'=>$verifier];$bad=$exchange;$bad['code_verifier']=str_repeat('b',64);$r=http('/api/oauth/token','POST',$bad,[],true);verify($r['status']===400,'Wrong PKCE verifier rejected');
 $r=http('/api/oauth/token','POST',$exchange,[],true);verify($r['status']===200&&isset($r['json']['access_token']),'Authorization code exchanged');$token=$r['json']['access_token'];$refresh=$r['json']['refresh_token'];
 $r=http('/api/oauth/token','POST',$exchange,[],true);verify($r['status']===400,'Authorization code replay rejected');
+$r=http('/api/oauth/authorize?'.http_build_query($args));$forgedCookie=cookie($r);
+$r=http('/api/oauth/authorize','POST',['nonce'=>'wrong-nonce','password'=>'khosra-test-only','decision'=>'allow'],['Cookie: '.$forgedCookie,'Origin: '.$origin],true);verify($r['status']===403,'Same-origin forged consent nonce denied');
+$r=http('/api/oauth/authorize','POST',['nonce'=>$nonce,'password'=>'khosra-test-only','decision'=>'allow'],['Origin: '.$origin],true);verify($r['status']===403,'Consent without bound session denied');
 $rpc=['jsonrpc'=>'2.0','id'=>1,'method'=>'initialize','params'=>['protocolVersion'=>'2025-03-26','capabilities'=>[],'clientInfo'=>['name'=>'test','version'=>'1']]];$r=http('/api/mcp','POST',$rpc,['Authorization: Bearer '.$token]);verify($r['status']===200&&$r['json']['result']['serverInfo']['name']==='khosra','Authenticated MCP initialize');
 $r=http('/api/mcp','POST',['jsonrpc'=>'2.0','id'=>2,'method'=>'tools/list'],['Authorization: Bearer '.$token]);verify(count($r['json']['result']['tools'])===11,'Authenticated MCP tool discovery');
 $r=http('/api/mcp','POST',['jsonrpc'=>'2.0','id'=>3,'method'=>'tools/call','params'=>['name'=>'list_books','arguments'=>[]]],['Authorization: Bearer '.$token]);verify(isset($r['json']['result']['content'][0]['text']),'MCP book retrieval');
 $r=http('/api/oauth/token','POST',['grant_type'=>'refresh_token','client_id'=>$client,'resource'=>$resource,'refresh_token'=>$refresh],[],true);verify($r['status']===200&&$r['json']['access_token']!==$token,'Refresh token rotation');$newToken=$r['json']['access_token'];
 $r=http('/api/mcp','POST',$rpc,['Authorization: Bearer '.$token]);verify($r['status']===401,'Rotated old access token denied');
-$pdo=new PDO($cfg['dsn'],$cfg['db_user'],$cfg['db_password']);$limited=issueTokens($pdo,$client,$resource,'manuscript.read');$r=http('/api/mcp','POST',['jsonrpc'=>'2.0','id'=>5,'method'=>'tools/call','params'=>['name'=>'save_proposal','arguments'=>[]]],['Authorization: Bearer '.$limited['access_token']]);verify(($r['json']['result']['isError']??false)===true,'Read-only OAuth scope cannot save proposals');
+$pdo=openDatabase($cfg);$limited=issueTokens($pdo,$client,$resource,'manuscript.read');$r=http('/api/mcp','POST',['jsonrpc'=>'2.0','id'=>5,'method'=>'tools/call','params'=>['name'=>'save_proposal','arguments'=>[]]],['Authorization: Bearer '.$limited['access_token']]);verify(($r['json']['result']['isError']??false)===true,'Read-only OAuth scope cannot save proposals');
 $wrongAudience=issueTokens($pdo,$client,'https://other.invalid/mcp','manuscript.read');$r=http('/api/mcp','POST',$rpc,['Authorization: Bearer '.$wrongAudience['access_token']]);verify($r['status']===401,'Wrong token audience rejected');
 $r=http('/api/workspace','GET',null,['Cookie: '.$ownerCookie,'Origin: https://evil.invalid']);verify($r['status']===403,'Cross-origin owner request rejected');
 $r=http('/api/oauth/revoke','POST',['client_id'=>$client,'token'=>$newToken],[],true);verify($r['status']===200,'OAuth revocation');$r=http('/api/mcp','POST',$rpc,['Authorization: Bearer '.$newToken]);verify($r['status']===401,'Revoked token denied');

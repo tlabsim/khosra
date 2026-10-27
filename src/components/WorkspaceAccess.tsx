@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { ArrowRight } from "@phosphor-icons/react/dist/csr/ArrowRight";
 import AppLogo from "./AppLogo";
+import PasswordInput from "./PasswordInput";
 import type { HostedStatus } from "../sync/hosted";
 
 export default function WorkspaceAccess({
@@ -60,10 +61,9 @@ export default function WorkspaceAccess({
           {status.phase === "login" && (
             <form onSubmit={(event) => void login(event)}>
               <label htmlFor="workspace-password">Owner password</label>
-              <input
+              <PasswordInput
                 id="workspace-password"
                 name="password"
-                type="password"
                 autoComplete="current-password"
                 required
                 autoFocus

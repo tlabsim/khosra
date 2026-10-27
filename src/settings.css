@@ -115,6 +115,9 @@
   gap: 10px;
   align-items: stretch;
 }
+.settings-login-fields > .password-field {
+  flex: 1;
+}
 .settings-login input {
   width: 0;
   flex: 1;

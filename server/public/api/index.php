@@ -10,7 +10,9 @@ try{
  $file=dirname(__DIR__,2).'/config.php';if(!is_file($file))respond(['error'=>'Private server is not configured. Local workspace remains available.','code'=>'server_not_configured'],503);$config=require $file;
  $db=openDatabase($config);
  $method=$_SERVER['REQUEST_METHOD']??'GET';$path=trim(substr(parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH),strlen('/api/')),'/');
- if(isset($_SERVER['HTTP_ORIGIN'])&&$_SERVER['HTTP_ORIGIN']!==$config['origin'])fail(403,'Origin is not allowed.');
+ // OAuth authorization is entered by navigation from the external client.
+ // Consent POSTs and all other API requests retain the same-origin check.
+ if(isset($_SERVER['HTTP_ORIGIN'])&&$_SERVER['HTTP_ORIGIN']!==$config['origin']&&!($path==='oauth/authorize'&&$method==='GET'))fail(403,'Origin is not allowed.');
  if((int)($_SERVER['CONTENT_LENGTH']??0)>20*1024*1024)fail(413,'Workspace exceeds the 20 MB request limit.');$raw=file_get_contents('php://input',false,null,0,20*1024*1024+1);if(strlen($raw)>20*1024*1024)fail(413,'Request too large.');$body=[];if(str_contains($_SERVER['CONTENT_TYPE']??'','application/x-www-form-urlencoded'))parse_str($raw,$body);else $body=$raw!==''?json_decode($raw,true,128,JSON_THROW_ON_ERROR):[];if(!is_array($body))fail(422,'JSON object required.');
  if(isset($_GET['discovery'])&&in_array($_GET['discovery'],['oauth-protected-resource','oauth-authorization-server'],true))respond(oauthMetadata($config,$_GET['discovery']));
  if(str_starts_with($path,'guest/'))guestRoute($db,$config,$path,$method,$body);

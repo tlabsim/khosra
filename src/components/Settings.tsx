@@ -11,6 +11,7 @@ import { Archive } from "@phosphor-icons/react/dist/csr/Archive";
 import { Copy } from "@phosphor-icons/react/dist/csr/Copy";
 import { FileText } from "@phosphor-icons/react/dist/csr/FileText";
 import { SignOut } from "@phosphor-icons/react/dist/csr/SignOut";
+import PasswordInput from "./PasswordInput";
 
 export default function Settings({
   backLabel,
@@ -100,10 +101,9 @@ export default function Settings({
             <form className="settings-login" onSubmit={(e) => void connect(e)}>
               <label htmlFor="owner-password">Owner password</label>
               <div className="settings-login-fields">
-                <input
+                <PasswordInput
                   id="owner-password"
                   name="password"
-                  type="password"
                   required
                   autoComplete="current-password"
                   disabled={connecting}

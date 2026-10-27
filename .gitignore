@@ -19,3 +19,13 @@ server/tests/.sharing-runtime/
 *.sqlite-journal
 *.sqlite-wal
 *.sqlite-shm
+
+# Track the deployable mirror, never its host credentials or runtime data.
+/live/khosra.config.php
+/live/.ftpquota
+/live/data/
+/live/private/
+/live/*.db
+/live/*.db-*
+/live/*.bak
+__pycache__/

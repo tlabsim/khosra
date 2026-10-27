@@ -120,6 +120,8 @@ Requirements: PHP 8.2+ with **PDO SQLite**, HTTPS and Apache/LiteSpeed support f
 
 Updates: back up first, then extract a newer upload-extract ZIP over the same installation. Release archives never contain your real `khosra.config.php` or SQLite data. Keep the same data location. Verify that HTTP requests to `/khosra.config.php` and `/khosra-server/lib.php` are denied, and check the MCP/OAuth routes before connecting a model.
 
+For differential SFTP updates, the deployable mirror is tracked in `live/`; release ZIPs stay in ignored `releases/`. Run `python scripts/stage-live.py --apply` after building and packaging, review changes under `live/`, then upload those files through SFTP. The real `live/khosra.config.php` and runtime data remain ignored. Commit the baseline after a successful deployment so the next update is visible in Git.
+
 SQLite stores manuscripts, operation history, invitations, reader feedback and OAuth records together. For a complete server backup, pause writes and copy the private data directory, or use a SQLite-consistent backup tool. Browser archives are still useful but exclude invitations and feedback. To move hosts, copy the config and private data securely and set the new `origin`/`data_dir`; do not place the database in the webroot.
 
 **Existing MySQL installation:** it remains supported. Keep the original DSN, credentials and owner password hash in the new config, or continue with the advanced package below. Merely changing a DSN does not migrate data. Restoring a workspace archive into the new installation transfers manuscripts and history to a fresh SQLite installation, but not existing reading links, feedback or OAuth credentials; preserve the original database before switching.

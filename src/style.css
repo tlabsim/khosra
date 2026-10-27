@@ -100,6 +100,35 @@ p {
   flex-direction: column;
   z-index: 25;
 }
+.password-field {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+}
+.password-field > input {
+  width: 100%;
+  min-width: 0;
+  padding-right: 50px;
+}
+.password-field > .password-reveal {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: #52684f;
+}
+.password-field > .password-reveal:hover {
+  background: #536f4b10;
+}
 .app-logo {
   display: block;
   height: 1.25em;
