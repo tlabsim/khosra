@@ -1,6 +1,13 @@
 import { z } from "zod";
 export const FILE_LIMIT = 2 * 1024 * 1024;
 export const WORKSPACE_FILE_LIMIT = 8 * 1024 * 1024;
+export const MaterialDeletionSchema = z.object({
+  id: z.string().uuid(),
+  itemId: z.string().uuid(),
+  bookId: z.string().uuid(),
+  createdAt: z.string().datetime(),
+});
+export type MaterialDeletion = z.infer<typeof MaterialDeletionSchema>;
 export const FileSchema = z.object({
   id: z.string().uuid(),
   bookId: z.string().uuid(),
@@ -90,7 +97,16 @@ export function validateMaterials(s: {
   chapters: { id: string; bookId: string }[];
   materials: Material[];
   files: MaterialFile[];
+  materialDeletions?: MaterialDeletion[];
 }) {
+  const deleted = new Set<string>();
+  for (const d of s.materialDeletions ?? []) {
+    if (!s.books.some((b) => b.id === d.bookId))
+      throw Error("Deleted material manuscript is missing.");
+    deleted.add(d.itemId);
+  }
+  if (s.materials.some((m) => deleted.has(m.itemId)))
+    throw Error("Deleted materials cannot be restored by an older workspace.");
   const files = new Map(s.files.map((f) => [f.id, f]));
   let total = 0;
   for (const f of s.files) {
@@ -143,4 +159,28 @@ export function validateMaterials(s: {
       next = p;
     }
   }
+}
+
+// Deletions win over old archives and concurrent material edits. Only attachments
+// from removed versions are candidates for collection; shared files are retained.
+export function applyMaterialDeletions<
+  T extends {
+    materials: Material[];
+    files: MaterialFile[];
+    materialDeletions: MaterialDeletion[];
+  },
+>(state: T): T {
+  const deleted = new Set(state.materialDeletions.map((d) => d.itemId));
+  const removedFiles = new Set(
+    state.materials.filter((m) => deleted.has(m.itemId)).map((m) => m.fileId),
+  );
+  const materials = state.materials.filter((m) => !deleted.has(m.itemId));
+  const referenced = new Set(materials.map((m) => m.fileId));
+  return {
+    ...state,
+    materials,
+    files: state.files.filter(
+      (f) => !removedFiles.has(f.id) || referenced.has(f.id),
+    ),
+  };
 }

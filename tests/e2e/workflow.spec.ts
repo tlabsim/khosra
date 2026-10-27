@@ -91,11 +91,20 @@ test("write, flag, propose, accept, revisit, and retain Bengali offline", async 
     .click();
   await page.getByLabel("Proposal JSON").fill(JSON.stringify(proposal));
   await page.getByRole("button", { name: "Validate & import" }).click();
-  await page.getByRole("button", { name: "Compare before & after" }).click();
+  await page
+    .getByRole("button", { name: "Review proposal", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Edit P1", exact: true }).click();
   await page
     .getByRole("textbox", { name: "Proposed P1" })
     .fill("ঈশান চুপ করে রইল। রাহুল তার পাশে দাঁড়াল।");
-  await page.getByRole("button", { name: "Accept this revision" }).click();
+  await page
+    .getByRole("dialog", { name: "Review proposal", exact: true })
+    .getByRole("button", { name: "Accept all proposed changes", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Confirm acceptance", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Accepted proposals", exact: true })
     .click();

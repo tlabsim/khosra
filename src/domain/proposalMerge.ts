@@ -2,6 +2,7 @@ import type { Paragraph } from "./model";
 export type MergeChoice = "current" | "proposal";
 export type ProposalResolution = {
   revisionId: string;
+  selectedChangeIds?: string[];
   choices: Record<string, MergeChoice>;
 };
 export type ProposalConflict = {

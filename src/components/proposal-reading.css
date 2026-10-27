@@ -1,0 +1,364 @@
+.sharing-dialog.proposal-reading-dialog {
+  width: min(960px, calc(100% - 24px));
+  height: min(920px, calc(100dvh - 32px));
+  max-height: calc(100dvh - 32px);
+  flex-direction: column;
+  overflow: hidden;
+}
+.sharing-dialog.proposal-reading-dialog[open] {
+  display: flex;
+}
+.proposal-reading-dialog > header {
+  flex-shrink: 0;
+  padding: 18px 26px;
+}
+.proposal-reading-dialog .sharing-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 24px 32px 48px;
+}
+.proposal-reading-controls {
+  padding: 14px 26px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.proposal-reading-title {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 550;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+}
+.proposal-reading-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.proposal-reading-toolbar .proposal-comparison-tabs {
+  border: 0;
+  margin: 0;
+}
+.proposal-reading-toolbar .proposal-comparison-tabs button {
+  font-size: 15px;
+  min-height: 44px;
+}
+.proposal-reading-explanation,
+.proposal-reading-summary {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.proposal-reading-stale {
+  margin: 10px 0 0;
+  padding-left: 10px;
+  border-left: 3px solid #b08665;
+  font-size: 13px;
+}
+.proposal-reading-paragraph {
+  display: grid;
+  grid-template-columns: 32px 3rem minmax(0, 1fr);
+  column-gap: 12px;
+  margin: 0 0 0.75em;
+}
+.proposal-reading-id {
+  color: var(--muted);
+  font-size: 11px;
+  padding-top: 9px;
+  white-space: nowrap;
+}
+.proposal-reading-id small {
+  display: block;
+  font-size: 9px;
+  margin-top: 3px;
+}
+.proposal-reading-prose .proposal-reading-text p {
+  font: 19px/1.95 var(--serif);
+  color: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+.proposal-reading-prose .proposal-reading-text h3 {
+  font: 500 21px/1.6 var(--serif);
+  margin: 0 0 0.4em;
+}
+.proposal-reading-paragraph.is-removed .proposal-reading-id,
+.comparison-removed-label {
+  color: #934b3b;
+}
+.proposal-reading-paragraph.is-removed .proposal-reading-text {
+  color: #9b3e35;
+}
+.proposal-reading-paragraph.is-removed h3,
+.comparison-removed .compare-section {
+  text-decoration: line-through;
+}
+.proposal-reading-paragraph.is-changed .proposal-reading-id {
+  color: #315f91;
+}
+.proposal-reading-paragraph.is-added .proposal-reading-id {
+  color: var(--green);
+}
+.proposal-reading-gap {
+  text-align: left;
+  padding-left: calc(32px + 3rem + 24px);
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1.15;
+  letter-spacing: 0.25em;
+  margin: 24px 0;
+}
+.comparison-removed-label {
+  font-size: 10px;
+  margin-right: 0.6em;
+}
+.proposal-preview-action {
+  margin-top: 12px;
+}
+@media (max-width: 600px) {
+  .proposal-reading-gap {
+    padding-left: calc(32px + 2.6rem + 16px);
+  }
+  .sharing-dialog.proposal-reading-dialog {
+    width: calc(100% - 12px);
+    height: calc(100dvh - 16px);
+    max-height: calc(100dvh - 16px);
+    border-radius: 10px;
+  }
+  .proposal-reading-dialog > header {
+    padding: 14px 16px;
+  }
+  .proposal-reading-dialog > header h2 {
+    font-size: 23px;
+  }
+  .proposal-reading-controls {
+    padding: 10px 16px 12px;
+  }
+  .proposal-reading-title {
+    font-size: 13px;
+  }
+  .proposal-reading-dialog .sharing-body {
+    padding: 20px 14px 36px;
+  }
+  .proposal-reading-paragraph {
+    grid-template-columns: 32px 2.6rem minmax(0, 1fr);
+    column-gap: 8px;
+  }
+  .proposal-reading-prose .proposal-reading-text p {
+    font-size: 18px;
+    line-height: 1.9;
+  }
+  .proposal-reading-id {
+    padding-top: 8px;
+  }
+  .proposal-reading-toolbar {
+    gap: 6px;
+  }
+  .proposal-reading-toolbar > .button {
+    font-size: 12px;
+  }
+}
+
+.proposal-reading-prose {
+  color: #343e34;
+}
+
+.proposal-reading-paragraph.is-changed .proposal-reading-text,
+.reading-modified {
+  color: #315f91;
+}
+.proposal-reading-paragraph.is-added .proposal-reading-text,
+.reading-added {
+  color: #2f6945;
+}
+.proposal-reading-paragraph.is-removed .proposal-reading-id,
+.reading-deleted {
+  color: #9b3e35;
+}
+.proposal-reading-prose .proposal-reading-text h3 {
+  color: inherit;
+}
+.proposal-reading-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 16px;
+}
+.proposal-reading-deleted-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  cursor: pointer;
+  color: #343e34;
+}
+.proposal-reading-deleted-toggle input {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  margin: 0;
+  accent-color: var(--green);
+}
+.proposal-reading-original-toggle {
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: #315f91;
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 4px 0;
+  margin-top: 3px;
+  min-height: 36px;
+}
+.proposal-reading-original {
+  border-left: 2px solid var(--line);
+  padding: 10px 14px;
+  margin: 4px 0 12px;
+  background: #f5f5ef;
+  color: #343e34;
+}
+.proposal-reading-original-label {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.proposal-reading-prose .proposal-reading-original p {
+  font-size: 17px;
+}
+:root[data-contrast="high"]
+  .proposal-reading-paragraph.is-changed
+  > .proposal-reading-text
+  > :is(h3, p) {
+  color: #234a74;
+}
+:root[data-contrast="high"]
+  .proposal-reading-paragraph.is-added
+  > .proposal-reading-text
+  > :is(h3, p) {
+  color: #245437;
+}
+:root[data-contrast="high"]
+  .proposal-reading-paragraph.is-removed
+  > .proposal-reading-text
+  > :is(h3, p) {
+  color: #853328;
+}
+@media (max-width: 600px) {
+  .proposal-reading-toolbar .proposal-comparison-tabs {
+    gap: 4px;
+  }
+  .proposal-reading-toolbar .proposal-comparison-tabs button {
+    font-size: 13px;
+    padding-inline: 6px;
+  }
+  .proposal-reading-deleted-toggle,
+  .proposal-reading-original-toggle {
+    min-height: 44px;
+  }
+}
+
+.proposal-review-footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--line);
+  padding: 14px 26px;
+  background: var(--paper, #faf9f3);
+}
+.proposal-review-footer .proposal-decision-actions {
+  justify-content: flex-end;
+}
+.proposal-selection-heading {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.proposal-selection-heading label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ink);
+  min-height: 44px;
+  font-weight: 600;
+}
+.proposal-selection-heading input,
+.proposal-accept-cell input {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  margin: 0;
+  accent-color: var(--green);
+}
+.proposal-accept-cell {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+}
+.proposal-reading-id {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.proposal-paragraph-tools {
+  display: flex;
+  gap: 20px;
+}
+.proposal-inline-editor {
+  display: block;
+  color: var(--ink);
+  font-size: 13px;
+}
+.proposal-inline-editor textarea {
+  width: 100%;
+  font: 18px/1.9 var(--serif);
+  margin: 6px 0;
+}
+.proposal-status.partially-accepted {
+  background: #eee7d6;
+  color: #72562e;
+}
+@media (max-width: 600px) {
+  .proposal-review-footer {
+    padding: 10px 14px;
+  }
+  .proposal-review-footer .proposal-decision-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .proposal-review-footer .button {
+    min-height: 44px;
+    width: 100%;
+    margin: 0;
+  }
+  .proposal-selection-heading {
+    gap: 10px;
+  }
+  .proposal-accept-cell {
+    min-height: 44px;
+  }
+}
+
+.proposal-reading-selection {
+  padding-top: 1px;
+}
+.proposal-reading-selection .proposal-accept-cell {
+  justify-content: flex-start;
+}
+.proposal-reading-paragraph.is-declined {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.proposal-reading-id small { overflow-wrap: normal; }

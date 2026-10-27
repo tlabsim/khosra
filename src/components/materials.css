@@ -231,3 +231,9 @@
     grid-template-columns: 1fr;
   }
 }
+
+.material-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

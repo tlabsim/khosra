@@ -1,3 +1,4 @@
+import { acceptedProposalParagraphs } from "./domain/proposalPresentation";
 import { initializeAppearance } from "./appearance";
 import {
   manuscriptChapters,
@@ -32,7 +33,7 @@ import Empty from "./components/Empty";
 import ProposalCard from "./components/ProposalCard";
 import PaginatedProposals from "./components/PaginatedProposals";
 import PaginatedList from "./components/PaginatedList";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import { createRoot } from "react-dom/client";
 import { CaretRight } from "@phosphor-icons/react/dist/csr/CaretRight";
 import { BookBookmark } from "@phosphor-icons/react/dist/csr/BookBookmark";
@@ -76,6 +77,8 @@ import {
   reference,
   commit,
   acceptProposal,
+  rejectProposal,
+  labelProposalParagraphs,
   addChapter,
   renumber,
   nextParagraphLabel,
@@ -135,9 +138,8 @@ function App() {
       quote: "",
     }),
     [historicalId, setHistoricalId] = useState(""),
-    [proposalId, setProposalId] = useState(""),
     [proposalFilter, setProposalFilter] = useState<
-      "all" | "pending" | "accepted" | "rejected"
+      "all" | "pending" | "accepted" | "partially-accepted" | "rejected"
     >("pending"),
     [scrolled, setScrolled] = useState(false),
     [serverReady, setServerReady] = useState(false);
@@ -301,6 +303,10 @@ function App() {
     (r) => r.id === historicalId && r.chapterId === chapter?.id,
   );
   const displayed = historical || current;
+  const proposalParagraphs = useMemo(
+    () => acceptedProposalParagraphs(state.revisions, displayed),
+    [state.revisions, displayed],
+  );
   const chapterRevisions = state.revisions.filter(
     (r) => r.chapterId === chapter?.id,
   );
@@ -1283,8 +1289,22 @@ function App() {
                           data-paragraph={p.id}
                         >
                           <button
-                            className="paragraph-id"
-                            title="Copy permanent passage reference"
+                            className={
+                              "paragraph-id" +
+                              (proposalParagraphs.has(p.id)
+                                ? " proposal-changed"
+                                : "")
+                            }
+                            aria-description={
+                              proposalParagraphs.has(p.id)
+                                ? "Changed by an accepted proposal"
+                                : undefined
+                            }
+                            title={
+                              proposalParagraphs.has(p.id)
+                                ? "Changed by an accepted proposal · Copy permanent passage reference"
+                                : "Copy permanent passage reference"
+                            }
                             onClick={() =>
                               void copy(
                                 `${reference(chapter, displayed, p)} [revision ${displayed.id}; paragraph ${p.id}]`,
@@ -1802,35 +1822,44 @@ function App() {
                   role="group"
                   aria-label="Filter proposals"
                 >
-                  {(["all", "pending", "accepted", "rejected"] as const).map(
-                    (filter) => (
-                      <button
-                        key={filter}
-                        className={proposalFilter === filter ? "active" : ""}
-                        aria-pressed={proposalFilter === filter}
-                        aria-label={`${filter[0].toUpperCase() + filter.slice(1)} proposals`}
-                        onClick={() => setProposalFilter(filter)}
-                      >
-                        {filter[0].toUpperCase() + filter.slice(1)}{" "}
-                        <span>
-                          {
-                            state.proposals.filter(
-                              (p) =>
-                                p.chapterId === chapter.id &&
-                                (filter === "all" || p.status === filter),
-                            ).length
-                          }
-                        </span>
-                      </button>
-                    ),
-                  )}
+                  {(
+                    [
+                      "all",
+                      "pending",
+                      "accepted",
+                      "partially-accepted",
+                      "rejected",
+                    ] as const
+                  ).map((filter) => (
+                    <button
+                      key={filter}
+                      className={proposalFilter === filter ? "active" : ""}
+                      aria-pressed={proposalFilter === filter}
+                      aria-label={`${(filter[0].toUpperCase() + filter.slice(1)).replace("-", " ")} proposals`}
+                      onClick={() => setProposalFilter(filter)}
+                    >
+                      {(filter[0].toUpperCase() + filter.slice(1)).replace(
+                        "-",
+                        " ",
+                      )}{" "}
+                      <span>
+                        {
+                          state.proposals.filter(
+                            (p) =>
+                              p.chapterId === chapter.id &&
+                              (filter === "all" || p.status === filter),
+                          ).length
+                        }
+                      </span>
+                    </button>
+                  ))}
                 </div>
                 {state.proposals.some((p) => p.chapterId === chapter.id) &&
                   !state.proposals.some(
                     (p) =>
                       p.chapterId === chapter.id &&
                       (proposalFilter === "all" || p.status === proposalFilter),
-                  ) && <p>No {proposalFilter} proposals.</p>}
+                  ) && <p>No {proposalFilter.replace("-", " ")} proposals.</p>}
                 {state.proposals.filter((p) => p.chapterId === chapter.id)
                   .length === 0 && (
                   <Empty
@@ -1865,7 +1894,6 @@ function App() {
                       p.chapterId === chapter.id &&
                       (proposalFilter === "all" || p.status === proposalFilter),
                   )}
-                  onPageChange={() => setProposalId("")}
                   renderProposal={(p) => (
                     <ProposalCard
                       key={p.id}
@@ -1874,9 +1902,13 @@ function App() {
                         (r) => r.id === p.baseRevisionId,
                       )!}
                       current={current!}
-                      expanded={proposalId === p.id}
-                      onToggle={() =>
-                        setProposalId(proposalId === p.id ? "" : p.id)
+                      previewParagraphs={(paragraphs) =>
+                        labelProposalParagraphs(
+                          state,
+                          chapter,
+                          current!,
+                          paragraphs,
+                        )
                       }
                       onAccept={(paragraphs, resolution) =>
                         act(() => {
@@ -1888,20 +1920,11 @@ function App() {
                               resolution,
                             ),
                           );
-                          setNotice(
-                            "Revision accepted. Earlier text is preserved.",
-                          );
+                          setNotice("Review saved. Earlier text is preserved.");
                         })
                       }
                       onReject={() =>
-                        update({
-                          ...state,
-                          proposals: state.proposals.map((item) =>
-                            item.id === p.id
-                              ? { ...item, status: "rejected" }
-                              : item,
-                          ),
-                        })
+                        act(() => update(rejectProposal(latest.current, p.id)))
                       }
                     />
                   )}

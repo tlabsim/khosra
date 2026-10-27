@@ -1688,11 +1688,14 @@ textarea::placeholder {
 }
 @media (max-width: 600px) {
   .proposal-filters {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 4px;
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 8px;
   }
   .proposal-filters button {
+    flex: 0 0 auto;
+    white-space: nowrap;
     padding: 8px 4px;
     font-size: 12px;
   }
@@ -1915,4 +1918,12 @@ textarea::placeholder {
     padding: 8px 5px;
     min-height: 44px;
   }
+}
+
+/* Proposal provenance belongs to the reference, leaving manuscript prose intact. */
+.paragraph-id.proposal-changed {
+  color: #8b5838;
+}
+:root[data-contrast="high"] .paragraph-id.proposal-changed {
+  color: #704020;
 }

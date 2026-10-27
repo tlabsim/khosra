@@ -39,7 +39,7 @@ function ownerPasswordMatches(string $password,array $config):bool {
  $configured=$config['owner_password']??null;
  return is_string($configured)&&strlen($configured)>=16&&hash_equals(hash('sha256',$configured),hash('sha256',$password));
 }
-function blank():array{return ['schemaVersion'=>1,'books'=>[],'chapters'=>[],'revisions'=>[],'flags'=>[],'proposals'=>[],'contexts'=>[],'materials'=>[],'files'=>[]];}
+function blank():array{return ['schemaVersion'=>1,'books'=>[],'chapters'=>[],'revisions'=>[],'flags'=>[],'proposals'=>[],'contexts'=>[],'materials'=>[],'files'=>[],'materialDeletions'=>[]];}
 function idvalid(mixed $v):bool{return is_string($v)&&preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i',$v)===1;}
 function text(mixed $v,int $max=200000):bool{return is_string($v)&&strlen($v)<=$max;}
 function record(array $rows,string $id):array{foreach($rows as $r)if(($r['id']??null)===$id)return $r;fail(404,'Record not found.');}
@@ -53,10 +53,61 @@ function validate(array $s):void {
  foreach($revisions as $r){if(!isset($chapters[$r['chapterId']??''])||!is_int($r['edition']??null)||$r['edition']<1||!in_array($r['source']??null,['author','proposal','restore','reindex'],true)||!text($r['createdAt']??null,100)||!text($r['message']??null,2000))fail(422,'Invalid revision.');if(($r['parentId']??null)!==null&&(!isset($revisions[$r['parentId']])||$revisions[$r['parentId']]['chapterId']!==$r['chapterId']))fail(422,'Invalid parent revision.');paragraphs($r['paragraphs']??null);}
  $indexes=[];$visiting=[];$indexRevision=function(array $r)use(&$indexRevision,&$indexes,&$visiting,$revisions):array{if(isset($indexes[$r['id']]))return $indexes[$r['id']];if(isset($visiting[$r['id']]))fail(422,'Cyclic revision history.');$visiting[$r['id']]=true;$parent=$revisions[$r['parentId']??'']??null;$index=$parent&&$parent['edition']===$r['edition']?$indexRevision($parent):['addresses'=>[],'identities'=>[]];foreach($r['paragraphs'] as $p){if((isset($index['addresses'][$p['label']])&&$index['addresses'][$p['label']]!==$p['id'])||(isset($index['identities'][$p['id']])&&$index['identities'][$p['id']]!==$p['label']))fail(422,'Stable paragraph references cannot change within an edition.');$index['addresses'][$p['label']]=$p['id'];$index['identities'][$p['id']]=$p['label'];}unset($visiting[$r['id']]);$indexes[$r['id']]=$index;return $index;};foreach($revisions as $r)$indexRevision($r);
  foreach($s['flags'] as $f){$r=$revisions[$f['revisionId']??'']??null;if(isset($f['audio'])&&(!is_string($f['audio'])||!preg_match('#^data:audio/[a-zA-Z0-9.+-]+;base64,#',$f['audio'])))fail(422,'Invalid audio attachment.');if(!$r||$r['chapterId']!==($f['chapterId']??null)||!is_int($f['number']??null)||$f['number']<1||!is_array($f['paragraphIds']??null)||!text($f['quote']??null)||!text($f['note']??null)||trim($f['note'])===''||!in_array($f['kind']??null,['rewrite','discussion','reference'],true)||!in_array($f['status']??null,['open','resolved'],true)||!text($f['createdAt']??null,100))fail(422,'Invalid flag.');foreach($f['paragraphIds'] as $id)if(!in_array($id,array_column($r['paragraphs'],'id'),true))fail(422,'Invalid flag anchor.');}
- foreach($s['proposals'] as $p){$r=$revisions[$p['baseRevisionId']??'']??null;if(!$r||$r['chapterId']!==($p['chapterId']??null)||!text($p['title']??null,2000)||!text($p['rationale']??null)||!in_array($p['status']??null,['pending','accepted','rejected'],true)||!text($p['createdAt']??null,100))fail(422,'Invalid proposal.');paragraphs($p['paragraphs']??null);foreach($p['paragraphs'] as $block){$index=$indexRevision($r);$a=$block['label'];$i=$block['id'];if((isset($index['addresses'][$a])&&$index['addresses'][$a]!==$block['id'])||(isset($index['identities'][$i])&&$index['identities'][$i]!==$block['label']))fail(422,'Proposal changes stable paragraph references.');}}
+ foreach($s['proposals'] as $p){$r=$revisions[$p['baseRevisionId']??'']??null;if(!$r||$r['chapterId']!==($p['chapterId']??null)||!text($p['title']??null,2000)||!text($p['rationale']??null)||!in_array($p['status']??null,['pending','accepted','partially-accepted','rejected'],true)||!text($p['createdAt']??null,100))fail(422,'Invalid proposal.');paragraphs($p['paragraphs']??null);validateProposalReview($p,$revisions);foreach(array_merge($p['paragraphs'],$p['review']['paragraphs']??[]) as $block){$index=$indexRevision($r);$a=$block['label'];$i=$block['id'];if((isset($index['addresses'][$a])&&$index['addresses'][$a]!==$block['id'])||(isset($index['identities'][$i])&&$index['identities'][$i]!==$block['label']))fail(422,'Proposal changes stable paragraph references.');}}
  foreach($s['contexts'] as $x){$r=$revisions[$x['revisionId']??'']??null;if(!$r||$r['chapterId']!==($x['chapterId']??null)||!text($x['summary']??null)||!is_array($x['facts']??null)||!text($x['createdAt']??null,100))fail(422,'Invalid context.');foreach($x['facts'] as $f){if(!in_array($f['kind']??null,['event','character','clue','thread','timeline','interpretation'],true)||!text($f['text']??null)||!is_array($f['paragraphIds']??null))fail(422,'Invalid context fact.');foreach($f['paragraphIds'] as $id)if(!in_array($id,array_column($r['paragraphs'],'id'),true))fail(422,'Invalid evidence.');}}
 }
-function preserveHistory(array $old,array $new):void{foreach(['books','chapters','revisions','flags','proposals','contexts','materials','files'] as $key){$lookup=array_column($new[$key]??[],null,'id');foreach($old[$key]??[] as $r){if(!isset($lookup[$r['id']]))fail(409,'Server records are missing locally. Download the latest workspace before uploading.');if(in_array($key,['revisions','contexts','materials','files'],true)&&$lookup[$r['id']]!=$r)fail(409,'Historical records are immutable.');if($key==='proposals'){ $incoming=$lookup[$r['id']];unset($incoming['status']);$previous=$r;unset($previous['status']);if($incoming!=$previous||($r['status']!=='pending'&&$lookup[$r['id']]['status']!==$r['status']))fail(409,'Proposal content and completed decisions are immutable.');}}}}
+// Review receipts are additive for older archives, mandatory for partial decisions.
+function validateProposalReview(array $p,array $revisions):void {
+ $v=$p['review']??null;
+ if($v===null){if($p['status']==='partially-accepted')fail(422,'Partial acceptance requires a review record.');return;}
+ if(!is_array($v)||!in_array($p['status'],['accepted','partially-accepted'],true))fail(422,'Invalid proposal review.');
+ $reviewed=$revisions[$v['reviewedRevisionId']??'']??null;$result=$revisions[$v['resultRevisionId']??'']??null;
+ if(!$reviewed||!$result||$reviewed['chapterId']!==$p['chapterId']||$result['chapterId']!==$p['chapterId']||$result['parentId']!==$reviewed['id']||$result['source']!=='proposal'||!text($v['createdAt']??null,100))fail(422,'Invalid reviewed revision.');
+ paragraphs($v['paragraphs']??null);
+ $before=$revisions[$p['baseRevisionId']]['paragraphs'];$after=$v['paragraphs'];$b=array_column($before,null,'id');$a=array_column($after,null,'id');$changed=[];
+ foreach($after as $row)if(!isset($b[$row['id']])||$b[$row['id']]['text']!==$row['text']||$b[$row['id']]['section']!==$row['section']||$b[$row['id']]['label']!==$row['label'])$changed[$row['id']]=true;
+ foreach($before as $row)if(!isset($a[$row['id']]))$changed[$row['id']]=true;
+ $left=array_values(array_filter($before,fn($r)=>isset($a[$r['id']])));$right=array_values(array_filter($after,fn($r)=>isset($b[$r['id']])));$reordered=false;
+ foreach($left as $i=>$row)if($row['id']!==$right[$i]['id']){$changed[$row['id']]=true;$changed[$right[$i]['id']]=true;$reordered=true;}
+ foreach(['selectedChangeIds','declinedChangeIds'] as $key){$ids=$v[$key]??null;if(!is_array($ids)||!array_is_list($ids)||count(array_unique($ids))!==count($ids))fail(422,'Invalid review selections.');foreach($ids as $id)if(!idvalid($id)||!isset($changed[$id]))fail(422,'Unknown selected change.');}
+ $selected=array_fill_keys($v['selectedChangeIds'],true);$declined=array_fill_keys($v['declinedChangeIds'],true);
+ if(array_intersect_key($selected,$declined)||count($selected)+count($declined)!==count($changed)||($p['status']==='partially-accepted')!==(count($declined)>0)||($p['status']==='partially-accepted'&&!$selected))fail(422,'Inconsistent review decision.');
+ if($reordered&&$selected&&$declined)fail(422,'Reordered changes must be selected together.');
+ // Structural hunks between unchanged anchors are indivisible.
+ $bi=0;$ai=0;$bp=array_flip(array_column($before,'id'));$ap=array_flip(array_column($after,'id'));
+ $anchors=array_values(array_filter($after,fn($r)=>!isset($changed[$r['id']])));$anchors[]=null;
+ if(!$reordered)foreach($anchors as $anchor){$eb=$anchor?$bp[$anchor['id']]:count($before);$ea=$anchor?$ap[$anchor['id']]:count($after);$l=array_slice($before,$bi,$eb-$bi);$r=array_slice($after,$ai,$ea-$ai);$struct=false;$ids=[];foreach($l as $row){$ids[$row['id']]=true;if(!isset($a[$row['id']]))$struct=true;}foreach($r as $row){$ids[$row['id']]=true;if(!isset($b[$row['id']]))$struct=true;}if($struct&&array_intersect_key($ids,$selected)&&array_intersect_key($ids,$declined))fail(422,'Linked changes must be selected together.');$bi=$eb+1;$ai=$ea+1;}
+ if(!is_array($v['choices']??null)||!array_is_list($v['choices']))fail(422,'Invalid conflict choices.');$seen=[];foreach($v['choices'] as $choice){$id=$choice['id']??'';if(($id!=='paragraph-order'&&!idvalid($id))||isset($seen[$id])||!in_array($choice['choice']??null,['current','proposal'],true))fail(422,'Invalid conflict choice.');$seen[$id]=true;}
+}
+function preserveHistory(array $old,array $new):void {
+ $oldDeletes=array_column($old['materialDeletions']??[],null,'id');
+ $deleted=[];
+ foreach($new['materialDeletions']??[] as $d){
+  if(!isset($oldDeletes[$d['id']])){
+   // An offline-created item may be deleted before its first upload.
+   foreach($old['materials']??[] as $m)if($m['itemId']===$d['itemId']&&$m['bookId']!==$d['bookId'])fail(409,'Material deletion belongs to another manuscript.');
+  }
+  $deleted[$d['itemId']]=$d['bookId'];
+ }
+ $removableFiles=[];
+ foreach($old['materials']??[] as $m)if(($deleted[$m['itemId']]??null)===$m['bookId']&&$m['fileId']!==null)$removableFiles[$m['fileId']]=true;
+ foreach($new['materials']??[] as $m)if($m['fileId']!==null)unset($removableFiles[$m['fileId']]);
+ foreach(['books','chapters','revisions','flags','proposals','contexts','materials','files','materialDeletions'] as $key){
+  $lookup=array_column($new[$key]??[],null,'id');
+  foreach($old[$key]??[] as $r){
+   if(!isset($lookup[$r['id']])){
+    if($key==='materials'&&($deleted[$r['itemId']]??null)===$r['bookId'])continue;
+    if($key==='files'&&isset($removableFiles[$r['id']]))continue;
+    fail(409,'Server records are missing locally. Download the latest workspace before uploading.');
+   }
+   if(in_array($key,['revisions','contexts','materials','files','materialDeletions'],true)&&$lookup[$r['id']]!=$r)fail(409,'Historical records are immutable.');
+   if($key==='proposals'){
+    $incoming=$lookup[$r['id']];unset($incoming['status'],$incoming['review']);$previous=$r;unset($previous['status'],$previous['review']);
+    if($incoming!=$previous||($r['status']!=='pending'&&($lookup[$r['id']]['status']!==$r['status']||($lookup[$r['id']]['review']??null)!=($r['review']??null))))fail(409,'Proposal content and completed decisions are immutable.');
+   }
+  }
+ }
+}
 function loadWorkspace(PDO $db,bool $lock=false):array {$q=$db->query('SELECT version,payload FROM workspace WHERE id=1'.($lock?databaseLock($db):''));$row=$q->fetch(PDO::FETCH_ASSOC);$q->closeCursor();return $row?['version'=>(int)$row['version'],'state'=>json_decode($row['payload'],true,512,JSON_THROW_ON_ERROR)]:['version'=>0,'state'=>blank()];}
 function writeWorkspace(PDO $db,array $s,int $base,string $op,string $hash):int {
  if(!idvalid($op))fail(422,'A durable operation UUID is required.');validate($s);beginWrite($db);try{$q=$db->prepare('SELECT payload_hash,result_version FROM operations WHERE operation_id=?');$q->execute([$op]);$known=$q->fetch(PDO::FETCH_ASSOC);$q->closeCursor();if($known){if(!hash_equals($known['payload_hash'],$hash))fail(409,'Operation ID reused for different content.');$db->commit();return (int)$known['result_version'];}
@@ -86,7 +137,7 @@ function callTool(PDO $db,string $name,array $args):array {
  if($name==='read_chapter'){if(isset($args['revision_id'])){$r=record($s['revisions'],$args['revision_id']);if($r['chapterId']!==$c['id'])fail(422,'Revision belongs to another chapter.');}if(isset($args['paragraph_ids'])){if(!is_array($args['paragraph_ids']))fail(422,'Invalid paragraph IDs.');$ids=$args['paragraph_ids'];$r['paragraphs']=array_values(array_filter($r['paragraphs'],fn($p)=>in_array($p['id'],$ids,true)));if(count($r['paragraphs'])!==count(array_unique($ids)))fail(404,'One or more paragraphs are absent from this revision.');}return ['chapter'=>$c,'revision'=>$r,'reference'=>'R'.$r['edition'].':C'.$c['code'],'isLatest'=>$r['id']===$c['headId']];}
  if($name==='read_context'){$xs=array_values(array_filter($s['contexts'],fn($x)=>$x['chapterId']===$c['id']));$x=$xs?end($xs):null;return ['context'=>$x,'stale'=>$x?$x['revisionId']!==$r['id']:true,'currentRevisionId'=>$r['id']];}
  if($name==='list_flags')return ['flags'=>array_values(array_filter($s['flags'],fn($f)=>$f['chapterId']===$c['id']))];
- if($name==='list_proposals')return ['proposals'=>array_map(fn($p)=>array_diff_key($p,['paragraphs'=>true]),array_values(array_filter($s['proposals'],fn($p)=>$p['chapterId']===$c['id'])))];
+ if($name==='list_proposals')return ['proposals'=>array_map(fn($p)=>array_diff_key($p,['paragraphs'=>true,'review'=>true]),array_values(array_filter($s['proposals'],fn($p)=>$p['chapterId']===$c['id'])))];
  if($name==='read_proposal'){$p=record($s['proposals'],(string)($args['proposal_id']??''));if($p['chapterId']!==$c['id'])fail(422,'Proposal belongs to another chapter.');return ['proposal'=>$p,'currentRevisionId'=>$r['id'],'stale'=>$p['baseRevisionId']!==$r['id']];}
  if($name==='list_history')return ['revisions'=>array_map(fn($x)=>array_diff_key($x,['paragraphs'=>true]),array_values(array_filter($s['revisions'],fn($x)=>$x['chapterId']===$c['id'])))];
  if(!in_array($name,['save_proposal','save_context'],true))fail(404,'Unknown tool.');

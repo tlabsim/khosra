@@ -1,39 +1,69 @@
-import { useState } from "react";
-import { Check } from "@phosphor-icons/react/dist/csr/Check";
+import { useMemo, useState } from "react";
 import type { Proposal, Revision, Paragraph } from "../domain/model";
-import ProposalReview from "./ProposalReview";
 import {
   mergeProposal,
   validProposalChoices,
   type ProposalResolution,
   type MergeChoice,
 } from "../domain/proposalMerge";
+import {
+  proposalChanges,
+  selectProposalChanges,
+} from "../domain/proposalSelection";
+import ProposalReadingDialog from "./ProposalReadingDialog";
+import Dialog from "../sharing/Dialog";
 
 export default function ProposalCard({
   proposal,
   original,
   current,
-  expanded,
-  onToggle,
   onAccept,
+  previewParagraphs,
   onReject,
 }: {
   proposal: Proposal;
   original: Revision;
   current: Revision;
-  expanded: boolean;
-  onToggle: () => void;
   onAccept: (paragraphs: Paragraph[], resolution: ProposalResolution) => void;
   onReject: () => void;
+  previewParagraphs: (paragraphs: Paragraph[]) => Paragraph[];
 }) {
-  const [paragraphs, setParagraphs] = useState(proposal.paragraphs);
+  const pending = proposal.status === "pending";
+  const [open, setOpen] = useState(false);
+  const [paragraphs, setParagraphs] = useState(
+    proposal.review?.paragraphs ?? proposal.paragraphs,
+  );
+  const [excluded, setExcluded] = useState<Set<string>>(
+    () => new Set(proposal.review?.declinedChangeIds ?? []),
+  );
   const [resolution, setResolution] = useState<
     ProposalResolution & { reviewed: Revision }
   >({
     revisionId: current.id,
     reviewed: current,
-    choices: {},
+    choices: Object.fromEntries(
+      (proposal.review?.choices ?? []).map((x) => [x.id, x.choice]),
+    ),
   });
+  const [confirmation, setConfirmation] = useState<{
+    kind: "accept" | "reject";
+    signature: string;
+  } | null>(null);
+  const groups = useMemo(
+    () => proposalChanges(original.paragraphs, paragraphs),
+    [original.paragraphs, paragraphs],
+  );
+  const allIds = groups.flatMap((g) => g.paragraphIds);
+  const effectiveExcluded = new Set(
+    groups
+      .filter(
+        (g) =>
+          proposal.status === "rejected" ||
+          g.paragraphIds.some((id) => excluded.has(id)),
+      )
+      .flatMap((g) => g.paragraphIds),
+  );
+  const selectedIds = allIds.filter((id) => !effectiveExcluded.has(id));
   const choices =
     resolution.revisionId === current.id
       ? resolution.choices
@@ -42,75 +72,186 @@ export default function ProposalCard({
           current.paragraphs,
           resolution.choices,
         );
-  const merged = mergeProposal(
+  const selectedParagraphs = selectProposalChanges(
     original.paragraphs,
     paragraphs,
+    selectedIds,
+  );
+  const merged = mergeProposal(
+    original.paragraphs,
+    selectedParagraphs,
     current.paragraphs,
     choices,
   );
-  const stale = proposal.baseRevisionId !== current.id;
+  const selectedGroups = groups.filter(
+    (g) => !effectiveExcluded.has(g.paragraphIds[0]),
+  ).length;
+  const total = groups.length;
+  const acceptLabel =
+    selectedGroups === total
+      ? "Accept all proposed changes"
+      : `Accept selected (${selectedGroups} of ${total})`;
+  const signature = JSON.stringify([
+    current.id,
+    paragraphs,
+    selectedIds,
+    choices,
+    proposal.status,
+  ]);
+  const canAccept =
+    pending && selectedGroups > 0 && merged.unresolved.length === 0;
   function resolve(id: string, choice: MergeChoice) {
+    if (choice === "current" && id !== "paragraph-order") {
+      const group = groups.find((g) => g.paragraphIds.includes(id));
+      if (group) toggle(group.paragraphIds, false);
+      const next = { ...choices };
+      delete next[id];
+      setResolution({
+        revisionId: current.id,
+        reviewed: current,
+        choices: next,
+      });
+      return;
+    }
     setResolution({
       revisionId: current.id,
       reviewed: current,
       choices: { ...choices, [id]: choice },
     });
   }
+  function toggle(ids: string[], checked: boolean) {
+    setExcluded((old) => {
+      const next = new Set(old);
+      for (const id of ids) {
+        if (checked) next.delete(id);
+        else next.add(id);
+      }
+      return next;
+    });
+  }
+  const actions = pending ? (
+    <div className="proposal-decision-actions">
+      <button
+        className="button primary"
+        disabled={!canAccept}
+        onClick={() => setConfirmation({ kind: "accept", signature })}
+      >
+        {acceptLabel}
+      </button>
+      <button
+        className="button quiet"
+        onClick={() => setConfirmation({ kind: "reject", signature })}
+      >
+        Reject this proposal
+      </button>
+    </div>
+  ) : null;
   return (
     <section className="card proposal-card">
       <header className="proposal-card-heading">
         <span className={`status-pill proposal-status ${proposal.status}`}>
-          {proposal.status}
+          {proposal.status.replace("-", " ")}
         </span>
         <h3>{proposal.title}</h3>
       </header>
       <p className="proposal-rationale">{proposal.rationale}</p>
-      {proposal.status === "pending" && merged.unresolved.length > 0 ? (
+      {pending && merged.unresolved.length > 0 && (
         <p className="proposal-conflict-notice" role="status">
-          {merged.unresolved.map((x) => x.label).join(", ")} changed in both
-          versions. Open comparison and choose what to keep.
+          Some selected passages also changed in your draft. Review them and
+          choose what to keep.
         </p>
-      ) : stale && proposal.status === "pending" ? (
+      )}
+      {proposal.review && (
         <p className="caption">
-          Edits elsewhere in the current manuscript will be kept.
+          {proposal.review.selectedChangeIds.length} paragraph changes accepted
+          · {proposal.review.declinedChangeIds.length} declined. The original
+          proposal is preserved.
         </p>
-      ) : null}
-      {expanded && (
-        <ProposalReview
+      )}
+      <footer className="proposal-card-actions">
+        <button className="button" onClick={() => setOpen(true)}>
+          {pending ? "Review proposal" : "View reviewed proposal"}
+        </button>
+        {actions}
+      </footer>
+      {open && (
+        <ProposalReadingDialog
           proposal={proposal}
           original={original}
           current={current}
           paragraphs={paragraphs}
-          onEdit={setParagraphs}
-          merged={merged.paragraphs}
-          conflicts={merged.conflicts}
+          groups={groups}
+          excluded={effectiveExcluded}
           choices={choices}
+          conflicts={merged.conflicts}
           onResolve={resolve}
+          onToggle={toggle}
+          onEdit={setParagraphs}
+          previewParagraphs={previewParagraphs}
+          onClose={() => setOpen(false)}
+          footer={actions}
         />
       )}
-      <footer className="proposal-card-actions">
-        <button className="button" aria-expanded={expanded} onClick={onToggle}>
-          {expanded ? "Close comparison" : "Compare before & after"}
-        </button>
-        {proposal.status === "pending" && (
-          <div className="proposal-decision-actions">
+      {confirmation && (
+        <Dialog
+          title={
+            confirmation.kind === "reject"
+              ? "Reject this proposal?"
+              : selectedGroups === total
+                ? `Accept all ${total} proposed changes?`
+                : `Accept ${selectedGroups} of ${total} changes?`
+          }
+          closeLabel="Close confirmation"
+          initialFocus=".proposal-confirm-cancel"
+          onClose={() => setConfirmation(null)}
+        >
+          <p>{proposal.title}</p>
+          <p>
+            {confirmation.kind === "reject"
+              ? "Your manuscript will remain unchanged."
+              : selectedGroups === total
+                ? "The selected changes will be saved as a new revision. Earlier text remains in history."
+                : `The remaining ${total - selectedGroups} changes will be declined. This completes the review and moves the proposal to Partially accepted.`}
+          </p>
+          {confirmation.signature !== signature && (
+            <p role="alert">
+              The draft or review changed. Cancel and review it again before
+              confirming.
+            </p>
+          )}
+          <div className="actions">
+            <button
+              className="button proposal-confirm-cancel"
+              onClick={() => setConfirmation(null)}
+            >
+              Cancel
+            </button>
             <button
               className="button primary"
-              aria-label="Accept this revision"
-              disabled={merged.unresolved.length > 0}
-              onClick={() =>
-                onAccept(paragraphs, { revisionId: current.id, choices })
+              disabled={
+                confirmation.signature !== signature ||
+                !pending ||
+                (confirmation.kind === "accept" && !canAccept)
               }
+              onClick={() => {
+                if (confirmation.signature !== signature) return;
+                if (confirmation.kind === "accept")
+                  onAccept(paragraphs, {
+                    revisionId: current.id,
+                    choices,
+                    selectedChangeIds: selectedIds,
+                  });
+                else onReject();
+                setConfirmation(null);
+              }}
             >
-              <Check />
-              Accept revision
-            </button>
-            <button className="button quiet" onClick={onReject}>
-              Reject proposal
+              {confirmation.kind === "reject"
+                ? "Confirm rejection"
+                : "Confirm acceptance"}
             </button>
           </div>
-        )}
-      </footer>
+        </Dialog>
+      )}
     </section>
   );
 }

@@ -1,10 +1,16 @@
+import { proposalChanges, selectProposalChanges } from "./proposalSelection";
 import { z } from "zod";
 import {
   mergeProposal,
   validProposalChoices,
   type ProposalResolution,
 } from "./proposalMerge";
-import { FileSchema, MaterialSchema, validateMaterials } from "./materials";
+import {
+  FileSchema,
+  MaterialSchema,
+  MaterialDeletionSchema,
+  validateMaterials,
+} from "./materials";
 export const ParagraphSchema = z.object({
   id: z.string().uuid(),
   label: z.number().int().positive(),
@@ -59,7 +65,20 @@ export const ProposalSchema = z.object({
   title: z.string(),
   rationale: z.string(),
   paragraphs: z.array(ParagraphSchema),
-  status: z.enum(["pending", "accepted", "rejected"]),
+  status: z.enum(["pending", "accepted", "partially-accepted", "rejected"]),
+  review: z
+    .object({
+      reviewedRevisionId: z.string().uuid(),
+      resultRevisionId: z.string().uuid(),
+      createdAt: z.string(),
+      choices: z.array(
+        z.object({ id: z.string(), choice: z.enum(["current", "proposal"]) }),
+      ),
+      selectedChangeIds: z.array(z.string().uuid()),
+      declinedChangeIds: z.array(z.string().uuid()),
+      paragraphs: z.array(ParagraphSchema),
+    })
+    .optional(),
   createdAt: z.string(),
 });
 export const ContextSchema = z.object({
@@ -93,6 +112,7 @@ export const StateSchema = z.object({
   contexts: z.array(ContextSchema),
   materials: z.array(MaterialSchema).default([]),
   files: z.array(FileSchema).default([]),
+  materialDeletions: z.array(MaterialDeletionSchema).default([]),
 });
 export type Paragraph = z.infer<typeof ParagraphSchema>;
 export type Revision = z.infer<typeof RevisionSchema>;
@@ -114,6 +134,7 @@ export const emptyState = (): State => ({
   contexts: [],
   materials: [],
   files: [],
+  materialDeletions: [],
 });
 export function validateState(value: unknown): State {
   const s = StateSchema.parse(value);
@@ -129,6 +150,7 @@ export function validateState(value: unknown): State {
       s.contexts,
       s.materials,
       s.files,
+      s.materialDeletions,
     ].every(unique)
   )
     throw Error("Duplicate record IDs.");
@@ -187,6 +209,44 @@ export function validateState(value: unknown): State {
     )
       throw Error("Invalid proposal base or paragraphs.");
   }
+  for (const p of s.proposals) {
+    if (p.status === "partially-accepted" && !p.review)
+      throw Error("Partial acceptance requires a review record.");
+    if (!p.review) continue;
+    const review = p.review;
+    const source = s.revisions.find((r) => r.id === p.baseRevisionId)!;
+    const reviewed = s.revisions.find(
+      (r) => r.id === review.reviewedRevisionId && r.chapterId === p.chapterId,
+    );
+    const result = s.revisions.find(
+      (r) => r.id === review.resultRevisionId && r.chapterId === p.chapterId,
+    );
+    const ids = proposalChanges(source.paragraphs, review.paragraphs).flatMap(
+      (g) => g.paragraphIds,
+    );
+    selectProposalChanges(
+      source.paragraphs,
+      review.paragraphs,
+      review.selectedChangeIds,
+    );
+    const selectedSet = new Set(review.selectedChangeIds);
+    const declined = ids.filter((id) => !selectedSet.has(id));
+    if (
+      !reviewed ||
+      !result ||
+      result.parentId !== reviewed.id ||
+      result.source !== "proposal" ||
+      !unique(review.paragraphs) ||
+      new Set(review.paragraphs.map((x) => x.label)).size !==
+        review.paragraphs.length ||
+      JSON.stringify([...declined].sort()) !==
+        JSON.stringify([...review.declinedChangeIds].sort()) ||
+      !["accepted", "partially-accepted"].includes(p.status) ||
+      (p.status === "partially-accepted") !== declined.length > 0 ||
+      (p.status === "partially-accepted" && !review.selectedChangeIds.length)
+    )
+      throw Error("Invalid proposal review record.");
+  }
   for (const x of s.contexts) {
     const r = s.revisions.find(
       (r) => r.id === x.revisionId && r.chapterId === x.chapterId,
@@ -239,7 +299,7 @@ export function validateState(value: unknown): State {
   for (const p of s.proposals) {
     const base = s.revisions.find((r) => r.id === p.baseRevisionId)!;
     const index = indexRevision(base);
-    for (const block of p.paragraphs) {
+    for (const block of [...p.paragraphs, ...(p.review?.paragraphs ?? [])]) {
       if (
         (index.addresses.has(block.label) &&
           index.addresses.get(block.label) !== block.id) ||
@@ -291,6 +351,39 @@ export function commit(
     revisions: [...s.revisions, r],
   });
 }
+export function labelProposalParagraphs(
+  s: State,
+  chapter: Chapter,
+  current: Revision,
+  paragraphs: Paragraph[],
+): Paragraph[] {
+  // Preserve the latest edition's addresses, including labels reserved by older
+  // snapshots. Concurrent/new insertions must never steal an existing address.
+  const labels = new Map<number, string>(),
+    identities = new Map<string, number>();
+  for (const r of s.revisions.filter(
+    (r) => r.chapterId === chapter.id && r.edition === current.edition,
+  ))
+    for (const block of r.paragraphs) {
+      if (!labels.has(block.label)) labels.set(block.label, block.id);
+      if (!identities.has(block.id)) identities.set(block.id, block.label);
+    }
+  for (const block of current.paragraphs) {
+    labels.set(block.label, block.id);
+    identities.set(block.id, block.label);
+  }
+  let nextLabel = nextParagraphLabel(s, chapter);
+  return paragraphs.map((block) => {
+    let label = identities.get(block.id) ?? block.label;
+    if (labels.has(label) && labels.get(label) !== block.id) {
+      while (labels.has(nextLabel)) nextLabel++;
+      label = nextLabel++;
+    }
+    labels.set(label, block.id);
+    identities.set(block.id, label);
+    return { ...block, label };
+  });
+}
 export function acceptProposal(
   s: State,
   p: Proposal,
@@ -325,9 +418,25 @@ export function acceptProposal(
       choices,
     );
   }
-  const merged = mergeProposal(
+  if (resolution?.selectedChangeIds && resolution.revisionId !== current.id)
+    throw Error(
+      "Your draft changed. Review the latest draft before confirming.",
+    );
+  const groups = proposalChanges(original.paragraphs, paragraphs);
+  const allIds = groups.flatMap((g) => g.paragraphIds);
+  const selectedIds = resolution?.selectedChangeIds ?? allIds;
+  const selectedParagraphs = selectProposalChanges(
     original.paragraphs,
     paragraphs,
+    selectedIds,
+  );
+  if (resolution?.selectedChangeIds && !selectedIds.length)
+    throw Error("Select at least one proposed change.");
+  const selectedSet = new Set(selectedIds);
+  const declinedIds = allIds.filter((id) => !selectedSet.has(id));
+  const merged = mergeProposal(
+    original.paragraphs,
+    selectedParagraphs,
     current.paragraphs,
     choices,
   );
@@ -343,32 +452,12 @@ export function acceptProposal(
         merged.unresolved.map((x) => x.label).join(", ") +
         ". Choose which version to keep in comparison.",
     );
-  // Preserve the latest edition's addresses, including labels reserved by older
-  // snapshots. Concurrent/new insertions must never steal an existing address.
-  const labels = new Map<number, string>(),
-    identities = new Map<string, number>();
-  for (const r of s.revisions.filter(
-    (r) => r.chapterId === chapter.id && r.edition === current.edition,
-  ))
-    for (const block of r.paragraphs) {
-      if (!labels.has(block.label)) labels.set(block.label, block.id);
-      if (!identities.has(block.id)) identities.set(block.id, block.label);
-    }
-  for (const block of current.paragraphs) {
-    labels.set(block.label, block.id);
-    identities.set(block.id, block.label);
-  }
-  let nextLabel = nextParagraphLabel(s, chapter);
-  const accepted = merged.paragraphs.map((block) => {
-    let label = identities.get(block.id) ?? block.label;
-    if (labels.has(label) && labels.get(label) !== block.id) {
-      while (labels.has(nextLabel)) nextLabel++;
-      label = nextLabel++;
-    }
-    labels.set(label, block.id);
-    identities.set(block.id, label);
-    return { ...block, label };
-  });
+  const accepted = labelProposalParagraphs(
+    s,
+    chapter,
+    current,
+    merged.paragraphs,
+  );
   const next = commit(
     s,
     saved.chapterId,
@@ -384,7 +473,28 @@ export function acceptProposal(
   return {
     ...next,
     proposals: next.proposals.map((x) =>
-      x.id === saved.id ? { ...x, status: "accepted" as const } : x,
+      x.id === saved.id
+        ? {
+            ...x,
+            status: declinedIds.length
+              ? ("partially-accepted" as const)
+              : ("accepted" as const),
+            review: {
+              reviewedRevisionId: current.id,
+              resultRevisionId: next.chapters.find(
+                (c) => c.id === saved.chapterId,
+              )!.headId,
+              createdAt: now(),
+              choices: Object.entries(choices).map(([id, choice]) => ({
+                id,
+                choice,
+              })),
+              selectedChangeIds: selectedIds,
+              declinedChangeIds: declinedIds,
+              paragraphs,
+            },
+          }
+        : x,
     ),
   };
 }
@@ -501,4 +611,16 @@ export function reincorporate(
     ...p,
     label: current.paragraphs.find((x) => x.id === p.id)?.label ?? label++,
   }));
+}
+
+export function rejectProposal(s: State, id: string): State {
+  const saved = s.proposals.find((p) => p.id === id);
+  if (!saved || saved.status !== "pending")
+    throw Error("Proposal already reviewed or missing.");
+  return {
+    ...s,
+    proposals: s.proposals.map((p) =>
+      p.id === id ? { ...p, status: "rejected" as const } : p,
+    ),
+  };
 }

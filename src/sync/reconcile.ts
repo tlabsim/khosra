@@ -1,4 +1,10 @@
-import { validateState, type State, type Chapter } from "../domain/model";
+import { applyMaterialDeletions } from "../domain/materials";
+import {
+  ProposalSchema,
+  validateState,
+  type State,
+  type Chapter,
+} from "../domain/model";
 export type Choices = Record<string, "local" | "server">;
 export type Conflict = {
   id: string;
@@ -92,7 +98,11 @@ export function reconcile(local: State, remote: State, choices: Choices = {}) {
   // Completed server review decisions are authoritative; unsynced terminal decisions
   // can advance pending server proposals. Proposal content remains immutable.
   const proposals = union(local.proposals, remote.proposals, (a, b) => {
-    const strip = (p: typeof a) => ({ ...p, status: "pending" });
+    const strip = (p: typeof a) => ({
+      ...ProposalSchema.parse(p),
+      status: "pending",
+      review: undefined,
+    });
     if (!equal(strip(a), strip(b)))
       throw Error("Proposal content differs between copies.");
     return b.status === "pending" ? a : b;
@@ -102,16 +112,22 @@ export function reconcile(local: State, remote: State, choices: Choices = {}) {
       throw Error("Flag content differs between copies.");
     return a;
   });
-  const state = validateState({
-    schemaVersion: 1,
-    books,
-    chapters,
-    revisions,
-    flags,
-    proposals,
-    contexts: union(local.contexts, remote.contexts),
-    materials: union(local.materials ?? [], remote.materials ?? []),
-    files: union(local.files ?? [], remote.files ?? []),
-  });
+  const state = validateState(
+    applyMaterialDeletions({
+      schemaVersion: 1,
+      books,
+      chapters,
+      revisions,
+      flags,
+      proposals,
+      contexts: union(local.contexts, remote.contexts),
+      materials: union(local.materials ?? [], remote.materials ?? []),
+      files: union(local.files ?? [], remote.files ?? []),
+      materialDeletions: union(
+        local.materialDeletions ?? [],
+        remote.materialDeletions ?? [],
+      ),
+    }),
+  );
   return { state, conflicts };
 }

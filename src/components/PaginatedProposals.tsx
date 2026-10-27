@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Proposal } from "../domain/model";
+import { newestProposals } from "../domain/proposalPresentation";
 import PaginatedList from "./PaginatedList";
 export default function PaginatedProposals({
   proposals,
@@ -8,11 +9,11 @@ export default function PaginatedProposals({
 }: {
   proposals: Proposal[];
   renderProposal: (proposal: Proposal) => ReactNode;
-  onPageChange: () => void;
+  onPageChange?: () => void;
 }) {
   return (
     <PaginatedList
-      items={proposals}
+      items={newestProposals(proposals)}
       renderItem={renderProposal}
       label="Proposal"
       noun="proposals"

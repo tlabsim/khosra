@@ -15,8 +15,15 @@ function validateMaterialFile(array $f):void {
  if(!$valid)fail(422,'Attachment content does not match its file type.');
 }
 function validateMaterials(array $s):void {
- foreach(['materials','files'] as $key){$rows=array_key_exists($key,$s)?$s[$key]:[];if(!is_array($rows)||!array_is_list($rows)||count($rows)>100000)fail(422,'Invalid material collection.');$ids=[];foreach($rows as $row){if(!is_array($row)||!idvalid($row['id']??null)||isset($ids[$row['id']]))fail(422,'Invalid or duplicate material ID.');$ids[$row['id']]=true;}}
+ foreach(['materials','files','materialDeletions'] as $key){$rows=array_key_exists($key,$s)?$s[$key]:[];if(!is_array($rows)||!array_is_list($rows)||count($rows)>100000)fail(422,'Invalid material collection.');$ids=[];foreach($rows as $row){if(!is_array($row)||!idvalid($row['id']??null)||isset($ids[$row['id']]))fail(422,'Invalid or duplicate material ID.');$ids[$row['id']]=true;}}
  $books=array_column($s['books'],null,'id');$chapters=array_column($s['chapters'],null,'id');$files=array_column($s['files']??[],null,'id');$rows=array_column($s['materials']??[],null,'id');$total=0;
+ $deleted=[];
+ foreach($s['materialDeletions']??[] as $d){
+  if(!idvalid($d['itemId']??null)||!idvalid($d['bookId']??null)||!isset($books[$d['bookId']])||!is_string($d['createdAt']??null)||!preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/D',$d['createdAt'])||strtotime($d['createdAt'])===false)fail(422,'Invalid material deletion.');
+  $deleted[$d['itemId']]=true;
+ }
+ foreach($rows as $m)if(isset($deleted[$m['itemId']??'']))fail(422,'Deleted materials cannot be restored by an older workspace.');
+
  foreach($files as $f){validateMaterialFile($f);if(!isset($books[$f['bookId']]))fail(422,'Attachment manuscript is missing.');$total+=$f['size'];}if($total>8388608)fail(422,'Attachments exceed the 8 MiB workspace limit, including history.');
  foreach($rows as $m){
  if(!idvalid($m['itemId']??null)||!array_key_exists('parentId',$m)||($m['parentId']!==null&&!idvalid($m['parentId']))||!idvalid($m['bookId']??null)||!isset($books[$m['bookId']])||!in_array($m['kind']??null,['idea','artifact'],true)||!materialText($m['title']??null,300)||trim($m['title'])===''||!materialText($m['body']??null,100000)||!is_array($m['chapterIds']??null)||!array_is_list($m['chapterIds'])||count($m['chapterIds'])>1000||!in_array($m['source']??null,['author','model'],true)||!text($m['createdAt']??null,100)||!preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/D',$m['createdAt'])||strtotime($m['createdAt'])===false||!text($m['url']??null,2000)||!array_key_exists('fileId',$m))fail(422,'Invalid idea or artifact.');

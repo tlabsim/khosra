@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Put review checkboxes in a dedicated column before paragraph IDs; keep omitted-gap alignment with prose. Restrict Show current/original to modifications, removing redundant controls from deleted and newly added paragraphs.
+
+- Replaced parallel proposal comparisons with one continuous review modal, per-change Accept checkboxes, linked structural selections, inline editing/current-text comparisons and a fixed decision footer. Added Partially accepted filtering, durable review receipts and confirmation for every acceptance/rejection, including quick actions. Unchecked changes preserve the latest draft; stale confirmations cannot save. Updated sync/backend validation and MCP guide/read metadata.
+
+- Left-aligned the reading-preview dotted gaps with manuscript text on desktop and mobile.
+
+- Added an explicit Read proposed changes modal defaulting to a combined, color-coded manuscript with optional Before/After views. Added a Show deleted toggle and per-modification Show current/original expansions, stable IDs, up to five context paragraphs and two dotted lines for gaps larger than two paragraphs. Mark removed text with strikethrough in Before, use concise removal counts, preserve current edits and share final label allocation with acceptance. Preview snapshots rebuild only on request and never modify the manuscript; unresolved conflicts must be resolved first.
+
+- Sort proposal cards newest first before pagination across all filters. Tint manuscript paragraph IDs warm brown when their latest text or heading change came through an accepted proposal; preserve attribution through unrelated edits/renumbering and clear it after a direct rewrite. Historical views derive attribution from their own revision ancestry.
+
+- Added author-confirmed permanent deletion for Ideas and Artifacts, including all versions and unshared attachments. Durable deletion markers prevent resurrection during synchronization/archive reconciliation, preserve shared files, and retain manuscript/history protections. Models have no deletion tool.
+
 - Redesigned Ideas and Artifacts empty states with distinct notebook/map illustrations, a single creation action and privacy/story guidance. Hide unused filters before the first item; filtered-empty collections offer Show all. Cleaned obsolete bundles from the local live assets mirror.
 
 - Limited the chapter title/metadata banner to Manuscript, removing it from Flags, Proposals, History and Context. Restyled Context/Ideas/Artifacts with larger text and a thick active underline.

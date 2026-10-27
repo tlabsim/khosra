@@ -6,6 +6,7 @@ import {
   PencilSimple,
   DownloadSimple,
   X,
+  Trash,
 } from "@phosphor-icons/react";
 import { now, uid, validateState, type State } from "../domain/model";
 import {
@@ -17,6 +18,8 @@ import {
   type Material,
   type MaterialFile,
 } from "../domain/materials";
+import { deleteMaterial } from "../domain/materialDeletion";
+import Dialog from "../sharing/Dialog";
 import PaginatedList from "./PaginatedList";
 import LazyDetails from "./LazyDetails";
 import "./materials.css";
@@ -102,10 +105,15 @@ export default function Materials({
     [error, setError] = useState(""),
     [upload, setUpload] = useState<File | null>(null),
     [busy, setBusy] = useState(false);
+  const [deletion, setDeletion] = useState<{
+    material: Material;
+    heads: string[];
+  } | null>(null);
+  const [deleteError, setDeleteError] = useState("");
   useEffect(() => {
-    onEditing(!!form);
+    onEditing(!!form || !!deletion);
     return () => onEditing(false);
-  }, [!!form]);
+  }, [!!form, !!deletion]);
   const rows = state.materials.filter(
     (m) => m.bookId === bookId && m.kind === kind,
   );
@@ -158,6 +166,10 @@ export default function Materials({
     try {
       const file = upload ? await uploadFile(upload, bookId) : null;
       onSave((s) => {
+        if (s.materialDeletions.some((d) => d.itemId === form.itemId))
+          throw Error(
+            "This item was deleted on another device. Copy any unsaved notes before closing.",
+          );
         const existing = s.materials.find((m) => m.id === form.id);
         if (
           existing &&
@@ -204,9 +216,51 @@ export default function Materials({
       className="materials"
       aria-label={kind === "idea" ? "Manuscript ideas" : "Manuscript artifacts"}
     >
+      {deletion && (
+        <Dialog
+          title={`Delete ${kind}?`}
+          closeLabel="Close deletion dialog"
+          initialFocus=".material-delete-cancel"
+          returnFocus=".materials .section-heading h2"
+          onClose={() => setDeletion(null)}
+        >
+          <p>
+            Delete <strong>{deletion.material.title}</strong> and all its
+            versions?
+            {kind === "artifact" &&
+              " Attachments used only by this artifact will also be removed."}
+          </p>
+          <p>This cannot be undone. Existing backups retain their copies.</p>
+          {deleteError && <p role="alert">{deleteError}</p>}
+          <div className="material-form-actions">
+            <button
+              className="button material-delete-cancel"
+              onClick={() => setDeletion(null)}
+            >
+              Cancel
+            </button>
+            <button
+              className="button danger"
+              onClick={() => {
+                try {
+                  onSave((s) =>
+                    deleteMaterial(s, deletion.material.id, deletion.heads),
+                  );
+                  setDeletion(null);
+                } catch (e) {
+                  setDeleteError(e instanceof Error ? e.message : String(e));
+                }
+              }}
+            >
+              <Trash size={18} />
+              Delete {kind}
+            </button>
+          </div>
+        </Dialog>
+      )}
       <div className="section-heading">
         <div>
-          <h2>{kind === "idea" ? "Ideas" : "Artifacts"}</h2>
+          <h2 tabIndex={-1}>{kind === "idea" ? "Ideas" : "Artifacts"}</h2>
           <p className="muted">
             {kind === "idea"
               ? "Possibilities for this manuscript. You decide what becomes part of the story."
@@ -601,14 +655,32 @@ export default function Materials({
                 )}
               </div>
               <footer>
-                <button
-                  className="button quiet"
-                  disabled={!!form}
-                  onClick={() => open(m)}
-                >
-                  <PencilSimple size={18} />
-                  Edit {kind}
-                </button>
+                <div className="material-card-actions">
+                  <button
+                    className="button quiet"
+                    disabled={!!form}
+                    onClick={() => open(m)}
+                  >
+                    <PencilSimple size={18} />
+                    Edit {kind}
+                  </button>
+                  <button
+                    className="button quiet danger"
+                    disabled={!!form}
+                    onClick={() => {
+                      setDeleteError("");
+                      setDeletion({
+                        material: m,
+                        heads: heads
+                          .filter((h) => h.itemId === m.itemId)
+                          .map((h) => h.id),
+                      });
+                    }}
+                  >
+                    <Trash size={18} />
+                    Delete {kind}
+                  </button>
+                </div>
                 <span className="caption">
                   {kind === "idea"
                     ? "Change status in Edit idea"
