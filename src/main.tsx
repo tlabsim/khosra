@@ -228,9 +228,12 @@ function App() {
       apply: async (next, expected) => {
         if (JSON.stringify(latest.current) !== expected || syncBlocked.current)
           return false;
-        latest.current = next;
-        setState(next);
-        writeQueue.current = writeQueue.current.then(() => saveState(next));
+        const normalized = validateState(next);
+        latest.current = normalized;
+        setState(normalized);
+        writeQueue.current = writeQueue.current.then(() =>
+          saveState(normalized),
+        );
         try {
           await writeQueue.current;
         } catch (error) {
@@ -348,12 +351,12 @@ function App() {
     : 0;
   function update(next: State) {
     try {
-      validateState(next);
-      latest.current = next;
-      setState(next);
+      const normalized = validateState(next);
+      latest.current = normalized;
+      setState(normalized);
       setSaveStatus("Saving locally…");
       writeQueue.current = writeQueue.current
-        .then(() => saveState(next))
+        .then(() => saveState(normalized))
         .then(() => {
           localSaveError.current = null;
           setSaveStatus("Saved on this device");

@@ -412,3 +412,112 @@ test("a stale browser tab cannot replace work saved by another tab", async ({
     "Newest tab text",
   );
 });
+
+test("full and partial proposal acceptance autosave without a false other-tab conflict", async ({
+  page,
+  context,
+  browser,
+}) => {
+  const source = fixture(),
+    c = source.chapters[0],
+    base = head(source, c);
+  base.paragraphs = [
+    { ...base.paragraphs[0], text: "Original opening" },
+    { id: uid(), label: 2, section: "", text: "Original ending" },
+  ];
+  source.proposals = [
+    {
+      id: uid(),
+      chapterId: c.id,
+      baseRevisionId: base.id,
+      title: "First accepted proposal",
+      rationale: "Rewrite opening",
+      status: "pending",
+      createdAt: now(),
+      paragraphs: base.paragraphs.map((p, i) =>
+        i === 0 ? { ...p, text: "Accepted opening" } : p,
+      ),
+    },
+    {
+      id: uid(),
+      chapterId: c.id,
+      baseRevisionId: base.id,
+      title: "Partially accepted proposal",
+      rationale: "Two independent suggestions",
+      status: "pending",
+      createdAt: now(),
+      paragraphs: base.paragraphs.map((p, i) => ({
+        ...p,
+        text: i === 0 ? "Declined opening" : "Accepted ending",
+      })),
+    },
+  ];
+  const server = serverFixture(source);
+  await server.attach(context);
+  await page.goto("/");
+  await signIn(page);
+  await expect(page.locator(".server-sync")).toContainText("Saved to server");
+  await page
+    .getByRole("navigation", { name: "Chapter workspace" })
+    .getByRole("button", { name: "Proposals", exact: true })
+    .click();
+  const first = page.locator(".proposal-card").filter({
+    has: page.getByRole("heading", {
+      name: "First accepted proposal",
+      exact: true,
+    }),
+  });
+  await first
+    .getByRole("button", { name: "Accept all proposed changes", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Confirm acceptance", exact: true })
+    .click();
+  await expect
+    .poll(() => server.state().proposals[0].status, { timeout: 7000 })
+    .toBe("accepted");
+  await expect(page.locator(".server-sync")).toContainText("Saved to server");
+  await expect(
+    page.getByRole("heading", { name: "Workspace unavailable", exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Review proposal", exact: true })
+    .click();
+  const review = page.getByRole("dialog", {
+    name: "Review proposal",
+    exact: true,
+  });
+  await review
+    .getByRole("checkbox", { name: "Accept P1", exact: true })
+    .uncheck();
+  await review
+    .getByRole("button", { name: "Accept selected (1 of 2)", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Confirm acceptance", exact: true })
+    .click();
+  await expect
+    .poll(() => server.state().proposals[1].status, { timeout: 7000 })
+    .toBe("partially-accepted");
+  await expect(page.locator(".server-sync")).toContainText("Saved to server");
+  expect(
+    head(server.state(), server.state().chapters[0]).paragraphs.map(
+      (p) => p.text,
+    ),
+  ).toEqual(["Accepted opening", "Accepted ending"]);
+  const revisions = server.state().revisions.length;
+  await page.getByRole("button", { name: "Sync now", exact: true }).click();
+  await expect(page.locator(".server-sync")).toContainText("Saved to server");
+  await page.reload();
+  await expect(page.locator(".server-sync")).toContainText("Saved to server");
+  expect(server.state().revisions).toHaveLength(revisions);
+  const other = await browser.newContext();
+  await server.attach(other);
+  const device = await other.newPage();
+  await device.goto("http://127.0.0.1:5180/");
+  await signIn(device);
+  await expect(device.locator(".server-sync")).toContainText("Saved to server");
+  await expect(device.locator(".paper")).toContainText("Accepted opening");
+  await expect(device.locator(".paper")).toContainText("Accepted ending");
+  await other.close();
+});

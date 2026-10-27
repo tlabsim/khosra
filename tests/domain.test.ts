@@ -16,6 +16,7 @@ import {
   type Proposal,
 } from "../src/domain/model";
 import {
+  db,
   exportBackup,
   importBackup,
   saveState,
@@ -260,4 +261,68 @@ describe("chapter paste references", () => {
     expect(ps.map((p) => p.label)).toEqual([2, 3, 4]);
     expect(new Set(ps.map((p) => p.id)).size).toBe(3);
   });
+});
+
+for (const partial of [false, true]) {
+  it(`stores ${partial ? "partially" : "fully"} accepted proposals in the same validated shape used by the sync guard`, async () => {
+    const s = fixture();
+    const c = s.chapters[0],
+      base = head(s, c);
+    const proposal: Proposal = {
+      id: uid(),
+      chapterId: c.id,
+      baseRevisionId: base.id,
+      title: "Acceptance persistence",
+      rationale: "",
+      paragraphs: base.paragraphs.map((p) => ({
+        ...p,
+        text: `Proposed ${p.label}`,
+      })),
+      status: "pending",
+      createdAt: now(),
+    };
+    s.proposals = [proposal];
+    const accepted = acceptProposal(s, proposal, proposal.paragraphs, {
+      revisionId: base.id,
+      choices: {},
+      selectedChangeIds: partial
+        ? [base.paragraphs[0].id]
+        : base.paragraphs.map((p) => p.id),
+    });
+    await readState();
+    await saveState(accepted);
+    const cached = (await db.workspace.get("owner"))!.state;
+    const normalized = validateState(accepted);
+    expect(JSON.stringify(cached)).toBe(JSON.stringify(normalized));
+    expect(await readState()).toEqual(normalized);
+    expect(await importBackup(await exportBackup(accepted))).toEqual(
+      normalized,
+    );
+    expect(cached.proposals[0].review?.resultRevisionId).toBe(
+      head(cached, cached.chapters[0]).id,
+    );
+  });
+}
+it("still rejects writing over a newer local version and retains the other tab's prose", async () => {
+  const initial = fixture();
+  await readState();
+  await saveState(initial);
+  const cached = (await db.workspace.get("owner"))!;
+  const c = initial.chapters[0];
+  const newer = commit(
+    initial,
+    c.id,
+    c.headId,
+    head(initial, c).paragraphs.map((p) => ({ ...p, text: "Other tab prose" })),
+    "Other tab edit",
+  );
+  await db.workspace.put({
+    ...cached,
+    state: newer,
+    version: (cached.version ?? 0) + 1,
+  });
+  await expect(saveState(initial)).rejects.toThrow("Another tab changed");
+  expect((await readState()).revisions.at(-1)?.paragraphs[0].text).toBe(
+    "Other tab prose",
+  );
 });

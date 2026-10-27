@@ -16,7 +16,7 @@ export async function readState() {
   return row ? validateState(row.state) : emptyState();
 }
 export async function saveState(state: State) {
-  validateState(state);
+  const normalized = validateState(state);
   await db.transaction("rw", db.workspace, async () => {
     const stored = await db.workspace.get("owner");
     if ((stored?.version || 0) !== localVersion)
@@ -24,7 +24,7 @@ export async function saveState(state: State) {
         "Another tab changed this workspace. Export your unsaved work, then reload and reconcile.",
       );
     const version = localVersion + 1;
-    await db.workspace.put({ id: "owner", state, version });
+    await db.workspace.put({ id: "owner", state: normalized, version });
     localVersion = version;
   });
 }
