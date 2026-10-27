@@ -208,20 +208,60 @@ export default function ProposalCard({
             confirmation.kind === "reject"
               ? "Reject this proposal?"
               : selectedGroups === total
-                ? `Accept all ${total} proposed changes?`
+                ? `Accept all ${total} proposed ${total === 1 ? "change" : "changes"}?`
                 : `Accept ${selectedGroups} of ${total} changes?`
+          }
+          className="proposal-confirmation-dialog"
+          footer={
+            <footer className="proposal-confirm-actions">
+              <button
+                className="button proposal-confirm-cancel"
+                onClick={() => setConfirmation(null)}
+              >
+                <X aria-hidden="true" />
+                Cancel
+              </button>
+              <button
+                className="button primary"
+                disabled={
+                  confirmation.signature !== signature ||
+                  !pending ||
+                  (confirmation.kind === "accept" && !canAccept)
+                }
+                onClick={() => {
+                  if (confirmation.signature !== signature) return;
+                  if (confirmation.kind === "accept")
+                    onAccept(paragraphs, {
+                      revisionId: current.id,
+                      choices,
+                      selectedChangeIds: selectedIds,
+                    });
+                  else onReject();
+                  setConfirmation(null);
+                }}
+              >
+                {confirmation.kind === "reject" ? (
+                  <X aria-hidden="true" />
+                ) : (
+                  <Check aria-hidden="true" />
+                )}
+                {confirmation.kind === "reject"
+                  ? "Confirm rejection"
+                  : "Confirm acceptance"}
+              </button>
+            </footer>
           }
           closeLabel="Close confirmation"
           initialFocus=".proposal-confirm-cancel"
           onClose={() => setConfirmation(null)}
         >
-          <p>{proposal.title}</p>
+          <p className="proposal-confirm-title">{proposal.title}</p>
           <p>
             {confirmation.kind === "reject"
               ? "Your manuscript will remain unchanged."
               : selectedGroups === total
                 ? "The selected changes will be saved as a new revision. Earlier text remains in history."
-                : `The remaining ${total - selectedGroups} changes will be declined. This completes the review and moves the proposal to Partially accepted.`}
+                : `The remaining ${total - selectedGroups} ${total - selectedGroups === 1 ? "change" : "changes"} will be declined. This completes the review and moves the proposal to Partially accepted.`}
           </p>
           {confirmation.signature !== signature && (
             <p role="alert">
@@ -229,43 +269,6 @@ export default function ProposalCard({
               confirming.
             </p>
           )}
-          <div className="actions">
-            <button
-              className="button proposal-confirm-cancel"
-              onClick={() => setConfirmation(null)}
-            >
-              <X aria-hidden="true" />
-              Cancel
-            </button>
-            <button
-              className="button primary"
-              disabled={
-                confirmation.signature !== signature ||
-                !pending ||
-                (confirmation.kind === "accept" && !canAccept)
-              }
-              onClick={() => {
-                if (confirmation.signature !== signature) return;
-                if (confirmation.kind === "accept")
-                  onAccept(paragraphs, {
-                    revisionId: current.id,
-                    choices,
-                    selectedChangeIds: selectedIds,
-                  });
-                else onReject();
-                setConfirmation(null);
-              }}
-            >
-              {confirmation.kind === "reject" ? (
-                <X aria-hidden="true" />
-              ) : (
-                <Check aria-hidden="true" />
-              )}
-              {confirmation.kind === "reject"
-                ? "Confirm rejection"
-                : "Confirm acceptance"}
-            </button>
-          </div>
         </Dialog>
       )}
     </section>

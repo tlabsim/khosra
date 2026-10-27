@@ -301,6 +301,30 @@ test("partial acceptance confirms, preserves declined and unrelated text, and pe
     exact: true,
   });
   await expect(confirm).toContainText("remaining 4 changes will be declined");
+  const footer = confirm.locator(".proposal-confirm-actions");
+  expect(
+    await footer.evaluate((el) => getComputedStyle(el).borderTopStyle),
+  ).toBe("solid");
+  const cancelBounds = await footer
+    .getByRole("button", { name: "Cancel", exact: true })
+    .boundingBox();
+  const confirmBounds = await footer
+    .getByRole("button", { name: "Confirm acceptance", exact: true })
+    .boundingBox();
+  if (test.info().project.name === "android")
+    expect(
+      cancelBounds!.y - (confirmBounds!.y + confirmBounds!.height),
+    ).toBeGreaterThanOrEqual(9);
+  else
+    expect(
+      confirmBounds!.x - (cancelBounds!.x + cancelBounds!.width),
+    ).toBeGreaterThanOrEqual(11);
+  expect(await confirm.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+    true,
+  );
+  await page.screenshot({
+    path: `test-results/${test.info().project.name}-proposal-confirmation-footer.png`,
+  });
   await expect(
     confirm.getByRole("button", { name: "Cancel", exact: true }),
   ).toBeFocused();
@@ -544,5 +568,20 @@ test("linked deletion group toggles together even when deleted prose is hidden",
   await expect(p67).toBeChecked();
   await expect(p68).toBeChecked();
   await expect(deleted.locator("del")).toHaveCount(2);
+  await p67.uncheck();
+  await dialog
+    .getByRole("button", { name: "Accept selected (4 of 5)", exact: true })
+    .click();
+  const confirmation = page.getByRole("dialog", {
+    name: "Accept 4 of 5 changes?",
+    exact: true,
+  });
+  await expect(confirmation).toContainText(
+    "The remaining 1 change will be declined.",
+  );
+  await expect(confirmation).not.toContainText("1 changes");
+  await confirmation
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
   expect(await readState(page)).toBe(initial);
 });

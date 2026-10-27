@@ -1,3 +1,4 @@
+import { usePageTransition } from "./usePageTransition";
 import { acceptedProposalParagraphs } from "./domain/proposalPresentation";
 import { initializeAppearance } from "./appearance";
 import {
@@ -298,6 +299,21 @@ function App() {
     (c) => c.bookId === book?.id && c.deletedAt,
   );
   const chapter = chapters.find((c) => c.id === chapterId) || chapters[0];
+  const screen =
+    libraryOpen || (!book && view !== "settings")
+      ? "library"
+      : reading
+        ? "reader"
+        : view;
+  const transitionRoot = usePageTransition(
+    JSON.stringify([
+      screen,
+      screen === "library" || screen === "settings" ? null : book?.id,
+      screen === "library" || screen === "settings" ? null : chapter?.id,
+      screen === "context" ? contextSection : null,
+    ]),
+    loaded && !reading && (!hosted || hostedStatus.phase === "ready"),
+  );
   const current = chapter ? head(state, chapter) : undefined;
   const historical = state.revisions.find(
     (r) => r.id === historicalId && r.chapterId === chapter?.id,
@@ -775,7 +791,7 @@ function App() {
           </aside>
         </>
       )}
-      <div className="main-shell">
+      <div className="main-shell" ref={transitionRoot}>
         <header
           className={"topbar desk-header" + (scrolled ? " is-scrolled" : "")}
         >

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add a subtle 150ms opacity fade when switching workspace views, chapters, Context sections, library and settings. Keep navigation and editor state intact, leave reader page turns separate, and skip/cancel fades when reduced motion is preferred. No animation library or persistent compositor layers are added.
+
+- Give proposal confirmations a separated action footer with spaced, right-aligned desktop buttons and stacked mobile actions. Improve title/body wrapping and correct singular change wording.
+
 - Remove deletion strikethrough from prose and subsection headings when its change is declined; restore it immediately when selected again, including linked/group and select-all actions. Hide repeated declined labels while reviewing; retain completed-review decision labels.
 
 - Add icons to proposal review, accept/reject and confirmation actions. Shorten the all-selected action to Accept all on mobile and allow status filters to wrap so every tab remains visible, with a thick active underline replacing the pill background.
