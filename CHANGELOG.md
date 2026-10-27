@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Remove deletion strikethrough from prose and subsection headings when its change is declined; restore it immediately when selected again, including linked/group and select-all actions. Hide repeated declined labels while reviewing; retain completed-review decision labels.
+
 - Add icons to proposal review, accept/reject and confirmation actions. Shorten the all-selected action to Accept all on mobile and allow status filters to wrap so every tab remains visible, with a thick active underline replacing the pill background.
 
 - Hide repetitive linked labels from review paragraph statuses, retaining grouped selection and its shared explanation. Let the mobile review dialog fill the viewport without outer margins or rounded borders, with safe-area space for footer actions.

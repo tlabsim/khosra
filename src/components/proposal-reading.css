@@ -97,7 +97,7 @@
 .proposal-reading-paragraph.is-removed .proposal-reading-text {
   color: #9b3e35;
 }
-.proposal-reading-paragraph.is-removed h3,
+.proposal-reading-paragraph.is-removed:not(.is-declined) h3,
 .comparison-removed .compare-section {
   text-decoration: line-through;
 }

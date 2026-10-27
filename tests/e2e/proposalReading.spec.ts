@@ -16,7 +16,7 @@ test.beforeEach(async ({ page }) => {
     base.paragraphs = Array.from({ length: 100 }, (_, i) => ({
       id: crypto.randomUUID(),
       label: i + 1,
-      section: "",
+      section: i === 66 ? "Removed subsection" : "",
       text: `পুরোনো অনুচ্ছেদ ${i + 1}। গ্রামের পথ ধরে এগিয়ে চলে গল্প, বিকেলের আলোয় দূরে দেখা যায় নদী।`,
     }));
     const proposed = base.paragraphs
@@ -359,6 +359,11 @@ test("partial acceptance confirms, preserves declined and unrelated text, and pe
   });
   await expect(reviewed.locator(".is-declined")).toHaveCount(6);
   await expect(
+    reviewed
+      .locator(".proposal-reading-id small")
+      .filter({ hasText: "declined" }),
+  ).toHaveCount(6);
+  await expect(
     reviewed.getByRole("button", {
       name: /Confirm acceptance|Accept selected|Accept all proposed/,
     }),
@@ -475,6 +480,7 @@ test("conflicting passage can be declined or explicitly resolved inside the sing
 test("linked deletion group toggles together even when deleted prose is hidden", async ({
   page,
 }) => {
+  const initial = await readState(page);
   await page
     .getByRole("button", { name: "Review proposal", exact: true })
     .click();
@@ -487,8 +493,33 @@ test("linked deletion group toggles together even when deleted prose is hidden",
       name: "Accept P68 (linked changes)",
       exact: true,
     });
+  const deleted = dialog.locator(".is-removed");
+  const heading = deleted.getByRole("heading", {
+    name: "Removed subsection",
+    exact: true,
+  });
+  await expect(deleted.locator("del")).toHaveCount(2);
+  expect(
+    await heading.evaluate((el) => getComputedStyle(el).textDecorationLine),
+  ).toContain("line-through");
   await p67.uncheck();
   await expect(p68).not.toBeChecked();
+  await expect(deleted.locator("del")).toHaveCount(0);
+  await expect(
+    dialog
+      .locator(".proposal-reading-id small")
+      .filter({ hasText: "declined" }),
+  ).toHaveCount(0);
+  expect(
+    await heading.evaluate((el) => getComputedStyle(el).textDecorationLine),
+  ).toBe("none");
+  await p67.check();
+  await expect(p68).toBeChecked();
+  await expect(deleted.locator("del")).toHaveCount(2);
+  expect(
+    await heading.evaluate((el) => getComputedStyle(el).textDecorationLine),
+  ).toContain("line-through");
+  await p67.uncheck();
   await expect(
     dialog.getByRole("button", {
       name: "Accept selected (4 of 5)",
@@ -512,4 +543,6 @@ test("linked deletion group toggles together even when deleted prose is hidden",
     .check();
   await expect(p67).toBeChecked();
   await expect(p68).toBeChecked();
+  await expect(deleted.locator("del")).toHaveCount(2);
+  expect(await readState(page)).toBe(initial);
 });

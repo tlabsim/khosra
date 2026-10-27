@@ -241,7 +241,7 @@ export default function ProposalReadingDialog({
                       : row.change === "added"
                         ? "Added"
                         : "Modified"}
-                    {!checked ? " · declined" : !pending ? " · accepted" : ""}
+                    {!pending ? (checked ? " · accepted" : " · declined") : ""}
                   </small>
                 )}
               </span>
@@ -273,7 +273,7 @@ export default function ProposalReadingDialog({
                   </label>
                 ) : (
                   <p>
-                    {row.change === "removed" ? (
+                    {row.change === "removed" && checked ? (
                       <del>{display.text || "\u00a0"}</del>
                     ) : (
                       display.text || "\u00a0"
