@@ -27,7 +27,7 @@ try{
    'initialize'=>['protocolVersion'=>'2025-03-26','capabilities'=>['tools'=>new stdClass()],'serverInfo'=>['name'=>'khosra','version'=>'0.2.0'],'instructions'=>khosraInstructions()],
    'ping'=>new stdClass(),
    'tools/list'=>['tools'=>tools()],
-   'tools/call'=>(function()use($db,$rpc,$scopes){try{$params=$rpc['params']??[];$required=str_starts_with($params['name']??'','save_')?'manuscript.propose':'manuscript.read';if(!in_array($required,$scopes,true))fail(403,'Token scope does not permit this tool.');$value=callTool($db,(string)($params['name']??''),$params['arguments']??[]);return ['content'=>[['type'=>'text','text'=>json_encode($value,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR)]]];}catch(ApiError $e){return ['isError'=>true,'content'=>[['type'=>'text','text'=>$e->getMessage()]]];}})(),
+   'tools/call'=>(function()use($db,$rpc,$scopes){try{$params=$rpc['params']??[];$required=str_starts_with($params['name']??'','save_')?'manuscript.propose':'manuscript.read';if(!in_array($required,$scopes,true))fail(403,'Token scope does not permit this tool.');$value=callTool($db,(string)($params['name']??''),$params['arguments']??[]);return ['content'=>toolContent($value)];}catch(ApiError $e){return ['isError'=>true,'content'=>[['type'=>'text','text'=>$e->getMessage()]]];}})(),
    default=>null
   };if($result===null)respond(['jsonrpc'=>'2.0','id'=>$id,'error'=>['code'=>-32601,'message'=>'Method not found']]);respond(['jsonrpc'=>'2.0','id'=>$id,'result'=>$result]);
  }

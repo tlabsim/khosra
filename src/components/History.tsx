@@ -1,3 +1,5 @@
+import PaginatedList from "./PaginatedList";
+import LazyDetails from "./LazyDetails";
 import { historyGroups, historyTitle, visibleHead } from "../domain/history";
 import { useState } from "react";
 import { removedPassages } from "../domain/paragraphRecovery";
@@ -57,44 +59,59 @@ export default function History({
           )}
         </div>
         {changes(r).length > 0 && (
-          <details className="history-passages" open={deletedOnly || undefined}>
-            <summary>
-              {changes(r).length} deleted or cleared{" "}
-              {changes(r).length === 1 ? "paragraph" : "paragraphs"}
-            </summary>
-            {changes(r).map(({ paragraph: p, kind }) => {
-              const present = current?.paragraphs.find((x) => x.id === p.id);
-              const available =
-                !present || (!present.text.trim() && Boolean(p.text.trim()));
-              return (
-                <article className="history-passage" key={p.id}>
-                  <div className="history-passage-header">
-                    <strong>P{p.label}</strong>
-                    <span>
-                      {kind === "cleared" ? "Text cleared" : "Deleted"}
-                    </span>
-                    <button
-                      className="button quiet compact"
-                      disabled={!available}
-                      onClick={() => onRestoreParagraph(r.parentId!, p.id)}
-                    >
-                      {available
-                        ? "Restore paragraph"
-                        : "Already in manuscript"}
-                    </button>
-                  </div>
-                  {p.section && <h4>{p.section}</h4>}
-                  <p>{p.text || <em>Empty paragraph</em>}</p>
-                  {present?.text.trim() && present.text !== p.text && (
-                    <p className="caption">
-                      This paragraph has current text. Read this revision to
-                      compare earlier wording.
-                    </p>
-                  )}
-                </article>
-              );
-            })}
-          </details>
+          <LazyDetails
+            className="history-passages"
+            defaultOpen={deletedOnly}
+            summary={
+              <>
+                {changes(r).length} deleted or cleared{" "}
+                {changes(r).length === 1 ? "paragraph" : "paragraphs"}
+              </>
+            }
+          >
+            {() => (
+              <PaginatedList
+                items={changes(r)}
+                label="Deleted passage"
+                noun="passages"
+                renderItem={({ paragraph: p, kind }) => {
+                  const present = current?.paragraphs.find(
+                    (x) => x.id === p.id,
+                  );
+                  const available =
+                    !present ||
+                    (!present.text.trim() && Boolean(p.text.trim()));
+                  return (
+                    <article className="history-passage" key={p.id}>
+                      <div className="history-passage-header">
+                        <strong>P{p.label}</strong>
+                        <span>
+                          {kind === "cleared" ? "Text cleared" : "Deleted"}
+                        </span>
+                        <button
+                          className="button quiet compact"
+                          disabled={!available}
+                          onClick={() => onRestoreParagraph(r.parentId!, p.id)}
+                        >
+                          {available
+                            ? "Restore paragraph"
+                            : "Already in manuscript"}
+                        </button>
+                      </div>
+                      {p.section && <h4>{p.section}</h4>}
+                      <p>{p.text || <em>Empty paragraph</em>}</p>
+                      {present?.text.trim() && present.text !== p.text && (
+                        <p className="caption">
+                          This paragraph has current text. Read this revision to
+                          compare earlier wording.
+                        </p>
+                      )}
+                    </article>
+                  );
+                }}
+              />
+            )}
+          </LazyDetails>
         )}
       </div>
     );
@@ -122,19 +139,34 @@ export default function History({
           No deleted or cleared paragraphs in this chapter.
         </p>
       )}
-      {groups.map((g) => (
-        <section key={g.rows[0].id}>
-          {row(g.rows[0])}
-          {g.rows.length > 1 && (
-            <details className="recovery-snapshots">
-              <summary>
-                {g.rows.length - 1} recovery snapshots in this session
-              </summary>
-              {g.rows.slice(1).map(row)}
-            </details>
-          )}
-        </section>
-      ))}
+      <PaginatedList
+        key={String(deletedOnly)}
+        items={groups}
+        label="History"
+        noun={deletedOnly ? "revisions" : "history sessions"}
+        renderItem={(g) => (
+          <section key={g.rows[0].id}>
+            {row(g.rows[0])}
+            {g.rows.length > 1 && (
+              <LazyDetails
+                className="recovery-snapshots"
+                summary={
+                  <>{g.rows.length - 1} recovery snapshots in this session</>
+                }
+              >
+                {() => (
+                  <PaginatedList
+                    items={g.rows.slice(1)}
+                    label="Recovery snapshot"
+                    noun="snapshots"
+                    renderItem={row}
+                  />
+                )}
+              </LazyDetails>
+            )}
+          </section>
+        )}
+      />
     </>
   );
 }

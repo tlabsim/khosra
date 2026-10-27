@@ -1,3 +1,5 @@
+import PaginatedList from "./PaginatedList";
+import LazyDetails from "./LazyDetails";
 import { ArrowCounterClockwise } from "@phosphor-icons/react/dist/csr/ArrowCounterClockwise";
 import { head, wordCount, type State, type Chapter } from "../domain/model";
 export default function ChapterTrash({
@@ -18,9 +20,13 @@ export default function ChapterTrash({
         references. It returns near its former position.
       </p>
       {!chapters.length && <p>No deleted chapters.</p>}
-      {[...chapters]
-        .sort((a, b) => b.deletedAt!.localeCompare(a.deletedAt!))
-        .map((chapter) => {
+      <PaginatedList
+        items={[...chapters].sort((a, b) =>
+          b.deletedAt!.localeCompare(a.deletedAt!),
+        )}
+        label="Deleted chapter"
+        noun="deleted chapters"
+        renderItem={(chapter) => {
           const revision = head(state, chapter);
           return (
             <article className="chapter-trash-item" key={chapter.id}>
@@ -45,24 +51,26 @@ export default function ChapterTrash({
                   Restore
                 </button>
               </div>
-              <details>
-                <summary>Preview chapter</summary>
-                <div className="chapter-trash-preview" lang={language}>
-                  {revision.paragraphs.length ? (
-                    revision.paragraphs.map((p) => (
-                      <div key={p.id}>
-                        {p.section && <h4>{p.section}</h4>}
-                        <p>{p.text || "Empty paragraph"}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <p>This chapter is empty.</p>
-                  )}
-                </div>
-              </details>
+              <LazyDetails summary="Preview chapter">
+                {() => (
+                  <div className="chapter-trash-preview" lang={language}>
+                    {revision.paragraphs.length ? (
+                      revision.paragraphs.map((p) => (
+                        <div key={p.id}>
+                          {p.section && <h4>{p.section}</h4>}
+                          <p>{p.text || "Empty paragraph"}</p>
+                        </div>
+                      ))
+                    ) : (
+                      <p>This chapter is empty.</p>
+                    )}
+                  </div>
+                )}
+              </LazyDetails>
             </article>
           );
-        })}
+        }}
+      />
     </div>
   );
 }

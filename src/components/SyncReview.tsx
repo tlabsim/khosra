@@ -1,3 +1,4 @@
+import PaginatedList from "./PaginatedList";
 import { useState } from "react";
 import type { State } from "../domain/model";
 import { reconcile, type Choices } from "../sync/reconcile";
@@ -37,34 +38,44 @@ export default function SyncReview({
         All earlier revisions and alternate text remain in history. Independent
         revision chains are combined automatically.
       </p>
-      {original.conflicts.map((c) => (
-        <section className="sync-choice" key={c.id}>
-          <h3>
-            {c.title} · {c.kind}
-          </h3>
-          <div className="sync-columns">
-            {(["local", "server"] as const).map((side) => (
-              <label key={side}>
-                <span>
-                  <input
-                    type="radio"
-                    name={c.id}
-                    checked={choices[c.id] === side}
-                    onChange={() => setChoices((v) => ({ ...v, [c.id]: side }))}
-                  />
-                  {side === "local" ? "This device" : "Server / ChatGPT"}
-                </span>
-                <pre>{c[side] || "(Empty)"}</pre>
-              </label>
-            ))}
-          </div>
-        </section>
-      ))}
+      <PaginatedList
+        items={original.conflicts}
+        label="Sync conflict"
+        noun="conflicts"
+        renderItem={(c) => (
+          <section className="sync-choice" key={c.id}>
+            <h3>
+              {c.title} · {c.kind}
+            </h3>
+            <div className="sync-columns">
+              {(["local", "server"] as const).map((side) => (
+                <label key={side}>
+                  <span>
+                    <input
+                      type="radio"
+                      name={c.id}
+                      checked={choices[c.id] === side}
+                      onChange={() =>
+                        setChoices((v) => ({ ...v, [c.id]: side }))
+                      }
+                    />
+                    {side === "local" ? "This device" : "Server / ChatGPT"}
+                  </span>
+                  <pre>{c[side] || "(Empty)"}</pre>
+                </label>
+              ))}
+            </div>
+          </section>
+        )}
+      />
       {!original.conflicts.length && (
         <p>
           No divergent chapter revisions were found. The combined workspace
           retains both histories and incoming proposals.
         </p>
+      )}
+      {original.conflicts.length > 0 && (
+        <p role="status">{resolved.conflicts.length} conflicts remaining.</p>
       )}
       <p className="caption">
         Completed server proposal decisions are retained; local flag statuses

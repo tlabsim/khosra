@@ -11,7 +11,7 @@ $bad=$s;$bad['chapters'][0]['headId']=uuid();rejects(fn()=>validate($bad),422,'M
 $bad=$s;$bad['revisions'][0]['paragraphs'][0]['text']='Changed';rejects(fn()=>preserveHistory($s,$bad),409,'Historical prose cannot be changed');
 $bad=$s;$bad['revisions']=[];rejects(fn()=>preserveHistory($s,$bad),409,'Historical records cannot disappear');
 $bad=$s;$bad['contexts'][]=['id'=>uuid(),'chapterId'=>$cid,'revisionId'=>$rid,'summary'=>'Summary','facts'=>[['kind'=>'clue','text'=>'Clue','paragraphIds'=>[uuid()]]],'createdAt'=>stamp()];rejects(fn()=>validate($bad),422,'Context evidence must reference source paragraphs');
-check(count(tools())===11,'Eleven tools exposed');check(!in_array('accept_proposal',array_column(tools(),'name'),true),'No model approval tool');
+check(count(tools())===15,'Fifteen tools exposed');check(!in_array('accept_proposal',array_column(tools(),'name'),true),'No model approval tool');
 $deleted=$s;$deleted['chapters'][0]['deletedAt']='2026-10-26T12:00:00.000Z';validate($deleted);preserveHistory($s,$deleted);check(true,'Soft deletion retains history and validates');
 $restored=$deleted;unset($restored['chapters'][0]['deletedAt']);validate($restored);preserveHistory($deleted,$restored);check($restored===$s,'Restoration preserves original chapter and source');
 $bad=$deleted;$bad['chapters'][0]['deletedAt']='yesterday';rejects(fn()=>validate($bad),422,'Invalid deletion timestamp rejected');

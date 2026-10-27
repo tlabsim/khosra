@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Updated the Bengali app wordmark from the revised supplied SVG geometry, retaining its established dark green fill.
+
+- Added manuscript-wide Ideas and private Artifacts under Context, optional chapter links, author-controlled planning statuses, immutable note history, concurrent version retention, 100-item pages, and archive/restore. Added image/PDF attachments and HTTP(S) references, private image previews and downloads, and full-archive inclusion. Attachments are bounded to 2 MiB each and 8 MiB per workspace including history; reader shares exclude all materials. Added four scoped MCP tools for discovery, exact reads, new speculative ideas and new references, with native image/embedded PDF responses on explicit request.
+
+- Redesigned proposal cards with thin status badges above mobile titles and a bordered action footer. Focused Before/After/Current comparisons on changed ranges with up to five read-only neighbouring paragraphs collapsed by default. Retained edited proposal drafts when switching versions or closing comparison, and preserved stale-base acceptance protection.
+
+- Extended 100-item pagination to flags, history sessions/recovery snapshots/deleted passages, library manuscripts, deleted chapters, context facts, reading invitations, owner/guest feedback and sync conflicts. Shared one paginator with boundary clamping and complete-list counts. Lazy-rendered closed history/Trash previews and retained conflict choices across pages; merging requires every conflict to be resolved.
+
+- Paginated proposal lists at 100 cards per page with range/page totals and Previous/Next controls above and below the list. Filters and chapter changes reset pagination; accepting/rejecting the last item on a page safely clamps the page. Workspace synchronization remains whole-workspace.
+
+- Focus proposal comparison on changed paragraphs, with optional full-chapter viewing, deletion notices and acceptance above the text. Added quick acceptance beside rejection with existing stale-revision protection. Added All/Pending/Accepted/Rejected filters and counts, defaulting to Pending.
+
 - Added visible OAuth connection progress and blocked duplicate consent submissions while preserving Allow/Cancel POST decisions. Versioned the consent script URL so browsers fetch the updated password reveal and submission controls.
 
 - Kept independent OAuth consent forms valid across repeated authorization requests, bounded to ten pending forms per session. Invalid form submissions no longer erase other pending requests. Persist consent before rendering and distinguish missing sessions, invalid/reused forms and expired forms.

@@ -92,7 +92,7 @@
   font: 20px var(--serif);
   margin-top: 24px;
 }
-.sharing-invitations > article {
+.sharing-invitation-list > article {
   display: flex;
   flex-wrap: wrap;
   align-items: center;

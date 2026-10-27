@@ -96,6 +96,9 @@ test("write, flag, propose, accept, revisit, and retain Bengali offline", async 
     .getByRole("textbox", { name: "Proposed P1" })
     .fill("ঈশান চুপ করে রইল। রাহুল তার পাশে দাঁড়াল।");
   await page.getByRole("button", { name: "Accept this revision" }).click();
+  await page
+    .getByRole("button", { name: "Accepted proposals", exact: true })
+    .click();
   await expect(page.getByText("accepted", { exact: true })).toBeVisible();
   const manuscript = page
     .getByRole("button", { name: "Manuscript", exact: true })

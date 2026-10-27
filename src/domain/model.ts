@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FileSchema, MaterialSchema, validateMaterials } from "./materials";
 export const ParagraphSchema = z.object({
   id: z.string().uuid(),
   label: z.number().int().positive(),
@@ -85,6 +86,8 @@ export const StateSchema = z.object({
   flags: z.array(FlagSchema),
   proposals: z.array(ProposalSchema),
   contexts: z.array(ContextSchema),
+  materials: z.array(MaterialSchema).default([]),
+  files: z.array(FileSchema).default([]),
 });
 export type Paragraph = z.infer<typeof ParagraphSchema>;
 export type Revision = z.infer<typeof RevisionSchema>;
@@ -104,17 +107,27 @@ export const emptyState = (): State => ({
   flags: [],
   proposals: [],
   contexts: [],
+  materials: [],
+  files: [],
 });
 export function validateState(value: unknown): State {
   const s = StateSchema.parse(value);
   const unique = (rows: { id: string }[]) =>
     new Set(rows.map((x) => x.id)).size === rows.length;
   if (
-    ![s.books, s.chapters, s.revisions, s.flags, s.proposals, s.contexts].every(
-      unique,
-    )
+    ![
+      s.books,
+      s.chapters,
+      s.revisions,
+      s.flags,
+      s.proposals,
+      s.contexts,
+      s.materials,
+      s.files,
+    ].every(unique)
   )
     throw Error("Duplicate record IDs.");
+  validateMaterials(s);
   const codes = new Set<string>();
   for (const c of s.chapters) {
     const code = c.bookId + ":" + c.code;

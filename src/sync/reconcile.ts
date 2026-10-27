@@ -110,6 +110,8 @@ export function reconcile(local: State, remote: State, choices: Choices = {}) {
     flags,
     proposals,
     contexts: union(local.contexts, remote.contexts),
+    materials: union(local.materials ?? [], remote.materials ?? []),
+    files: union(local.files ?? [], remote.files ?? []),
   });
   return { state, conflicts };
 }

@@ -20,7 +20,7 @@ function rpcGuide(string $method,array $params=[],?string $token=null,string $ve
 }
 $r=rpcGuide('tools/call',['name'=>'get_khosra_guide','arguments'=>new stdClass()]);checkGuide($r['status']===401&&!str_contains($r['text'],'startHere'),'Anonymous guide access requires authentication');
 $r=rpcGuide('initialize',[],$read);checkGuide($r['status']===200&&str_contains($r['json']['result']['instructions']??'','get_khosra_guide'),'Read-only initialize directs clients to guide');
-$r=rpcGuide('tools/list',[],$read);$tools=$r['json']['result']['tools']??[];checkGuide(count($tools)===11&&$tools[0]['name']==='get_khosra_guide','Guide is discoverable alongside existing tools');
+$r=rpcGuide('tools/list',[],$read);$tools=$r['json']['result']['tools']??[];checkGuide(count($tools)===15&&$tools[0]['name']==='get_khosra_guide','Guide is discoverable alongside existing tools');
 checkGuide($tools[0]['annotations']['readOnlyHint']===true&&$tools[0]['securitySchemes'][0]['scopes']===['manuscript.read'],'Guide discovery advertises read-only scope');
 $r=rpcGuide('tools/call',['name'=>'get_khosra_guide','arguments'=>new stdClass()],$read);$guide=json_decode($r['json']['result']['content'][0]['text']??'',true);
 checkGuide($r['status']===200&&empty($r['json']['result']['isError'])&&$guide===khosraGuide(),'Read-only OAuth token retrieves complete guide');

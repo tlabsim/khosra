@@ -1,3 +1,4 @@
+import PaginatedList from "./PaginatedList";
 import { Notebook } from "@phosphor-icons/react/dist/csr/Notebook";
 import { Plus } from "@phosphor-icons/react/dist/csr/Plus";
 import { Leaf } from "@phosphor-icons/react/dist/csr/Leaf";
@@ -44,8 +45,12 @@ export default function Library({
           Restore archive
         </button>
       </div>
-      <div className="bookshelf">
-        {state.books.map((b, i) => {
+      <PaginatedList
+        items={state.books}
+        label="Manuscript"
+        noun="manuscripts"
+        itemsClassName="bookshelf"
+        renderItem={(b, i) => {
           const chapters = state.chapters.filter(
             (c) => c.bookId === b.id && !c.deletedAt,
           );
@@ -87,14 +92,16 @@ export default function Library({
               </span>
             </button>
           );
-        })}
-        <button className="new-book-tile" onClick={onCreate}>
-          <span>
-            <Plus size={28} weight="light" />
-          </span>
-          New manuscript
-        </button>
-      </div>
+        }}
+        footer={
+          <button className="new-book-tile" onClick={onCreate}>
+            <span>
+              <Plus size={28} weight="light" />
+            </span>
+            New manuscript
+          </button>
+        }
+      />
     </main>
   );
 }

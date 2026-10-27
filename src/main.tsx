@@ -29,7 +29,9 @@ import Library from "./components/Library";
 import SyncReview from "./components/SyncReview";
 import History from "./components/History";
 import Empty from "./components/Empty";
-import ProposalReview from "./components/ProposalReview";
+import ProposalCard from "./components/ProposalCard";
+import PaginatedProposals from "./components/PaginatedProposals";
+import PaginatedList from "./components/PaginatedList";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { CaretRight } from "@phosphor-icons/react/dist/csr/CaretRight";
@@ -97,6 +99,10 @@ import {
   type HostedStatus,
 } from "./sync/hosted";
 import WorkspaceAccess from "./components/WorkspaceAccess";
+import Materials, {
+  ContextTabs,
+  type ContextSection,
+} from "./components/Materials";
 import "./hosted.css";
 const hosted = import.meta.env.PROD;
 import "./style.css";
@@ -130,15 +136,21 @@ function App() {
     }),
     [historicalId, setHistoricalId] = useState(""),
     [proposalId, setProposalId] = useState(""),
+    [proposalFilter, setProposalFilter] = useState<
+      "all" | "pending" | "accepted" | "rejected"
+    >("pending"),
     [scrolled, setScrolled] = useState(false),
     [serverReady, setServerReady] = useState(false);
   const [hostedStatus, setHostedStatus] = useState<HostedStatus>({
     phase: "checking",
     message: "Opening your workspace…",
   });
+  const [contextSection, setContextSection] =
+    useState<ContextSection>("context");
+  const [materialEditing, setMaterialEditing] = useState(false);
   const central = useRef<HostedWorkspace | null>(null);
   const syncBlocked = useRef(false);
-  syncBlocked.current = !!editing || !!modal || shareOpen;
+  syncBlocked.current = !!editing || !!modal || shareOpen || materialEditing;
   const localSaveError = useRef<unknown>(null);
   const [incoming, setIncoming] = useState<{
     state: State;
@@ -1030,6 +1042,36 @@ function App() {
             onCopy={(text) => void copy(text)}
             onError={setError}
           />
+        ) : book &&
+          view === "context" &&
+          !reading &&
+          (contextSection !== "context" || !chapter) ? (
+          <main className="page">
+            <ContextTabs
+              section={contextSection}
+              onChange={setContextSection}
+            />
+            {contextSection === "context" ? (
+              <>
+                <h2>Chapter context</h2>
+                <p>
+                  Add a chapter to index established manuscript facts. You can
+                  collect ideas and artifacts before drafting.
+                </p>
+              </>
+            ) : (
+              <Materials
+                key={`${book.id}:${contextSection}`}
+                state={state}
+                bookId={book.id}
+                kind={contextSection}
+                onEditing={setMaterialEditing}
+                onSave={(fn) => {
+                  update(fn(latest.current));
+                }}
+              />
+            )}
+          </main>
         ) : !chapter ? (
           <main className="page no-chapters">
             <Empty
@@ -1666,65 +1708,73 @@ function App() {
                     </button>
                   </Empty>
                 )}
-                {flags.map((f) => (
-                  <section className="card" key={f.id}>
-                    <div className="section-heading">
-                      <span className="flag-tag">
-                        F{f.number} · {f.kind} · {f.status}
-                      </span>
+                <PaginatedList
+                  key={chapter.id}
+                  items={flags}
+                  label="Flag"
+                  noun="flags"
+                  renderItem={(f) => (
+                    <section className="card" key={f.id}>
+                      <div className="section-heading">
+                        <span className="flag-tag">
+                          F{f.number} · {f.kind} · {f.status}
+                        </span>
+                        <button
+                          className="button quiet"
+                          onClick={() =>
+                            void copy(
+                              `Discuss flag F${f.number} (flag_id ${f.id}). Retrieve its original passage and the latest version before proposing changes.`,
+                            )
+                          }
+                        >
+                          <Copy />
+                          Copy reference
+                        </button>
+                      </div>
+                      {f.quote && <blockquote>{f.quote}</blockquote>}
+                      <p>{f.note}</p>
+                      {f.audio &&
+                        /^data:audio\/[a-zA-Z0-9.+-]+;base64,/.test(
+                          f.audio,
+                        ) && (
+                          <audio
+                            controls
+                            src={f.audio}
+                            aria-label={`Audio attachment for F${f.number}`}
+                          />
+                        )}
+                      <p className="caption">
+                        {f.paragraphIds.length} anchored paragraphs · source
+                        revision {f.revisionId.slice(0, 8)}
+                        {f.paragraphIds.some(
+                          (id) => !current!.paragraphs.some((p) => p.id === id),
+                        )
+                          ? " · Passage removed or merged; original retained"
+                          : ""}
+                      </p>
                       <button
-                        className="button quiet"
+                        className="button"
                         onClick={() =>
-                          void copy(
-                            `Discuss flag F${f.number} (flag_id ${f.id}). Retrieve its original passage and the latest version before proposing changes.`,
-                          )
+                          update({
+                            ...state,
+                            flags: state.flags.map((x) =>
+                              x.id === f.id
+                                ? {
+                                    ...x,
+                                    status:
+                                      x.status === "open" ? "resolved" : "open",
+                                  }
+                                : x,
+                            ),
+                          })
                         }
                       >
-                        <Copy />
-                        Copy reference
+                        {f.status === "open" ? <Check /> : <ArrowsClockwise />}
+                        {f.status === "open" ? "Mark resolved" : "Reopen"}
                       </button>
-                    </div>
-                    {f.quote && <blockquote>{f.quote}</blockquote>}
-                    <p>{f.note}</p>
-                    {f.audio &&
-                      /^data:audio\/[a-zA-Z0-9.+-]+;base64,/.test(f.audio) && (
-                        <audio
-                          controls
-                          src={f.audio}
-                          aria-label={`Audio attachment for F${f.number}`}
-                        />
-                      )}
-                    <p className="caption">
-                      {f.paragraphIds.length} anchored paragraphs · source
-                      revision {f.revisionId.slice(0, 8)}
-                      {f.paragraphIds.some(
-                        (id) => !current!.paragraphs.some((p) => p.id === id),
-                      )
-                        ? " · Passage removed or merged; original retained"
-                        : ""}
-                    </p>
-                    <button
-                      className="button"
-                      onClick={() =>
-                        update({
-                          ...state,
-                          flags: state.flags.map((x) =>
-                            x.id === f.id
-                              ? {
-                                  ...x,
-                                  status:
-                                    x.status === "open" ? "resolved" : "open",
-                                }
-                              : x,
-                          ),
-                        })
-                      }
-                    >
-                      {f.status === "open" ? <Check /> : <ArrowsClockwise />}
-                      {f.status === "open" ? "Mark resolved" : "Reopen"}
-                    </button>
-                  </section>
-                ))}
+                    </section>
+                  )}
+                />
               </main>
             ) : view === "review" ? (
               <main className="page">
@@ -1742,6 +1792,40 @@ function App() {
                     </button>
                   )}
                 </div>
+                <div
+                  className="review-tabs proposal-filters"
+                  role="group"
+                  aria-label="Filter proposals"
+                >
+                  {(["all", "pending", "accepted", "rejected"] as const).map(
+                    (filter) => (
+                      <button
+                        key={filter}
+                        className={proposalFilter === filter ? "active" : ""}
+                        aria-pressed={proposalFilter === filter}
+                        aria-label={`${filter[0].toUpperCase() + filter.slice(1)} proposals`}
+                        onClick={() => setProposalFilter(filter)}
+                      >
+                        {filter[0].toUpperCase() + filter.slice(1)}{" "}
+                        <span>
+                          {
+                            state.proposals.filter(
+                              (p) =>
+                                p.chapterId === chapter.id &&
+                                (filter === "all" || p.status === filter),
+                            ).length
+                          }
+                        </span>
+                      </button>
+                    ),
+                  )}
+                </div>
+                {state.proposals.some((p) => p.chapterId === chapter.id) &&
+                  !state.proposals.some(
+                    (p) =>
+                      p.chapterId === chapter.id &&
+                      (proposalFilter === "all" || p.status === proposalFilter),
+                  ) && <p>No {proposalFilter} proposals.</p>}
                 {state.proposals.filter((p) => p.chapterId === chapter.id)
                   .length === 0 && (
                   <Empty
@@ -1769,69 +1853,47 @@ function App() {
                     </button>
                   </Empty>
                 )}
-                {state.proposals
-                  .filter((p) => p.chapterId === chapter.id)
-                  .map((p) => (
-                    <section className="card" key={p.id}>
-                      <div className="section-heading">
-                        <h3>{p.title}</h3>
-                        <span className="status-pill">{p.status}</span>
-                      </div>
-                      <p>{p.rationale}</p>
-                      {p.baseRevisionId !== current?.id &&
-                        p.status === "pending" && (
-                          <p className="error">
-                            The chapter changed since this proposal was created.
-                            Compare it with the current manuscript; automatic
-                            acceptance is blocked.
-                          </p>
-                        )}
-                      <button
-                        className="button"
-                        onClick={() =>
-                          setProposalId(proposalId === p.id ? "" : p.id)
-                        }
-                      >
-                        {proposalId === p.id
-                          ? "Close comparison"
-                          : "Compare before & after"}
-                      </button>
-                      {proposalId === p.id && (
-                        <ProposalReview
-                          proposal={p}
-                          original={state.revisions.find(
-                            (r) => r.id === p.baseRevisionId,
-                          )!}
-                          current={current!}
-                          onAccept={(ps) =>
-                            act(() => {
-                              update(acceptProposal(latest.current, p, ps));
-                              setNotice(
-                                "Revision accepted. Earlier text is preserved.",
-                              );
-                            })
-                          }
-                        />
-                      )}{" "}
-                      {p.status === "pending" && (
-                        <button
-                          className="button quiet"
-                          onClick={() =>
-                            update({
-                              ...state,
-                              proposals: state.proposals.map((x) =>
-                                x.id === p.id
-                                  ? { ...x, status: "rejected" }
-                                  : x,
-                              ),
-                            })
-                          }
-                        >
-                          Reject proposal
-                        </button>
-                      )}
-                    </section>
-                  ))}
+                <PaginatedProposals
+                  key={`${chapter.id}:${proposalFilter}`}
+                  proposals={state.proposals.filter(
+                    (p) =>
+                      p.chapterId === chapter.id &&
+                      (proposalFilter === "all" || p.status === proposalFilter),
+                  )}
+                  onPageChange={() => setProposalId("")}
+                  renderProposal={(p) => (
+                    <ProposalCard
+                      key={p.id}
+                      proposal={p}
+                      original={state.revisions.find(
+                        (r) => r.id === p.baseRevisionId,
+                      )!}
+                      current={current!}
+                      expanded={proposalId === p.id}
+                      onToggle={() =>
+                        setProposalId(proposalId === p.id ? "" : p.id)
+                      }
+                      onAccept={(paragraphs) =>
+                        act(() => {
+                          update(acceptProposal(latest.current, p, paragraphs));
+                          setNotice(
+                            "Revision accepted. Earlier text is preserved.",
+                          );
+                        })
+                      }
+                      onReject={() =>
+                        update({
+                          ...state,
+                          proposals: state.proposals.map((item) =>
+                            item.id === p.id
+                              ? { ...item, status: "rejected" }
+                              : item,
+                          ),
+                        })
+                      }
+                    />
+                  )}
+                />
               </main>
             ) : view === "history" ? (
               <main className="page">
@@ -1855,6 +1917,7 @@ function App() {
                   <>
                     {" "}
                     <History
+                      key={chapter.id}
                       revisions={state.revisions.filter(
                         (r) => r.chapterId === chapter.id,
                       )}
@@ -1902,6 +1965,10 @@ function App() {
               </main>
             ) : (
               <main className="page">
+                <ContextTabs
+                  section={contextSection}
+                  onChange={setContextSection}
+                />
                 <div className="section-heading">
                   <div>
                     <h2>Chapter context</h2>
@@ -1939,23 +2006,31 @@ function App() {
                         {new Date(context.createdAt).toLocaleString()}
                       </p>
                     </section>
-                    {context.facts.map((f, i) => (
-                      <section className="card" key={i}>
-                        <span className="flag-tag">{f.kind}</span>
-                        <p>{f.text}</p>
-                        <small>
-                          {f.paragraphIds
-                            .map((id) => {
-                              const r = state.revisions.find(
-                                (r) => r.id === context.revisionId,
-                              );
-                              const p = r?.paragraphs.find((p) => p.id === id);
-                              return p ? reference(chapter, r!, p) : id;
-                            })
-                            .join(", ")}
-                        </small>
-                      </section>
-                    ))}
+                    <PaginatedList
+                      key={context.id}
+                      items={context.facts}
+                      label="Context fact"
+                      noun="facts"
+                      renderItem={(f, i) => (
+                        <section className="card" key={i}>
+                          <span className="flag-tag">{f.kind}</span>
+                          <p>{f.text}</p>
+                          <small>
+                            {f.paragraphIds
+                              .map((id) => {
+                                const r = state.revisions.find(
+                                  (r) => r.id === context.revisionId,
+                                );
+                                const p = r?.paragraphs.find(
+                                  (p) => p.id === id,
+                                );
+                                return p ? reference(chapter, r!, p) : id;
+                              })
+                              .join(", ")}
+                          </small>
+                        </section>
+                      )}
+                    />
                   </>
                 ) : (
                   <Empty
@@ -2144,6 +2219,7 @@ function App() {
             )}
             {modal === "chapterTrash" && book && (
               <ChapterTrash
+                key={book.id}
                 state={state}
                 chapters={deletedChapters}
                 language={book.language}

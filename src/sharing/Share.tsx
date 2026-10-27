@@ -1,3 +1,4 @@
+import PaginatedList from "../components/PaginatedList";
 import { BookOpen } from "@phosphor-icons/react/dist/csr/BookOpen";
 import { CloudSlash } from "@phosphor-icons/react/dist/csr/CloudSlash";
 import { useEffect, useRef, useState } from "react";
@@ -361,83 +362,95 @@ export default function Share({
           {invitations.length > 0 && (
             <section className="sharing-invitations">
               <h3>Invitations</h3>
-              {invitations.map((i) => {
-                const ended =
-                  i.revokedAt !== null || i.expiresAt * 1000 <= Date.now();
-                return (
-                  <article key={i.id}>
-                    <div>
-                      <strong>{i.recipient}</strong>
-                      <small>
-                        {i.chapterCount}{" "}
-                        {i.chapterCount === 1 ? "chapter" : "chapters"} ·{" "}
-                        {i.revokedAt
-                          ? "Revoked"
-                          : i.expiresAt * 1000 <= Date.now()
-                            ? "Expired"
-                            : `Until ${new Date(i.expiresAt * 1000).toLocaleDateString()}`}
-                      </small>
-                    </div>
-                    <div className="sharing-invitation-actions">
-                      <button
-                        className="button quiet compact"
-                        disabled={busy}
-                        onClick={() => {
-                          if (feedbackId === i.id) {
-                            setFeedbackId("");
-                            return;
-                          }
-                          void run(async () => {
-                            const data = await request(
-                              `shares/${i.id}/comments`,
-                            );
-                            setComments(
-                              z.array(commentSchema).parse(data.comments),
-                            );
-                            setFeedbackId(i.id);
-                          });
-                        }}
-                      >
-                        Feedback
-                      </button>
-                      {!ended &&
-                        (revokeId === i.id ? (
-                          <>
-                            <button
-                              className="button quiet compact paragraph-delete"
-                              disabled={busy}
-                              onClick={() => {
-                                void run(async () => {
-                                  await request(`shares/${i.id}/revoke`, {});
-                                  setRevokeId("");
-                                  if (linkId === i.id) setLink("");
-                                  await refresh();
-                                });
-                              }}
-                            >
-                              Confirm revoke
-                            </button>
+              <PaginatedList
+                items={invitations}
+                label="Invitation"
+                noun="invitations"
+                itemsClassName="sharing-invitation-list"
+                onPageChange={() => {
+                  setFeedbackId("");
+                  setRevokeId("");
+                }}
+                renderItem={(i) => {
+                  const ended =
+                    i.revokedAt !== null || i.expiresAt * 1000 <= Date.now();
+                  return (
+                    <article key={i.id}>
+                      <div>
+                        <strong>{i.recipient}</strong>
+                        <small>
+                          {i.chapterCount}{" "}
+                          {i.chapterCount === 1 ? "chapter" : "chapters"} ·{" "}
+                          {i.revokedAt
+                            ? "Revoked"
+                            : i.expiresAt * 1000 <= Date.now()
+                              ? "Expired"
+                              : `Until ${new Date(i.expiresAt * 1000).toLocaleDateString()}`}
+                        </small>
+                      </div>
+                      <div className="sharing-invitation-actions">
+                        <button
+                          className="button quiet compact"
+                          disabled={busy}
+                          onClick={() => {
+                            if (feedbackId === i.id) {
+                              setFeedbackId("");
+                              return;
+                            }
+                            void run(async () => {
+                              const data = await request(
+                                `shares/${i.id}/comments`,
+                              );
+                              setComments(
+                                z.array(commentSchema).parse(data.comments),
+                              );
+                              setFeedbackId(i.id);
+                            });
+                          }}
+                        >
+                          Feedback
+                        </button>
+                        {!ended &&
+                          (revokeId === i.id ? (
+                            <>
+                              <button
+                                className="button quiet compact paragraph-delete"
+                                disabled={busy}
+                                onClick={() => {
+                                  void run(async () => {
+                                    await request(`shares/${i.id}/revoke`, {});
+                                    setRevokeId("");
+                                    if (linkId === i.id) setLink("");
+                                    await refresh();
+                                  });
+                                }}
+                              >
+                                Confirm revoke
+                              </button>
+                              <button
+                                className="button quiet compact"
+                                onClick={() => setRevokeId("")}
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
                             <button
                               className="button quiet compact"
-                              onClick={() => setRevokeId("")}
+                              disabled={busy}
+                              onClick={() => setRevokeId(i.id)}
                             >
-                              Cancel
+                              Revoke
                             </button>
-                          </>
-                        ) : (
-                          <button
-                            className="button quiet compact"
-                            disabled={busy}
-                            onClick={() => setRevokeId(i.id)}
-                          >
-                            Revoke
-                          </button>
-                        ))}
-                    </div>
-                    {feedbackId === i.id && <Comments comments={comments} />}
-                  </article>
-                );
-              })}
+                          ))}
+                      </div>
+                      {feedbackId === i.id && (
+                        <Comments key={i.id} comments={comments} />
+                      )}
+                    </article>
+                  );
+                }}
+              />
             </section>
           )}
         </>

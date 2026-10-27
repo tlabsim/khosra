@@ -29,6 +29,8 @@ Khosra is currently a **single-owner application**. Guest readers can read and c
 | Organize | Multiple manuscripts, premises, outlines, chapter ordering, optional subsection headings and recoverable chapter Trash |
 | Write | Direct paragraph editing, Word clipboard import, paragraph split/join, autosave and stable references |
 | Review | Passage/chapter flags, before/after/current proposal comparison, editable suggestions and explicit accept/reject |
+| Plan | Manuscript-wide Ideas with Idea/Planned/Used/Discarded status, optional chapter links, and immutable note versions |
+| Reference | Private Artifacts: images, maps, PDFs, links and source notes, with version history and archive/restore |
 | Recover | Immutable revision snapshots, deleted/cleared paragraph restoration, historical reading and full-history archives |
 | Read | Continuous, single-page and two-page layouts; physical page proportions; 8–16pt type with a 14pt default; paper, margins, gestures, progress and fullscreen preferences |
 | Collaborate | Authenticated MCP source/history retrieval, revision-linked proposals and evidence-linked chapter context |
@@ -45,12 +47,12 @@ Hosting is the recommended setup for the full workflow: the chat client needs to
 2. If this browser already has a device-only manuscript, use **Continue with this device’s draft** to bring it online. If the server contains work too, review both versions first. Otherwise create or open a manuscript normally.
 3. Connect your chat client to the authenticated MCP endpoint using OAuth. **Copy project instructions** in Settings provides the collaboration guidance.
 4. Ask the model to call `get_khosra_guide`, then `list_books` and `read_chapter` for the intended manuscript and chapter. Discuss changes through text or supported voice conversation; the model saves a proposal against the exact source revision.
-5. Incoming proposals refresh automatically while connected, roughly every 10 seconds or when returning to the app. **Sync now** checks immediately. Open **Proposals**, compare, edit if needed, and explicitly accept or reject.
+5. Incoming proposals refresh automatically while connected, roughly every 10 seconds or when returning to the app. **Sync now** checks immediately. Open **Proposals**; **Pending** is selected by default, with **All**, **Accepted** and **Rejected** filters available. Each page shows at most 100 proposals, with Previous/Next controls and totals across the selected filter. Accept or reject directly from a card, or compare and edit first. Comparisons show changed ranges, with up to five earlier and later paragraphs available as collapsed, read-only context. Choose Before, After or Current manuscript to compare the same passage; edit only the proposed text. Decisions stay in the card footer, and comparison drafts survive closing and reopening it. Acceptance preserves the complete chapter and is blocked when its source revision is stale.
 6. Wait for **Saved to server**, then continue the conversation. The model’s next source read and your other signed-in devices use that saved version.
 
 **The server is the central workspace.** The production build requires sign-in and saves changes automatically. Each browser keeps a recovery/offline cache; pending offline edits are not yet visible to models or other devices. On reconnection, compatible changes combine safely and divergent edits pause for review with both histories retained. Version checks reject stale writes, retries use durable operation IDs, and no MCP tool can accept a proposal or directly overwrite the working manuscript.
 
-The 11 tools cover onboarding, book discovery, references, chapter reads, flags, proposals, history and context. Context can become stale; source text remains authoritative. Saving a proposal does not mean the manuscript has changed.
+The 15 tools cover onboarding, book discovery, references, chapter reads, flags, proposals, history, context, ideas and artifacts. Context can become stale; source text remains authoritative. Saving a proposal does not mean the manuscript has changed.
 
 For example: “Read chapter two and help me make the dialogue less formal,” “Compare this scene with the earlier revision,” or “Keep the ending, but propose a slower reveal.” Start by having the model retrieve the relevant source. Review saved proposals in Khosra before continuing from an accepted revision.
 
@@ -64,17 +66,29 @@ For example: “Read chapter two and help me make the dialogue less formal,” �
 
 Paragraphs have permanent UUIDs behind readable addresses such as `R1:C1-P1`. Explicit renumbering changes the reference edition, not the paragraph UUID. Use these references when discussing passages with a model; reader page numbers depend on typography.
 
+### Collect ideas and reference artifacts
+
+Open a manuscript, then **Context → Ideas** or **Context → Artifacts**. These belong to the whole book, including before the first chapter is written; chapter links are optional. Context remains reserved for revision-linked manuscript summaries and evidence. An idea does not become canon merely because it was saved: change its status to **Planned**, **Used** or **Discarded** yourself, and use the proposal workflow for prose changes.
+
+Artifacts can contain a reference link, notes, and a PNG, JPEG, WebP or PDF attachment. Images preview privately; PDFs download. Limits are **2 MiB per file** and **8 MiB of raw attachments for the entire workspace**, including historical files. Every edit adds a version. Removing/replacing an attachment or archiving an artifact retains its earlier file in history and continues to use capacity. Large reference libraries and permanent file purging are outside this version's scope.
+
+Connected models use `list_materials` (100 per page), `read_material`, `save_idea` and `save_artifact`. Lists omit note bodies and file bytes; explicit `include_file: true` returns native MCP image content or an embedded PDF resource, depending on client support. Models can create new speculative ideas and new references, but cannot edit existing author notes or mark ideas Planned/Used. Refresh the connected app's tool discovery after updating the backend. Khosra does not fetch external reference URLs automatically.
+
+Full archives include material versions and attachment bytes. Reader shares exclude all Ideas and Artifacts. Concurrent edits retain separate visible versions; compare them before deciding which to use. Hosted synchronization still transfers the whole workspace, so keep attachments small. Current archives without these collections load with empty lists; older deployed clients are prevented from erasing new material history and should be refreshed.
+
 ### Share with trusted readers
 
 Wait for **Saved to server**, then open **Share for reading** from the desktop rail or Chapter actions. All chapters are selected initially; narrow the selection if needed. Enter a reader label, choose an expiry, create the link and send it yourself. Review feedback and revoke access from the same dialog.
 
-Each link grants access to a fixed snapshot, not future edits or private history, flags and proposals. Create another invitation to share an updated draft. Anyone holding the link can use it; the reader label is not identity verification. Revocation blocks subsequent requests but cannot recall text already copied. Guest reading requires an internet connection.
+Each link grants access to a fixed snapshot, not future edits or private history, flags, proposals, ideas and artifacts. Create another invitation to share an updated draft. Anyone holding the link can use it; the reader label is not identity verification. Revocation blocks subsequent requests but cannot recall text already copied. Guest reading requires an internet connection.
 
 ### Back up and export
 
 Use **Settings → Backups & recovery → Download full archive** regularly and keep a copy outside the browser. To export one manuscript, open it first, then use **Settings → Export this book as text**; the Export section names the selected manuscript.
 
 Restore accepts only the current, checksummed `khosra-archive` format; early prototype exports are unsupported. Browser archives contain workspace history. Guest invitations and reader feedback are stored separately on the server and require a database backup.
+
+Long record lists use 100-item pages: proposals, flags, history sessions and recovery snapshots, deleted passages, the manuscript library, chapter Trash, context facts, ideas, artifacts, material version histories, reading invitations, reader feedback and sync conflicts. Controls appear only when needed; totals include the complete list. Collapsed history and Trash previews load their contents when opened. Manuscript text and chapter navigation stay continuous. Pagination limits rendered records; the workspace still synchronizes as a whole.
 
 ## Local development and standalone editing
 
