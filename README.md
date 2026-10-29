@@ -52,6 +52,8 @@ Hosting is the recommended setup for the full workflow: the chat client needs to
 
 **The server is the central workspace.** The production build requires sign-in and saves changes automatically. Each browser keeps a recovery/offline cache; pending offline edits are not yet visible to models or other devices. On reconnection, compatible changes combine safely and divergent edits pause for review with both histories retained. Version checks reject stale writes, retries use durable operation IDs, and no MCP tool can accept a proposal or directly overwrite the working manuscript.
 
+Proposal submission retains the exact source revision read by the model. If the author saves while a proposal is being drafted, an earlier ancestor in the same reference edition remains valid: review preserves unrelated edits and requires explicit resolution for overlaps. Unknown sources, unrelated branches and changed reference editions require fresh source reconciliation.
+
 The 18 tools cover onboarding, book discovery, references, chapter reads, flags, proposals, history, context, ideas, artifacts and new-chapter suggestions. Context can become stale; source text remains authoritative. Saving a proposal does not mean the manuscript has changed. For a new chapter, use `save_chapter_proposal` with its title, synopsis, position and draft. Review it in **Proposals** and confirm **Create chapter**; this also works before the manuscript has any chapters.
 
 For example: “Read chapter two and help me make the dialogue less formal,” “Compare this scene with the earlier revision,” or “Keep the ending, but propose a slower reveal.” Start by having the model retrieve the relevant source. Review saved proposals in Khosra before continuing from an accepted revision.

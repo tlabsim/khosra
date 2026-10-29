@@ -26,7 +26,7 @@ try{
  $r=chapterRpc('',[],null,'tools/list');checkChapterHttp($r['status']===401,'Anonymous discovery denied');
  $r=chapterRpc('',[],$read,'tools/list');$tools=array_column($r['body']['result']['tools']??[],null,'name');checkChapterHttp(count($tools)===18&&isset($tools['save_chapter_proposal'],$tools['list_chapter_proposals'],$tools['read_chapter_proposal']),'Live tools/list exposes all 18 capabilities');
  checkChapterHttp(!isset($tools['accept_chapter_proposal'])&&$tools['save_chapter_proposal']['securitySchemes'][0]['scopes']===['manuscript.propose'],'Models have propose scope and no chapter approval tool');
- $r=chapterRpc('get_khosra_guide',[],$read);$guide=rpcChapterValue($r);checkChapterHttp(($guide['guideVersion']??0)===6&&isset($guide['newChapterProposals']),'Authenticated guide describes the real new-chapter workflow');
+ $r=chapterRpc('get_khosra_guide',[],$read);$guide=rpcChapterValue($r);checkChapterHttp(($guide['guideVersion']??0)===7&&isset($guide['newChapterProposals']),'Authenticated guide describes the real new-chapter workflow');
  $args=['operation_id'=>uuid(),'book_id'=>$bid,'title'=>'New arrival','synopsis'=>'An arrival','rationale'=>'A new opening','after_chapter_id'=>null,'paragraphs'=>[['id'=>uuid(),'label'=>1,'text'=>'স্টেশনে কেউ ছিল না।','section'=>'']]];
  $r=chapterRpc('save_chapter_proposal',$args,$read);checkChapterHttp(($r['body']['result']['isError']??false)&&str_contains($r['raw'],'Token scope'),'Read-only token cannot propose a chapter');
  $r=chapterRpc('save_chapter_proposal',$args,$propose);$saved=rpcChapterValue($r);checkChapterHttp(($saved['saved']??false)&&$saved['id']===$args['operation_id'],'Propose token stores a chapter suggestion over HTTP');
@@ -43,6 +43,15 @@ try{
  $r=chapterHttp('/api/workspace','POST',$body,$headers);checkChapterHttp($r['status']===200&&count(loadWorkspace($db)['state']['chapters'])===1,'Repeated owner write creates exactly one chapter');
  $r=chapterRpc('read_chapter',['chapter_id'=>$id],$read);checkChapterHttp(rpcChapterValue($r)['chapter']['title']==='Author approved title','Accepted chapter is now discoverable as current manuscript');
  $r=chapterRpc('read_chapter_proposal',['book_id'=>$bid,'proposal_id'=>$id],$read);checkChapterHttp(rpcChapterValue($r)['proposal']['review']['chapterId']===$id,'MCP receipt links suggestion to the created chapter');
+ // A real MCP call drafted before the next owner save must retain that source.
+ $loaded=loadWorkspace($db);$changed=$loaded['state'];$base=$changed['revisions'][0];$newer=$base;$newer['id']=uuid();$newer['parentId']=$base['id'];$newer['source']='author';$newer['paragraphs'][0]['text']='Newer author wording';$changed['revisions'][]=$newer;$changed['chapters'][0]['headId']=$newer['id'];
+ writeWorkspace($db,$changed,$loaded['version'],uuid(),'http-author-edit');
+ $rewrite=['operation_id'=>uuid(),'chapter_id'=>$id,'base_revision_id'=>$base['id'],'title'=>'Earlier-source rewrite','rationale'=>'Author will review overlap','paragraphs'=>$base['paragraphs']];$rewrite['paragraphs'][0]['text']='Suggested wording';
+ $r=chapterRpc('save_proposal',$rewrite,$read);checkChapterHttp(($r['body']['result']['isError']??false),'Read-only token cannot submit an earlier-source rewrite');
+ $r=chapterRpc('save_proposal',$rewrite,$propose);$value=rpcChapterValue($r);checkChapterHttp(($value['saved']??false)&&$value['stale']&&$value['baseRevisionId']===$base['id']&&$value['currentRevisionId']===$newer['id'],'Actual MCP submission accepts exact ancestor and reports newer head');
+ $stored=loadWorkspace($db);checkChapterHttp($stored['state']['chapters'][0]['headId']===$newer['id']&&$stored['state']['proposals'][0]['baseRevisionId']===$base['id'],'MCP proposal preserves author head and original source');
+ $r=chapterRpc('save_proposal',$rewrite,$propose);checkChapterHttp(rpcChapterValue($r)['duplicate']&&loadWorkspace($db)['version']===$stored['version'],'HTTP ancestor submission retries without duplication');
+ $rewrite['operation_id']=uuid();$rewrite['base_revision_id']=uuid();$r=chapterRpc('save_proposal',$rewrite,$propose);checkChapterHttp(($r['body']['result']['isError']??false)&&loadWorkspace($db)['version']===$stored['version'],'HTTP unknown source remains rejected without mutation');
  echo "$count chapter HTTP checks passed.\n";
 }finally{
  if(is_resource($process)){proc_terminate($process);proc_close($process);}unset($q,$db);

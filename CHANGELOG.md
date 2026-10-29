@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Allow proposal submissions against the exact earlier source in the current chapter ancestry and reference edition. Preserve the source snapshot, report newer edits, and use existing author conflict review instead of rejecting long-running drafts after an autosave. Keep branch/edition, stable-reference, retry and workspace concurrency guards. Guide version 7; 18 tools.
+
 - Fix scroll freezing after nested proposal review/confirmation dialogs close together using shared scroll-lock ownership. Preserve native and window-filling fullscreen while navigating owner/guest chapters, resetting page/scroll/turn state. Group full and partial acceptances in Accepted while keeping exact status badges and records. Use Bengali chapter labels and digits in Bengali reading mode. Update the workflow guide to version 6; the tool inventory remains 18.
 
 - Add author-confirmed new-chapter proposals: models suggest title, synopsis, position and draft through three scoped MCP tools; authors edit/review and confirm creation or rejection in Proposals, including for manuscripts without chapters. Preserve original suggestions, creation receipts, stable codes, history and duplicate-safe identities. Include proposals in sync/backups and update the discovery guide to version 5 (18 tools).

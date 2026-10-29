@@ -10,7 +10,7 @@ function khosraInstructions(): string {
 /** Product documentation only: never reads workspace records or credentials. */
 function khosraGuide(): array {
  return [
-  'guideVersion'=>6,
+  'guideVersion'=>7,
   'product'=>'Khosra',
   'purpose'=>'A private, single-owner, server-backed manuscript library with a local recovery cache. The author directs the work; an LLM reads source, discusses ideas, and saves proposed prose. The author edits, reviews and approves in Khosra. Khosra does not call paid model or speech APIs.',
   'startHere'=>[
@@ -18,7 +18,7 @@ function khosraGuide(): array {
    'Use chapter UUIDs from discovery. Call read_chapter without revision_id for its current server head. Read the complete chapter before preparing a complete replacement proposal; use paragraph_ids for narrowly scoped reading or discussion.',
    'Read relevant flags with list_flags. read_context provides a revision-linked summary, facts and a stale indicator; consult source for missing or uncertain details. Chat history and summaries do not replace manuscript source.',
    'Discuss changes within the user’s request. Distinguish established facts from interpretations and suggestions. Do not present proposed plot, timeline, character or structural changes as accepted canon.',
-   'When asked to write or rewrite, call save_proposal against the current head. Summarize the saved proposal and ask the author to review it in Khosra. Saving a proposal does not change the manuscript.',
+   'When asked to write or rewrite, call save_proposal against the exact source revision you read. Summarize the saved proposal and ask the author to review it in Khosra. Saving a proposal does not change the manuscript.',
   ],
   'serverAndBrowser'=>[
    'Tools operate on the authenticated owner’s canonical server workspace. The hosted app requires sign-in and saves edits automatically; offline or pending browser edits are not visible until the app confirms Saved to server. Do not claim to have read unsynced text. Standalone development mode retains explicit manual transfer.',
@@ -60,7 +60,7 @@ function khosraGuide(): array {
     'Read the current full chapter, including all paragraphs and section fields. A paragraph_ids subset is not a complete chapter and must not be sent back alone as a replacement.',
     'Build the COMPLETE resulting paragraph array: retain every untouched paragraph and its id, label, text and section. Only alter the requested passages. Omission proposes removal, so do not drop content accidentally.',
     'Call save_proposal with a fresh operation_id UUID, chapter_id, base_revision_id copied from the current read’s revision.id, title, rationale, and complete paragraphs.',
-    'On stale-base or concurrent-workspace conflict, reread the latest source and reconcile the requested changes. Do not merely replace the base ID on an old payload. The author alone can accept or reject proposals.',
+    'If the author saves while you draft, save_proposal accepts the exact earlier source when it is an ancestor of the current head in the same reference edition. Keep base_revision_id unchanged: the response reports stale and currentRevisionId; author review preserves unrelated edits and requires explicit resolution for overlaps. A different edition, unrelated branch or unknown source still requires rereading and reconciling. Never merely replace the base ID on an old payload. Concurrent-workspace conflicts require rereading before retrying. The author alone can accept or reject proposals.',
    ],
    'reindex'=>[
     'Reindex only when requested. Read each requested chapter in full, then call save_context once per chapter using its latest revision_id and a fresh operation_id.',

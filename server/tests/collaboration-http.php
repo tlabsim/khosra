@@ -49,7 +49,7 @@ foreach($accepted['proposals'] as &$item)if($item['id']===$p['id'])$item['status
 $r=auditHttp('/api/workspace','POST',['state'=>$accepted,'baseVersion'=>$base,'operationId'=>uuid()],$owner);auditCheck($r['status']===200,'Author-accepted revision uploads while retaining history');
 $next=auditValue(auditTool('read_chapter',['chapter_id'=>$c['id']]));auditCheck($next['revision']['id']===$revision['id']&&$next['revision']['paragraphs'][0]===$paragraphs[0]&&$next['revision']['paragraphs'][1]===$untouched,'Next model iteration reads accepted text with untouched passages and UUIDs');
 $old=auditValue(auditTool('read_chapter',['chapter_id'=>$c['id'],'revision_id'=>$original['id']]));auditCheck($old['revision']===$original,'Original pre-collaboration source stays immutable and retrievable');
-$stale=$args;$stale['operation_id']=uuid();auditCheck((auditTool('save_proposal',$stale)['isError']??false)===true,'Stale rewrite is rejected after author acceptance');
+$stale=$args;$stale['operation_id']=uuid();$older=auditValue(auditTool('save_proposal',$stale));auditCheck($older['saved']&&$older['stale']&&$older['baseRevisionId']===$author['id'],'Earlier-source rewrite is saved for review after author acceptance');
 $staleContext=$context;$staleContext['operation_id']=uuid();auditCheck((auditTool('save_context',$staleContext)['isError']??false)===true,'Stale context write is rejected');
 $readContext=auditValue(auditTool('read_context',['chapter_id'=>$c['id']]));auditCheck($readContext['stale']===true,'Old context is explicitly stale after accepted edits');
 $r=auditHttp('/api/workspace','POST',['state'=>$pending,'baseVersion'=>$base,'operationId'=>uuid()],$owner);auditCheck($r['status']===409,'Stale owner upload cannot roll back the accepted revision');
