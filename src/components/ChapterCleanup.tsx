@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import { Archive } from "@phosphor-icons/react/dist/csr/Archive";
-import { DownloadSimple } from "@phosphor-icons/react/dist/csr/DownloadSimple";
 import Dialog from "../sharing/Dialog";
 import { type State } from "../domain/model";
 import {
@@ -8,7 +7,6 @@ import {
   cleanChapter,
   workspaceBytes,
 } from "../domain/chapterCleanup";
-import { download, exportBackup } from "../storage/db";
 import "./chapter-cleanup.css";
 const size = (bytes: number) =>
   bytes < 1024 * 1024
@@ -31,9 +29,8 @@ export default function ChapterCleanup({
   onSave: (next: State) => void;
   onError: (error: string) => void;
 }) {
-  const [open, setOpen] = useState(false),
-    [busy, setBusy] = useState(false);
-  const [backedUp, setBackedUp] = useState<State | null>(null);
+  const [open, setOpen] = useState(false);
+  const [acknowledged, setAcknowledged] = useState<State | null>(null);
   const plan = useMemo(() => {
     const targets = chapterCleanupPlan(state, chapterId);
     const cleaned = cleanChapter(state, chapterId);
@@ -55,34 +52,16 @@ export default function ChapterCleanup({
     .filter(Boolean)
     .join(" and ");
   function close() {
-    if (!busy) {
-      setOpen(false);
-      setBackedUp(null);
-      onEditing(false);
-    }
-  }
-  async function backup() {
-    setBusy(true);
-    try {
-      const source = currentState();
-      const archive = await exportBackup(source);
-      download(
-        archive,
-        `khosra-before-cleanup-${new Date().toISOString().slice(0, 10)}.json`,
-      );
-      setBackedUp(source);
-    } catch (e) {
-      onError(String(e));
-    } finally {
-      setBusy(false);
-    }
+    setOpen(false);
+    setAcknowledged(null);
+    onEditing(false);
   }
   function confirm() {
     try {
       if (!enabled) throw Error("Wait for Saved to server before cleaning up.");
-      if (backedUp !== currentState())
+      if (acknowledged !== currentState())
         throw Error(
-          "Workspace changed. Download a fresh backup before cleanup.",
+          "Review the current cleanup and confirm that you have made a backup.",
         );
       onSave(cleanChapter(currentState(), chapterId));
       close();
@@ -96,7 +75,7 @@ export default function ChapterCleanup({
         className="button compact"
         onClick={() => {
           setOpen(true);
-          setBackedUp(null);
+          setAcknowledged(null);
           onEditing(true);
         }}
       >
@@ -112,33 +91,29 @@ export default function ChapterCleanup({
           initialFocus="[data-cleanup-cancel]"
           footer={
             <footer className="chapter-cleanup-footer">
-              <button
-                className="button"
-                data-cleanup-cancel
-                disabled={busy}
-                onClick={close}
-              >
+              <label className="cleanup-backup-check">
+                <input
+                  type="checkbox"
+                  checked={acknowledged === state}
+                  onChange={(e) =>
+                    setAcknowledged(e.currentTarget.checked ? state : null)
+                  }
+                />
+                I have made a backup
+              </label>
+              <button className="button" data-cleanup-cancel onClick={close}>
                 Cancel
               </button>
-              {backedUp === state ? (
-                <button
-                  className="button primary"
-                  disabled={!enabled || !count || !plan.saved || busy}
-                  onClick={confirm}
-                >
-                  <Archive size={18} />
-                  Confirm cleanup
-                </button>
-              ) : (
-                <button
-                  className="button primary"
-                  disabled={!enabled || !count || !plan.saved || busy}
-                  onClick={() => void backup()}
-                >
-                  <DownloadSimple size={18} />
-                  {busy ? "Preparing backup…" : "Download backup first"}
-                </button>
-              )}
+              <button
+                className="button primary"
+                disabled={
+                  !enabled || !count || !plan.saved || acknowledged !== state
+                }
+                onClick={confirm}
+              >
+                <Archive size={18} />
+                Confirm cleanup
+              </button>
             </footer>
           }
         >
@@ -175,8 +150,6 @@ export default function ChapterCleanup({
           </details>
           {!count || !plan.saved ? (
             <p role="status">Nothing to clean up in this chapter yet.</p>
-          ) : backedUp === state ? (
-            <p role="status">Check that your backup was saved, then confirm.</p>
           ) : null}
         </Dialog>
       )}

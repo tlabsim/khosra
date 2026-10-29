@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add `save_proposal_edits` for differential existing-chapter suggestions: send only inclusive range replacements/deletions and anchored insertions. Reconstruct a full immutable review snapshot on the server, preserve untouched prose/references/headings and allocate new paragraph IDs/labels. Retain `save_proposal` for complete rewrites and reordering. Both require author review; neither changes the manuscript directly. Add strict source/overlap/no-op validation, durable retry identity, guide version 10 and a 19-tool MCP inventory.
+
+- Replace mandatory per-chapter cleanup downloads with an “I have made a backup” acknowledgment. Use one header backup for a batch of chapter cleanups; each modal requires its own checkbox and confirmation. Keep sync readiness, unchanged-preview and server deletion guards. Update guide to version 9 (18 tools).
+
 - Shorten the cleanup modal to counts, savings and a brief backup warning; hide detailed retention guidance in a disclosure and omit zero-count categories. Keep title and action buttons fixed inside the viewport while only the body scrolls on short screens.
 
 - Make chapter cleanup a compact action beside Revision history. Keep explanations, size estimates, sync-readiness guidance, backup download and final confirmation inside the modal; disable destructive actions until server saves are complete.

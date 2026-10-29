@@ -52,7 +52,7 @@ test.beforeEach(async ({ page }) => {
     .first()
     .click();
 });
-test("previews cleanup, downloads full backup, confirms and persists across reload", async ({
+test("cleanup requires backup acknowledgment, confirms and persists without another download", async ({
   page,
 }, info) => {
   await page.setViewportSize({
@@ -78,7 +78,7 @@ test("previews cleanup, downloads full backup, confirms and persists across relo
   await expect(dialog.getByRole("button", { name: "Cancel" })).toBeFocused();
   await expect(dialog.getByRole("button", { name: "Cancel" })).toBeInViewport();
   await expect(
-    dialog.getByRole("button", { name: "Download backup first" }),
+    dialog.getByRole("button", { name: "Confirm cleanup" }),
   ).toBeInViewport();
   expect(
     await dialog.evaluate((el) => el.scrollHeight - el.clientHeight),
@@ -94,14 +94,17 @@ test("previews cleanup, downloads full backup, confirms and persists across relo
   ).toBeVisible();
   await dialog.locator("summary").click();
   await expect(
-    dialog.getByRole("button", { name: "Download backup first" }),
+    dialog.getByRole("button", { name: "Confirm cleanup" }),
   ).toBeInViewport();
   await dialog.locator("summary").click();
   await expect(dialog.getByText(/Remove 2 reviewed proposals/)).toBeVisible();
 
   await expect(
     dialog.getByRole("button", { name: "Confirm cleanup" }),
-  ).toHaveCount(0);
+  ).toBeDisabled();
+  await expect(
+    dialog.getByRole("checkbox", { name: "I have made a backup" }),
+  ).not.toBeChecked();
   await page.screenshot({
     path: info.outputPath("cleanup-preview.png"),
     fullPage: true,
@@ -111,18 +114,23 @@ test("previews cleanup, downloads full backup, confirms and persists across relo
   await page
     .getByRole("button", { name: "Clean up chapter", exact: true })
     .click();
-  const downloading = page.waitForEvent("download");
-  await dialog.getByRole("button", { name: "Download backup first" }).click();
-  const download = await downloading;
-  expect(download.suggestedFilename()).toMatch(/^khosra-before-cleanup-/);
-  const stream = await download.createReadStream();
-  const chunks = [];
-  for await (const chunk of stream!) chunks.push(chunk);
-  const envelope = JSON.parse(Buffer.concat(chunks).toString());
-  expect(JSON.parse(envelope.payload)).toEqual(before);
+  const downloads: string[] = [];
+  page.on("download", (download) =>
+    downloads.push(download.suggestedFilename()),
+  );
+  const acknowledgment = dialog.getByRole("checkbox", {
+    name: "I have made a backup",
+  });
+  await expect(acknowledgment).not.toBeChecked();
+  await acknowledgment.check();
   await expect(
     dialog.getByRole("button", { name: "Confirm cleanup" }),
-  ).toBeVisible();
+  ).toBeEnabled();
+  await acknowledgment.uncheck();
+  await expect(
+    dialog.getByRole("button", { name: "Confirm cleanup" }),
+  ).toBeDisabled();
+  await acknowledgment.check();
   expect(await stored(page)).toEqual(before);
   await dialog.getByRole("button", { name: "Confirm cleanup" }).click();
   await expect(dialog).toHaveCount(0);
@@ -135,6 +143,7 @@ test("previews cleanup, downloads full backup, confirms and persists across relo
   expect(after.revisions).toEqual(before.revisions);
   expect(after.chapters).toEqual(before.chapters);
   expect(after.chapterCleanups).toHaveLength(1);
+  expect(downloads).toEqual([]);
   expect(
     await page.evaluate(() => document.documentElement.style.overflow),
   ).not.toBe("hidden");
@@ -152,6 +161,6 @@ test("previews cleanup, downloads full backup, confirms and persists across relo
     dialog.getByText("Nothing to clean up in this chapter yet."),
   ).toBeVisible();
   await expect(
-    dialog.getByRole("button", { name: "Download backup first" }),
+    dialog.getByRole("button", { name: "Confirm cleanup" }),
   ).toBeDisabled();
 });

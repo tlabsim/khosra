@@ -15,7 +15,7 @@ function chapterRpc(string $name,array $args=[],?string $token=null,string $meth
 }
 function rpcChapterValue(array $r):array{return json_decode($r['body']['result']['content'][0]['text']??'{}',true)??[];}
 try{
- foreach(['lib.php','oauth.php','guide.php','materials.php','sharing.php'] as $file)copy(dirname(__DIR__).'/'.$file,$root.'/'.$file);
+ foreach(['lib.php','oauth.php','guide.php','materials.php','proposal-edits.php','sharing.php'] as $file)copy(dirname(__DIR__).'/'.$file,$root.'/'.$file);
  copy(dirname(__DIR__).'/public/api/index.php',$root.'/public/api/index.php');
  file_put_contents($root.'/router.php',"<?php require __DIR__.'/public/api/index.php';");
  $config=['dsn'=>'sqlite:'.$root.'/fixture.sqlite','origin'=>$origin,'owner_password'=>'isolated-chapter-test-password','tool_token_hash'=>''];file_put_contents($root.'/config.php','<?php return '.var_export($config,true).';');
@@ -24,9 +24,9 @@ try{
  $pipes=[];$process=proc_open([PHP_BINARY,'-d','xdebug.mode=off','-d','session.save_path='.$root.'/sessions','-S',$address,'-t',$root.'/public',$root.'/router.php'],[0=>['pipe','r'],1=>['file',$root.'/server.log','a'],2=>['file',$root.'/server.log','a']],$pipes);if(!is_resource($process))throw new RuntimeException('Cannot start isolated PHP server.');fclose($pipes[0]);
  for($i=0;$i<100;$i++){$connection=@fsockopen('127.0.0.1',(int)substr(strrchr($address,':'),1),$errno,$error,0.1);if($connection){fclose($connection);break;}usleep(20000);}
  $r=chapterRpc('',[],null,'tools/list');checkChapterHttp($r['status']===401,'Anonymous discovery denied');
- $r=chapterRpc('',[],$read,'tools/list');$tools=array_column($r['body']['result']['tools']??[],null,'name');checkChapterHttp(count($tools)===18&&isset($tools['save_chapter_proposal'],$tools['list_chapter_proposals'],$tools['read_chapter_proposal']),'Live tools/list exposes all 18 capabilities');
+ $r=chapterRpc('',[],$read,'tools/list');$tools=array_column($r['body']['result']['tools']??[],null,'name');checkChapterHttp(count($tools)===19&&isset($tools['save_chapter_proposal'],$tools['list_chapter_proposals'],$tools['read_chapter_proposal']),'Live tools/list exposes all 19 capabilities');
  checkChapterHttp(!isset($tools['accept_chapter_proposal'])&&$tools['save_chapter_proposal']['securitySchemes'][0]['scopes']===['manuscript.propose'],'Models have propose scope and no chapter approval tool');
- $r=chapterRpc('get_khosra_guide',[],$read);$guide=rpcChapterValue($r);checkChapterHttp(($guide['guideVersion']??0)===8&&isset($guide['newChapterProposals']),'Authenticated guide describes the real new-chapter workflow');
+ $r=chapterRpc('get_khosra_guide',[],$read);$guide=rpcChapterValue($r);checkChapterHttp(($guide['guideVersion']??0)===10&&isset($guide['newChapterProposals']),'Authenticated guide describes the real new-chapter workflow');
  $args=['operation_id'=>uuid(),'book_id'=>$bid,'title'=>'New arrival','synopsis'=>'An arrival','rationale'=>'A new opening','after_chapter_id'=>null,'paragraphs'=>[['id'=>uuid(),'label'=>1,'text'=>'স্টেশনে কেউ ছিল না।','section'=>'']]];
  $r=chapterRpc('save_chapter_proposal',$args,$read);checkChapterHttp(($r['body']['result']['isError']??false)&&str_contains($r['raw'],'Token scope'),'Read-only token cannot propose a chapter');
  $r=chapterRpc('save_chapter_proposal',$args,$propose);$saved=rpcChapterValue($r);checkChapterHttp(($saved['saved']??false)&&$saved['id']===$args['operation_id'],'Propose token stores a chapter suggestion over HTTP');
@@ -63,6 +63,15 @@ try{
  $r=chapterRpc('read_proposal',['chapter_id'=>$id,'proposal_id'=>$removed],$read);checkChapterHttp(($r['body']['result']['isError']??false),'Removed proposal is absent from exact MCP read');
  $r=chapterRpc('save_proposal',array_replace($rewrite,['operation_id'=>$compacted['chapterCleanups'][0]['id']]),$propose);checkChapterHttp(($r['body']['result']['isError']??false),'Models cannot reuse a cleanup operation to change state');
  $oldBody=['state'=>$done,'baseVersion'=>loadWorkspace($db)['version'],'operationId'=>uuid()];$r=chapterHttp('/api/workspace','POST',$oldBody,$headers);checkChapterHttp($r['status']===409,'Older client cannot erase cleanup receipt or resurrect prose copies');
+ // Differential transport produces the same author-reviewed full snapshot over authenticated MCP.
+ $patch=['operation_id'=>uuid(),'chapter_id'=>$id,'base_revision_id'=>$base['id'],'title'=>'Sparse rewrite','rationale'=>'Keep source context','replacements'=>[['start_paragraph_id'=>$base['paragraphs'][0]['id'],'end_paragraph_id'=>$base['paragraphs'][0]['id'],'paragraphs'=>[['text'=>'Sparse suggestion']]]],'insertions'=>[['after_paragraph_id'=>$base['paragraphs'][0]['id'],'paragraphs'=>[['text'=>'Added clue']]]]];
+ $r=chapterRpc('save_proposal_edits',$patch,$read);checkChapterHttp(($r['body']['result']['isError']??false)&&str_contains($r['raw'],'Token scope'),'Read token cannot submit differential proposal');
+ $r=chapterRpc('save_proposal_edits',$patch,$propose);$savedPatch=rpcChapterValue($r);checkChapterHttp(($savedPatch['saved']??false)&&$savedPatch['id']===$patch['operation_id']&&$savedPatch['stale'],'Differential HTTP submission accepts exact ancestor and returns durable identity');
+ $version=loadWorkspace($db)['version'];$r=chapterRpc('read_proposal',['chapter_id'=>$id,'proposal_id'=>$savedPatch['id']],$read);$snapshot=rpcChapterValue($r)['proposal'];
+ checkChapterHttp(count($snapshot['paragraphs'])===2&&$snapshot['paragraphs'][0]['id']===$base['paragraphs'][0]['id']&&$snapshot['paragraphs'][0]['text']==='Sparse suggestion'&&$snapshot['paragraphs'][1]['label']===2,'Exact proposal read exposes reconstructed ordinary full review snapshot');
+ $r=chapterRpc('save_proposal_edits',$patch,$propose);checkChapterHttp((rpcChapterValue($r)['duplicate']??false)&&rpcChapterValue($r)['id']===$savedPatch['id']&&loadWorkspace($db)['version']===$version,'Differential HTTP retry preserves proposal and inserted UUIDs');
+ $bad=$patch;$bad['operation_id']=uuid();$bad['replacements'][0]['start_paragraph_id']=uuid();$r=chapterRpc('save_proposal_edits',$bad,$propose);checkChapterHttp(($r['body']['result']['isError']??false)&&loadWorkspace($db)['version']===$version,'Unknown differential source anchor is rejected atomically over HTTP');
+ checkChapterHttp(loadWorkspace($db)['state']['chapters'][0]['headId']===$newer['id']&&$snapshot['status']==='pending','Differential tools leave author manuscript and approval unchanged');
  echo "$count chapter HTTP checks passed.\n";
 }finally{
  if(is_resource($process)){proc_terminate($process);proc_close($process);}unset($q,$db);

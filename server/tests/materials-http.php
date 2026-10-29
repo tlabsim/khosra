@@ -5,7 +5,7 @@ require dirname(__DIR__).'/lib.php';require dirname(__DIR__).'/oauth.php';
 $root='C:/wamp64/tmp/khosra-materials-regression';$url='http://127.0.0.1:18083';
 if(in_array('--prepare',$argv,true)){
  if(!is_dir($root.'/public/api'))mkdir($root.'/public/api',0777,true);if(!is_dir($root.'/sessions'))mkdir($root.'/sessions');
- foreach(['lib.php','materials.php','oauth.php','sharing.php','guide.php'] as $f)copy(dirname(__DIR__).'/'.$f,$root.'/'.$f);
+ foreach(['lib.php','materials.php','proposal-edits.php','oauth.php','sharing.php','guide.php'] as $f)copy(dirname(__DIR__).'/'.$f,$root.'/'.$f);
  copy(dirname(__DIR__).'/public/api/index.php',$root.'/public/api/index.php');
  file_put_contents($root.'/public/.htaccess',"RewriteEngine On\nRewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]\nRewriteRule ^api(?:/.*)?$ api/index.php [L,QSA]\n");
  $config=['dsn'=>'sqlite:'.$root.'/fixture.sqlite','origin'=>$url,'owner_password'=>'materials-http-test-only','tool_token_hash'=>''];file_put_contents($root.'/config.php','<?php return '.var_export($config,true).';');
@@ -19,7 +19,7 @@ function materialRpc(string $name,array $args,?string $token=null,string $method
  $c=stream_context_create(['http'=>['method'=>'POST','ignore_errors'=>true,'timeout'=>10,'header'=>implode("\r\n",$headers),'content'=>json_encode(['jsonrpc'=>'2.0','id'=>1,'method'=>$method,'params'=>$method==='tools/call'?['name'=>$name,'arguments'=>$args?:new stdClass()]:new stdClass()])]]);
  $text=file_get_contents($url.'/api/mcp',false,$c);preg_match('/\s(\d{3})\s/',$http_response_header[0]??'',$m);return ['status'=>(int)($m[1]??0),'body'=>json_decode($text?:'',true),'text'=>$text,'headers'=>implode("\n",$http_response_header)];
 }
-$r=materialRpc('list_materials',['book_id'=>$bid]);checkHttpMaterial($r['status']===401&&!str_contains($r['text'],'HTTP test manuscript'),'Anonymous material reads blocked');$r=materialRpc('',[],$read,'tools/list');checkHttpMaterial(count($r['body']['result']['tools'])===18,'Live MCP discovery includes 18 tools');
+$r=materialRpc('list_materials',['book_id'=>$bid]);checkHttpMaterial($r['status']===401&&!str_contains($r['text'],'HTTP test manuscript'),'Anonymous material reads blocked');$r=materialRpc('',[],$read,'tools/list');checkHttpMaterial(count($r['body']['result']['tools'])===19,'Live MCP discovery includes 19 tools');
 foreach(['save_idea','save_artifact'] as $name){$r=materialRpc($name,['book_id'=>$bid,'operation_id'=>uuid(),'title'=>'Denied','body'=>'Never stored'],$read);checkHttpMaterial(($r['body']['result']['isError']??false)&&str_contains($r['text'],'Token scope'),'Read-only token cannot '.$name);}
 $args=['book_id'=>$bid,'operation_id'=>uuid(),'title'=>'Private possible twist','body'=>'Only a suggestion'];$r=materialRpc('save_idea',$args,$write);$saved=json_decode($r['body']['result']['content'][0]['text'],true);checkHttpMaterial($saved['saved']===true,'Propose token creates an idea over HTTP');$id=$saved['id'];$r=materialRpc('save_idea',$args,$write);checkHttpMaterial(json_decode($r['body']['result']['content'][0]['text'],true)['duplicate']===true,'HTTP save retry is idempotent');
 $r=materialRpc('list_materials',['book_id'=>$bid],$read);$list=json_decode($r['body']['result']['content'][0]['text'],true);checkHttpMaterial($list['total']===1&&!str_contains($r['text'],'Only a suggestion'),'Lists omit note bodies');

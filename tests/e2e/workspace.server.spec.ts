@@ -752,13 +752,15 @@ test("new-chapter suggestions require confirmation and preserve the author-edite
   }
 });
 
-test("chapter cleanup waits for server save, downloads backup and syncs permanent removal", async ({
+test("chapter cleanup waits for server save and backup acknowledgment, then syncs removal", async ({
   page,
   context,
 }) => {
-  const s = fixture(),
-    chapter = s.chapters[0],
-    base = head(s, chapter);
+  let s = fixture();
+  s = addChapter(s, s.books[0].id, "Second completed chapter");
+  const chapter = s.chapters[0],
+    base = head(s, chapter),
+    second = s.chapters[1];
   base.paragraphs[0].text = "A completed chapter. ".repeat(1000);
   s.proposals.push({
     id: uid(),
@@ -770,11 +772,29 @@ test("chapter cleanup waits for server save, downloads backup and syncs permanen
     status: "rejected",
     createdAt: now(),
   });
+  const secondBase = head(s, second);
+  s.proposals.push({
+    id: uid(),
+    chapterId: second.id,
+    baseRevisionId: secondBase.id,
+    title: "Second review",
+    rationale: "Finished",
+    paragraphs: secondBase.paragraphs,
+    status: "rejected",
+    createdAt: now(),
+  });
   const fixtureServer = serverFixture(s);
   await fixtureServer.attach(context);
   await page.goto("/");
   await signIn(page);
   await expect(page.locator(".server-sync")).toContainText("Saved to server");
+  const downloads: string[] = [];
+  page.on("download", (d) => downloads.push(d.suggestedFilename()));
+  const headerBackup = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Export backup", exact: true })
+    .click();
+  await headerBackup;
   await page
     .getByRole("button", { name: /^History/ })
     .filter({ visible: true })
@@ -784,15 +804,44 @@ test("chapter cleanup waits for server save, downloads backup and syncs permanen
     .getByRole("button", { name: "Clean up chapter", exact: true })
     .click();
   const dialog = page.getByRole("dialog", { name: "Clean up chapter" });
-  const downloading = page.waitForEvent("download");
-  await dialog.getByRole("button", { name: "Download backup first" }).click();
-  await downloading;
+  await expect(
+    dialog.getByRole("button", { name: "Confirm cleanup" }),
+  ).toBeDisabled();
+  await dialog.getByRole("checkbox", { name: "I have made a backup" }).check();
   await dialog.getByRole("button", { name: "Confirm cleanup" }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.locator(".server-sync")).toContainText("Saved to server");
-  expect(fixtureServer.state().proposals).toEqual([]);
+  await expect.poll(() => fixtureServer.state().proposals.length).toBe(1);
   expect(fixtureServer.state().revisions).toEqual(s.revisions);
   expect(fixtureServer.state().chapterCleanups).toHaveLength(1);
+  await page
+    .getByRole("button", { name: "Open navigation", exact: true })
+    .click();
+  await page
+    .getByRole("complementary", { name: "Chapter contents" })
+    .getByRole("button", { name: /Second completed chapter/ })
+    .click();
+  await page
+    .getByRole("button", { name: /^History/ })
+    .filter({ visible: true })
+    .first()
+    .click();
+  await page
+    .getByRole("button", { name: "Clean up chapter", exact: true })
+    .click();
+  await expect(
+    dialog.getByRole("checkbox", { name: "I have made a backup" }),
+  ).not.toBeChecked();
+  await expect(
+    dialog.getByRole("button", { name: "Confirm cleanup" }),
+  ).toBeDisabled();
+  await dialog.getByRole("checkbox", { name: "I have made a backup" }).check();
+  await dialog.getByRole("button", { name: "Confirm cleanup" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect.poll(() => fixtureServer.state().chapterCleanups.length).toBe(2);
+  expect(fixtureServer.state().proposals).toEqual([]);
+  expect(fixtureServer.state().revisions).toEqual(s.revisions);
+  expect(downloads).toHaveLength(1);
   await page.reload();
   await expect(
     page.getByRole("heading", { name: "Workspace unavailable" }),

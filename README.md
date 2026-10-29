@@ -56,9 +56,11 @@ Hosting is the recommended setup for the full workflow: the chat client needs to
 
 Proposal submission retains the exact source revision read by the model. If the author saves while a proposal is being drafted, an earlier ancestor in the same reference edition remains valid: review preserves unrelated edits and requires explicit resolution for overlaps. Unknown sources, unrelated branches and changed reference editions require fresh source reconciliation.
 
-For a finished chapter, open **History → Clean up chapter** to preview the workspace size reduction. Download the full backup first, check that it saved, then confirm permanent removal of reviewed proposal copies (including receipts and the accepted new-chapter suggestion) and older context indexes for that chapter. Current/approved text, all revision history, pending proposals, flags, latest context, ideas and artifacts remain. Hosted cleanup is available after **Saved to server**. Removed records are accessible only in the backup; cleanup receipts prevent older synced copies or restored archives from bringing them back. This reduces redundant proposal storage; it does not compact revision history or attachment bytes.
+For a finished chapter, open **History → Clean up chapter** to preview the workspace size reduction. Use the header’s Export backup action before a cleanup session. In each cleanup modal, check **I have made a backup**, then confirm permanent removal of reviewed proposal copies (including receipts and the accepted new-chapter suggestion) and older context indexes for that chapter. Current/approved text, all revision history, pending proposals, flags, latest context, ideas and artifacts remain. Hosted cleanup is available after **Saved to server**. Removed records are accessible only in the backup; cleanup receipts prevent older synced copies or restored archives from bringing them back. This reduces redundant proposal storage; it does not compact revision history or attachment bytes.
 
-The 18 tools cover onboarding, book discovery, references, chapter reads, flags, proposals, history, context, ideas, artifacts and new-chapter suggestions. Context can become stale; source text remains authoritative. Saving a proposal does not mean the manuscript has changed. For a new chapter, use `save_chapter_proposal` with its title, synopsis, position and draft. Review it in **Proposals** and confirm **Create chapter**; this also works before the manuscript has any chapters.
+Existing-chapter rewrites should use **`save_proposal_edits`**: send the exact source revision, only replacement ranges and insertions, and `[]` for unused lists. Replacement endpoints are inclusive source paragraph UUIDs; an empty replacement deletes the range. Insertions use `after_paragraph_id` (`null` prepends). Text rows need only `text`, with optional `section`; the server preserves untouched paragraphs, retains replaced identities positionally and allocates new UUIDs/labels. Ranges cannot overlap and insertions cannot fall inside a replaced range. `save_proposal` also remains fully supported for whole-chapter rewrites, reordering and complete snapshots; new-chapter proposals still need the full draft. Differential requests still become full stored review snapshots, so this reduces transport size rather than workspace storage.
+
+The 19 tools cover onboarding, book discovery, references, chapter reads, flags, proposals, history, context, ideas, artifacts and new-chapter suggestions. Context can become stale; source text remains authoritative. Saving a proposal does not mean the manuscript has changed. For a new chapter, use `save_chapter_proposal` with its title, synopsis, position and draft. Review it in **Proposals** and confirm **Create chapter**; this also works before the manuscript has any chapters.
 
 For example: “Read chapter two and help me make the dialogue less formal,” “Compare this scene with the earlier revision,” or “Keep the ending, but propose a slower reveal.” Start by having the model retrieve the relevant source. Review saved proposals in Khosra before continuing from an accepted revision.
 
@@ -208,7 +210,7 @@ Rename the packaged `private/config.example.php` to `config.php` in the private 
 
 Leave `tool_token_hash` empty for normal OAuth use. Keep passwords and tokens out of browser environment variables, repository files, screenshots and chat messages.
 
-Keep `lib.php`, `guide.php`, `oauth.php` and `sharing.php` together in that private directory. Before uploading, edit the private file paths near the top of `webroot/api/index.php` to match the host. For example:
+Keep `lib.php`, `guide.php`, `proposal-edits.php`, `materials.php`, `oauth.php` and `sharing.php` together in that private directory. Before uploading, edit the private file paths near the top of `webroot/api/index.php` to match the host. For example:
 
 ```php
 require '/home/YOUR_ACCOUNT/khosra-private/lib.php';
@@ -218,7 +220,7 @@ require '/home/YOUR_ACCOUNT/khosra-private/sharing.php';
 $file = '/home/YOUR_ACCOUNT/khosra-private/config.php';
 ```
 
-`lib.php` loads `guide.php` from its own directory; no extra public path is needed.
+`lib.php` loads `guide.php`, `proposal-edits.php` and `materials.php` from its own directory; no extra public path is needed.
 
 ### 5. Upload and verify
 
