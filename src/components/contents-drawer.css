@@ -1,0 +1,45 @@
+@media (min-width: 761px) {
+  .contents-drawer.adaptive-contents {
+    width: min(calc(330px * var(--contents-columns, 1)), calc(100vw - 48px));
+    max-width: none;
+  }
+  .contents-drawer.adaptive-contents .chapter-list {
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-columns: repeat(var(--contents-columns, 1), minmax(0, 1fr));
+    grid-template-rows: repeat(var(--contents-rows, 1), 5.75rem);
+    align-content: start;
+    column-gap: 24px;
+    padding-bottom: 0;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
+  }
+  .contents-drawer.adaptive-contents .chapter-list > button {
+    height: 5.75rem;
+    min-width: 0;
+    margin: 0;
+    padding: 12px 10px;
+  }
+  .contents-drawer.adaptive-contents
+    .chapter-list
+    > button
+    > span:nth-child(2) {
+    min-width: 0;
+    flex: 1;
+  }
+  .contents-drawer.adaptive-contents .contents-book-title > span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .contents-chapter-title {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+  }
+  .contents-drawer.adaptive-contents .chapter-list small {
+    white-space: nowrap;
+  }
+}

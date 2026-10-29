@@ -1,20 +1,16 @@
-.chapter-cleanup {
+.history-page-heading {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 1rem 2rem;
-  border-top: 1px solid var(--line);
-  margin-top: 2rem;
-  padding-top: 1.5rem;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+  margin-bottom: 1.5rem;
 }
-.chapter-cleanup > div {
-  flex: 1 1 20rem;
-}
-.chapter-cleanup h3 {
-  margin: 0 0 0.5rem;
-}
-.chapter-cleanup p {
+.history-page-heading h2 {
   margin: 0;
+}
+.history-page-heading > .button {
+  flex-shrink: 0;
 }
 .chapter-cleanup-footer {
   display: flex;
@@ -39,6 +35,9 @@
   font-weight: 600;
 }
 @media (max-width: 600px) {
+  .history-page-heading > .button {
+    min-height: 44px;
+  }
   .cleanup-sizes {
     grid-template-columns: 1fr;
     gap: 0.75rem;
@@ -53,5 +52,53 @@
   }
   .chapter-cleanup-footer .button {
     flex: 1 1 auto;
+  }
+}
+
+/* Scroll only the explanation; keep the title and final actions in view. */
+.sharing-dialog.cleanup-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+}
+.cleanup-dialog > header,
+.cleanup-dialog > footer {
+  flex-shrink: 0;
+}
+.cleanup-dialog > .sharing-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 24px;
+}
+.cleanup-dialog .sharing-body > p {
+  margin: 0 0 12px;
+}
+.cleanup-dialog .cleanup-sizes {
+  margin: 0 0 16px;
+  padding: 12px 0;
+}
+.cleanup-dialog .cleanup-warning {
+  font-size: 0.85rem;
+}
+.cleanup-details {
+  font-size: 0.85rem;
+}
+.cleanup-details summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+.cleanup-details p {
+  margin: 8px 0 0;
+}
+.cleanup-dialog .chapter-cleanup-footer {
+  padding: 16px 24px;
+}
+@media (max-width: 600px) {
+  .cleanup-dialog > .sharing-body {
+    padding: 12px 16px;
+  }
+  .cleanup-dialog .chapter-cleanup-footer {
+    padding: 12px 16px;
   }
 }

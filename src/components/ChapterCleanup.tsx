@@ -45,6 +45,15 @@ export default function ChapterCleanup({
     plan.proposalIds.length +
     plan.chapterProposalIds.length +
     plan.contextIds.length;
+  const reviewed = plan.proposalIds.length + plan.chapterProposalIds.length;
+  const removal = [
+    reviewed ? `${reviewed} reviewed proposal${reviewed === 1 ? "" : "s"}` : "",
+    plan.contextIds.length
+      ? `${plan.contextIds.length} older context index${plan.contextIds.length === 1 ? "" : "es"}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" and ");
   function close() {
     if (!busy) {
       setOpen(false);
@@ -70,6 +79,7 @@ export default function ChapterCleanup({
   }
   function confirm() {
     try {
+      if (!enabled) throw Error("Wait for Saved to server before cleaning up.");
       if (backedUp !== currentState())
         throw Error(
           "Workspace changed. Download a fresh backup before cleanup.",
@@ -82,35 +92,21 @@ export default function ChapterCleanup({
   }
   return (
     <>
-      <section className="chapter-cleanup">
-        <div>
-          <h3>Chapter cleanup</h3>
-          <p>
-            Remove reviewed proposal copies and older context indexes when you
-            finish a chapter. Revision history stays available.
-          </p>
-        </div>
-        <button
-          className="button"
-          disabled={!enabled}
-          onClick={() => {
-            setOpen(true);
-            setBackedUp(null);
-            onEditing(true);
-          }}
-        >
-          <Archive size={18} />
-          Clean up chapter
-        </button>
-        {!enabled && (
-          <p className="caption">
-            Wait for Saved to server before cleaning up.
-          </p>
-        )}
-      </section>
+      <button
+        className="button compact"
+        onClick={() => {
+          setOpen(true);
+          setBackedUp(null);
+          onEditing(true);
+        }}
+      >
+        <Archive size={16} />
+        Clean up chapter
+      </button>
       {open && (
         <Dialog
           title="Clean up chapter"
+          className="cleanup-dialog"
           closeLabel="Close chapter cleanup"
           onClose={close}
           initialFocus="[data-cleanup-cancel]"
@@ -127,7 +123,7 @@ export default function ChapterCleanup({
               {backedUp === state ? (
                 <button
                   className="button primary"
-                  disabled={!count || !plan.saved || busy}
+                  disabled={!enabled || !count || !plan.saved || busy}
                   onClick={confirm}
                 >
                   <Archive size={18} />
@@ -136,7 +132,7 @@ export default function ChapterCleanup({
               ) : (
                 <button
                   className="button primary"
-                  disabled={!count || !plan.saved || busy}
+                  disabled={!enabled || !count || !plan.saved || busy}
                   onClick={() => void backup()}
                 >
                   <DownloadSimple size={18} />
@@ -146,12 +142,10 @@ export default function ChapterCleanup({
             </footer>
           }
         >
-          <p>
-            This removes{" "}
-            {plan.proposalIds.length + plan.chapterProposalIds.length} reviewed
-            proposals (including their review receipts) and{" "}
-            {plan.contextIds.length} older context indexes from this chapter.
-          </p>
+          {removal && <p>Remove {removal} from this chapter.</p>}
+          {!enabled && (
+            <p role="status">Wait for Saved to server before cleaning up.</p>
+          )}
           <dl className="cleanup-sizes">
             <div>
               <dt>Workspace now</dt>
@@ -166,25 +160,24 @@ export default function ChapterCleanup({
               <dd>{size(plan.saved)}</dd>
             </div>
           </dl>
-          <p>
-            Current and approved text, all revision history, pending proposals,
-            flags, the latest context, ideas and artifacts are kept.
+          <p>Manuscript text, revision history and pending work stay.</p>
+          <p className="cleanup-warning">
+            Permanent cleanup. Removed records remain only in your backup.
           </p>
-          <p>
-            Removed proposals and indexes will only be available in your
-            downloaded backup. Restoring an old archive into this synced
-            workspace does not undo cleanup.
-          </p>
+          <details className="cleanup-details">
+            <summary>What’s kept?</summary>
+            <p>
+              Current and approved text, every revision, pending proposals,
+              flags, the latest context, ideas and artifacts are kept. Reviewed
+              proposal drafts and receipts are removed. Older synced copies and
+              restored archives cannot undo cleanup.
+            </p>
+          </details>
           {!count || !plan.saved ? (
             <p role="status">Nothing to clean up in this chapter yet.</p>
           ) : backedUp === state ? (
-            <p role="status">
-              Backup download started. Check that the file was saved before
-              confirming permanent cleanup.
-            </p>
-          ) : (
-            <p>Download a full workspace backup, then confirm cleanup.</p>
-          )}
+            <p role="status">Check that your backup was saved, then confirm.</p>
+          ) : null}
         </Dialog>
       )}
     </>

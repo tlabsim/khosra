@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Shorten the cleanup modal to counts, savings and a brief backup warning; hide detailed retention guidance in a disclosure and omit zero-count categories. Keep title and action buttons fixed inside the viewport while only the body scrolls on short screens.
+
+- Make chapter cleanup a compact action beside Revision history. Keep explanations, size estimates, sync-readiness guidance, backup download and final confirmation inside the modal; disable destructive actions until server saves are complete.
+
+- Expand desktop Contents into up to four columns according to chapter count, screen width and available height. Fill down each column in chapter order, keep overflow scrolling inside the list, and reveal the selected chapter when opening. Retain the single-column mobile drawer and its fixed footer actions; keep long titles readable without horizontal overflow.
+
 - Add History → Clean up chapter with UTF-8 size estimates, a full-backup download step and explicit confirmation. Remove only reviewed proposal copies/receipts, accepted new-chapter suggestions for that chapter and obsolete context indexes. Keep every manuscript revision, pending work, flags, latest context and private materials. Add immutable cleanup receipts to backups and reconciliation so older devices cannot resurrect discarded copies; enforce owner/CSRF/version and pending/history guards on the server. Guide version 8, unchanged 18 tools.
 
 - Allow proposal submissions against the exact earlier source in the current chapter ancestry and reference edition. Preserve the source snapshot, report newer edits, and use existing author conflict review instead of rejecting long-running drafts after an autosave. Keep branch/edition, stable-reference, retry and workspace concurrency guards. Guide version 7; 18 tools.

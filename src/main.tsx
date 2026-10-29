@@ -1,3 +1,4 @@
+import ContentsDrawer from "./components/ContentsDrawer";
 import ChapterCleanup from "./components/ChapterCleanup";
 import { usePageTransition } from "./usePageTransition";
 import { acceptedProposalParagraphs } from "./domain/proposalPresentation";
@@ -706,13 +707,9 @@ function App() {
             className="contents-scrim"
             onClick={() => setSidebar(false)}
           />
-          <aside
-            className="contents-drawer"
-            id="chapter-contents"
-            aria-label="Chapter contents"
-            onKeyDown={(e) => {
-              if (e.key === "Escape") setSidebar(false);
-            }}
+          <ContentsDrawer
+            count={chapters.length}
+            onClose={() => setSidebar(false)}
           >
             <div className="contents-heading">
               <h2>Contents</h2>
@@ -724,7 +721,11 @@ function App() {
                 <X size={20} />
               </button>
             </div>
-            <p className="contents-book-title" lang={book.language}>
+            <p
+              className="contents-book-title"
+              lang={book.language}
+              title={book.title}
+            >
               <BookBookmark size={20} aria-hidden="true" />
               <span>{book.title}</span>
             </p>
@@ -733,6 +734,8 @@ function App() {
                 <button
                   key={c.id}
                   className={c.id === chapter?.id ? "selected" : ""}
+                  aria-current={c.id === chapter?.id ? "page" : undefined}
+                  title={c.title}
                   onClick={() => {
                     choose(c);
                     changeView("manuscript");
@@ -742,7 +745,7 @@ function App() {
                     {String(i + 1).padStart(2, "0")}
                   </span>
                   <span>
-                    {c.title}
+                    <span className="contents-chapter-title">{c.title}</span>
                     <small>
                       {c.approvedId === c.headId ? "Approved" : "Working draft"}{" "}
                       · C{c.code}
@@ -787,7 +790,7 @@ function App() {
               <Books size={19} aria-hidden="true" />
               Back to library
             </button>
-          </aside>
+          </ContentsDrawer>
         </>
       )}
       <div className="main-shell" ref={transitionRoot}>
@@ -1846,27 +1849,29 @@ function App() {
               </main>
             ) : view === "history" ? (
               <main className="page">
-                <h2>Revision history</h2>
-                <ChapterCleanup
-                  state={state}
-                  chapterId={chapter.id}
-                  enabled={
-                    !hosted ||
-                    (online &&
-                      hostedStatus.phase === "ready" &&
-                      hostedStatus.message === "Saved to server" &&
-                      !incoming)
-                  }
-                  currentState={() => latest.current}
-                  onEditing={setProposalEditing}
-                  onError={setError}
-                  onSave={(next) => {
-                    update(next);
-                    setNotice(
-                      "Chapter cleanup saved locally; synchronization will resume. Keep your backup for removed proposals.",
-                    );
-                  }}
-                />
+                <div className="history-page-heading">
+                  <h2>Revision history</h2>
+                  <ChapterCleanup
+                    state={state}
+                    chapterId={chapter.id}
+                    enabled={
+                      !hosted ||
+                      (online &&
+                        hostedStatus.phase === "ready" &&
+                        hostedStatus.message === "Saved to server" &&
+                        !incoming)
+                    }
+                    currentState={() => latest.current}
+                    onEditing={setProposalEditing}
+                    onError={setError}
+                    onSave={(next) => {
+                      update(next);
+                      setNotice(
+                        "Chapter cleanup saved locally; synchronization will resume. Keep your backup for removed proposals.",
+                      );
+                    }}
+                  />
+                </div>
                 {state.revisions.filter((r) => r.chapterId === chapter.id)
                   .length <= 1 ? (
                   <Empty

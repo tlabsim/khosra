@@ -55,14 +55,50 @@ test.beforeEach(async ({ page }) => {
 test("previews cleanup, downloads full backup, confirms and persists across reload", async ({
   page,
 }, info) => {
+  await page.setViewportSize({
+    width: info.project.name === "desktop" ? 1280 : 393,
+    height: 600,
+  });
   const before = await stored(page);
+  await expect(
+    page.getByRole("heading", { name: "Chapter cleanup", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText(/Remove reviewed proposal copies and older context/),
+  ).toHaveCount(0);
+  await page.screenshot({
+    path: info.outputPath("compact-cleanup-header.png"),
+    fullPage: true,
+  });
   await page
     .getByRole("button", { name: "Clean up chapter", exact: true })
     .click();
   const dialog = page.getByRole("dialog", { name: "Clean up chapter" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByText(/removes 2 reviewed proposals/)).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await expect(dialog.getByRole("button", { name: "Cancel" })).toBeInViewport();
+  await expect(
+    dialog.getByRole("button", { name: "Download backup first" }),
+  ).toBeInViewport();
+  expect(
+    await dialog.evaluate((el) => el.scrollHeight - el.clientHeight),
+  ).toBeLessThanOrEqual(1);
+  const footerBottom = await dialog
+    .locator("footer")
+    .evaluate((el) => el.getBoundingClientRect().bottom);
+  expect(footerBottom).toBeLessThanOrEqual(592);
+  await expect(
+    dialog.getByText(
+      "Manuscript text, revision history and pending work stay.",
+    ),
+  ).toBeVisible();
+  await dialog.locator("summary").click();
+  await expect(
+    dialog.getByRole("button", { name: "Download backup first" }),
+  ).toBeInViewport();
+  await dialog.locator("summary").click();
+  await expect(dialog.getByText(/Remove 2 reviewed proposals/)).toBeVisible();
+
   await expect(
     dialog.getByRole("button", { name: "Confirm cleanup" }),
   ).toHaveCount(0);

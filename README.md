@@ -39,6 +39,8 @@ Khosra is currently a **single-owner application**. Guest readers can read and c
 
 ## Everyday use
 
+On desktop, **Contents** expands into additional columns when chapters no longer fit vertically, up to four as space permits. The list reads down each column, then across, and opens with the selected chapter visible. Very large lists scroll within the panel; mobile keeps one column.
+
 ### Iterate through text or voice chat
 
 Hosting is the recommended setup for the full workflow: the chat client needs to reach Khosra’s authenticated HTTPS endpoint. Once configured:
