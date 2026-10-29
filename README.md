@@ -64,6 +64,10 @@ The 19 tools cover onboarding, book discovery, references, chapter reads, flags,
 
 For example: “Read chapter two and help me make the dialogue less formal,” “Compare this scene with the earlier revision,” or “Keep the ending, but propose a slower reveal.” Start by having the model retrieve the relevant source. Review saved proposals in Khosra before continuing from an accepted revision.
 
+### ChatGPT plugin branding
+
+`python3 scripts/package-plugin.py` creates a separate branded plugin ZIP with Khosra’s light/dark listing and composer icons and the existing remote MCP endpoint. The normal `python3 scripts/package.py` command also creates this ZIP beside the two website releases. See [plugin setup and installation](plugin/README.md). Optional `node scripts/render-plugin-icons.mjs` exports PNG copies for manual icon uploads. Website/SFTP updates do not change the branding of an existing ChatGPT connection; apply the plugin package through a supported dashboard/installation workflow or use that connection’s icon upload control if available. No remote installation or publication is performed by these scripts.
+
 ### Write and organize
 
 1. Create or open a manuscript in **Library**.

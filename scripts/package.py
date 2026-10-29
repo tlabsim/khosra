@@ -1,6 +1,6 @@
 """Build an FTP handoff archive. Run npm run build and checks first."""
 from pathlib import Path
-import hashlib, stat, zipfile
+import hashlib, stat, zipfile, runpy
 from pathlib import PurePosixPath
 
 def normalize_permissions(archive):
@@ -69,3 +69,6 @@ with zipfile.ZipFile(portable,'w',zipfile.ZIP_DEFLATED) as z:
 digest=hashlib.sha256(portable.read_bytes()).hexdigest()
 (out/(portable.name+'.sha256')).write_text(digest+'  '+portable.name+'\n')
 print(f'{portable}\nSHA-256: {digest}')
+
+# Branding belongs to its own plugin package, never the website document root.
+runpy.run_path(str(root/'scripts/package-plugin.py'))['build']()

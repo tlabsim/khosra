@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a separate branded ChatGPT plugin ZIP: portable manifests for the existing OAuth MCP endpoint, listing/composer logomarks with light/dark variants and optional PNG exports. Preserve existing mark geometry/colors, validate asset paths and safe deployment origins, exclude private files and write reproducible archives with checksums. Normal website packaging also builds the separate plugin; website uploads do not alter existing connector branding.
+
 - Add `save_proposal_edits` for differential existing-chapter suggestions: send only inclusive range replacements/deletions and anchored insertions. Reconstruct a full immutable review snapshot on the server, preserve untouched prose/references/headings and allocate new paragraph IDs/labels. Retain `save_proposal` for complete rewrites and reordering. Both require author review; neither changes the manuscript directly. Add strict source/overlap/no-op validation, durable retry identity, guide version 10 and a 19-tool MCP inventory.
 
 - Replace mandatory per-chapter cleanup downloads with an “I have made a backup” acknowledgment. Use one header backup for a batch of chapter cleanups; each modal requires its own checkbox and confirmation. Keep sync readiness, unchanged-preview and server deletion guards. Update guide to version 9 (18 tools).

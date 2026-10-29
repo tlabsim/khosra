@@ -1,0 +1,36 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "khosra",
+  "version": "0.2.0",
+  "description": "Read your private manuscripts, plan stories and save proposed changes for author review in Khosra.",
+  "author": {
+    "name": "TLabs Inc",
+    "url": "https://tlabsinc.com"
+  },
+  "homepage": "https://khosra.tlabsinc.com",
+  "keywords": ["writing", "manuscripts", "Bengali", "novels"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Khosra",
+        "shortDescription": "Develop your manuscript and review proposed changes",
+        "longDescription": "Connect to your private Khosra workspace to read exact manuscript passages, consult flags and context, save ideas and reference artifacts, and propose chapter revisions or new chapters. Manuscript changes require your review and approval in Khosra.",
+        "developerName": "TLabs Inc",
+        "category": "Productivity",
+        "capabilities": ["Read manuscripts", "Propose revisions", "Plan stories"],
+        "websiteURL": "https://khosra.tlabsinc.com",
+        "defaultPrompt": [
+          "Show my manuscripts and help me choose a chapter to work on.",
+          "Read my chapter flags and suggest improvements for review.",
+          "Help me develop a story idea and save it in Khosra."
+        ],
+        "brandColor": "#2F594A",
+        "brandColorDark": "#91AD95",
+        "composerIcon": "./assets/logomark-light.svg",
+        "composerIconDark": "./assets/logomark-dark.svg",
+        "logo": "./assets/logomark-light.svg",
+        "logoDark": "./assets/logomark-dark.svg"
+      }
+    }
+  }
+}
