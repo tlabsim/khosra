@@ -41,7 +41,7 @@ function ownerPasswordMatches(string $password,array $config):bool {
  $configured=$config['owner_password']??null;
  return is_string($configured)&&strlen($configured)>=16&&hash_equals(hash('sha256',$configured),hash('sha256',$password));
 }
-function blank():array{return ['schemaVersion'=>1,'books'=>[],'chapters'=>[],'revisions'=>[],'flags'=>[],'proposals'=>[],'contexts'=>[],'materials'=>[],'files'=>[],'materialDeletions'=>[]];}
+function blank():array{return ['schemaVersion'=>1,'books'=>[],'chapters'=>[],'revisions'=>[],'flags'=>[],'proposals'=>[],'contexts'=>[],'chapterProposals'=>[],'materials'=>[],'files'=>[],'materialDeletions'=>[]];}
 function idvalid(mixed $v):bool{return is_string($v)&&preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i',$v)===1;}
 function text(mixed $v,int $max=200000):bool{return is_string($v)&&strlen($v)<=$max;}
 function record(array $rows,string $id):array{foreach($rows as $r)if(($r['id']??null)===$id)return $r;fail(404,'Record not found.');}
@@ -49,6 +49,7 @@ function paragraphs(mixed $ps):void{if(!is_array($ps)||!array_is_list($ps)||coun
 function validate(array $s):void {
  if(($s['schemaVersion']??null)!==1)fail(422,'Unsupported workspace schema.');foreach(['books','chapters','revisions','flags','proposals','contexts'] as $key){if(!isset($s[$key])||!is_array($s[$key])||!array_is_list($s[$key])||count($s[$key])>100000)fail(422,'Invalid collection.');$seen=[];foreach($s[$key] as $r){if(!is_array($r)||!idvalid($r['id']??null)||isset($seen[$r['id']]))fail(422,'Invalid or duplicate record ID.');$seen[$r['id']]=true;}}
  validateMaterials($s);
+ validateChapterProposals($s);
  $books=array_column($s['books'],null,'id');$chapters=array_column($s['chapters'],null,'id');$revisions=array_column($s['revisions'],null,'id');
  foreach($books as $b)if(!text($b['title']??null,1200)||trim($b['title'])===''||!text($b['premise']??null)||!in_array($b['language']??null,['bn','en'],true)||!text($b['createdAt']??null,100))fail(422,'Invalid book.');
  $codes=[];foreach($chapters as $c){if(!isset($books[$c['bookId']??''])||!is_int($c['code']??null)||$c['code']<1||!is_numeric($c['position']??null)||!text($c['title']??null,1200)||!text($c['synopsis']??null)||!isset($revisions[$c['headId']??''])||$revisions[$c['headId']]['chapterId']!==$c['id'])fail(422,'Invalid chapter.');if(($c['approvedId']??null)!==null&&(!isset($revisions[$c['approvedId']])||$revisions[$c['approvedId']]['chapterId']!==$c['id']))fail(422,'Invalid approved revision.');if(array_key_exists('deletedAt',$c)&&(!is_string($c['deletedAt'])||!preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/D',$c['deletedAt'])||strtotime($c['deletedAt'])===false))fail(422,'Invalid chapter deletion date.');$key=$c['bookId'].':'.$c['code'];if(isset($codes[$key]))fail(422,'Duplicate chapter code.');$codes[$key]=true;}
@@ -94,7 +95,7 @@ function preserveHistory(array $old,array $new):void {
  $removableFiles=[];
  foreach($old['materials']??[] as $m)if(($deleted[$m['itemId']]??null)===$m['bookId']&&$m['fileId']!==null)$removableFiles[$m['fileId']]=true;
  foreach($new['materials']??[] as $m)if($m['fileId']!==null)unset($removableFiles[$m['fileId']]);
- foreach(['books','chapters','revisions','flags','proposals','contexts','materials','files','materialDeletions'] as $key){
+ foreach(['books','chapters','revisions','flags','proposals','contexts','chapterProposals','materials','files','materialDeletions'] as $key){
   $lookup=array_column($new[$key]??[],null,'id');
   foreach($old[$key]??[] as $r){
    if(!isset($lookup[$r['id']])){
@@ -103,7 +104,7 @@ function preserveHistory(array $old,array $new):void {
     fail(409,'Server records are missing locally. Download the latest workspace before uploading.');
    }
    if(in_array($key,['revisions','contexts','materials','files','materialDeletions'],true)&&$lookup[$r['id']]!=$r)fail(409,'Historical records are immutable.');
-   if($key==='proposals'){
+   if(in_array($key,['proposals','chapterProposals'],true)){
     $incoming=$lookup[$r['id']];unset($incoming['status'],$incoming['review']);$previous=$r;unset($previous['status'],$previous['review']);
     if($incoming!=$previous||($r['status']!=='pending'&&($lookup[$r['id']]['status']!==$r['status']||($lookup[$r['id']]['review']??null)!=($r['review']??null))))fail(409,'Proposal content and completed decisions are immutable.');
    }
@@ -128,12 +129,13 @@ function tools():array {
  ['list_history','List chapter revisions for comparing or reincorporating older passages.',['chapter_id'=>$str],['chapter_id']],
  ['save_proposal','Save a NEW proposal against the latest revision. Never modifies the current manuscript. Pass the COMPLETE resulting paragraph array, preserving existing paragraph UUIDs and labels; use new UUIDs and unused labels for insertions. Author reviews in Khosra. Requires durable operation_id.', ['operation_id'=>$str,'chapter_id'=>$str,'base_revision_id'=>$str,'title'=>$str,'rationale'=>$str,'paragraphs'=>['type'=>'array','items'=>['type'=>'object','properties'=>['id'=>$str,'label'=>['type'=>'integer'],'text'=>$str,'section'=>$str],'required'=>['id','label','text','section'],'additionalProperties'=>false]]],['operation_id','chapter_id','base_revision_id','title','rationale','paragraphs']],
  ['save_context','Reindex: save summary at about 20% of source length with evidence-linked facts. Read the source first; only latest revision may be indexed. Distinguish interpretation from explicit facts; describe author, reader and character knowledge in fact text. Requires durable operation_id.', ['operation_id'=>$str,'chapter_id'=>$str,'revision_id'=>$str,'summary'=>$str,'facts'=>['type'=>'array','items'=>['type'=>'object','properties'=>['kind'=>['type'=>'string','enum'=>['event','character','clue','thread','timeline','interpretation']],'text'=>$str,'paragraphIds'=>['type'=>'array','items'=>$str]],'required'=>['kind','text','paragraphIds'],'additionalProperties'=>false]]],['operation_id','chapter_id','revision_id','summary','facts']],
- ];$definitions=array_merge($definitions,materialTools());$out=[];foreach($definitions as [$name,$desc,$properties,$required])$out[]=['name'=>$name,'description'=>$desc,'inputSchema'=>['type'=>'object','properties'=>$properties?:new stdClass(),'required'=>$required,'additionalProperties'=>false],'securitySchemes'=>[['type'=>'oauth2','scopes'=>[str_starts_with($name,'save_')?'manuscript.propose':'manuscript.read']]],'annotations'=>['readOnlyHint'=>!str_starts_with($name,'save_'),'destructiveHint'=>false,'idempotentHint'=>true,'openWorldHint'=>false]];return $out;
+ ];$definitions=array_merge($definitions,materialTools(),chapterProposalTools());$out=[];foreach($definitions as [$name,$desc,$properties,$required])$out[]=['name'=>$name,'description'=>$desc,'inputSchema'=>['type'=>'object','properties'=>$properties?:new stdClass(),'required'=>$required,'additionalProperties'=>false],'securitySchemes'=>[['type'=>'oauth2','scopes'=>[str_starts_with($name,'save_')?'manuscript.propose':'manuscript.read']]],'annotations'=>['readOnlyHint'=>!str_starts_with($name,'save_'),'destructiveHint'=>false,'idempotentHint'=>true,'openWorldHint'=>false]];return $out;
 }
 function callTool(PDO $db,string $name,array $args):array {
  if($name==='get_khosra_guide'){if($args!==[])fail(422,'get_khosra_guide takes no arguments.');return khosraGuide();}
  $loaded=loadWorkspace($db);$s=$loaded['state'];if($name==='list_books')return ['books'=>$s['books'],'chapters'=>array_values(array_filter($s['chapters'],fn($c)=>empty($c['deletedAt']))),'workspaceVersion'=>$loaded['version']];
  if($name==='resolve_reference'){if(!preg_match('/^(?:R(\d+):)?C(\d+)(?:-P(\d+))?$/i',(string)($args['reference']??''),$m))fail(422,'Use R2:C3-P17 or C3-P17.');record($s['books'],(string)($args['book_id']??''));$cs=array_values(array_filter($s['chapters'],fn($c)=>$c['bookId']===$args['book_id']&&$c['code']===(int)$m[2]));if(!$cs)fail(404,'Chapter address not found.');$c=$cs[0];$r=record($s['revisions'],$c['headId']);if(($m[1]??'')!==''){$matches=array_values(array_filter($s['revisions'],fn($r)=>$r['chapterId']===$c['id']&&$r['edition']===(int)$m[1]&&(!isset($m[3])||in_array((int)$m[3],array_column($r['paragraphs'],'label'),true))));if(isset($args['revision_id']))$matches=array_values(array_filter($matches,fn($x)=>$x['id']===$args['revision_id']));if(!$matches)fail(404,'Historical reference not found.');if(isset($m[3])&&!isset($args['revision_id'])){$ids=[];foreach($matches as $x)foreach($x['paragraphs'] as $p)if($p['label']===(int)$m[3])$ids[$p['id']]=true;if(count($ids)>1)fail(409,'Address appears on divergent branches. Supply revision_id from history.');}$r=end($matches);}if(isset($m[3])){$r['paragraphs']=array_values(array_filter($r['paragraphs'],fn($p)=>$p['label']===(int)$m[3]));if(!$r['paragraphs'])fail(404,'Passage absent from current edition; specify original R edition or read history.');}return ['chapter'=>$c,'revision'=>$r,'isLatest'=>$r['id']===$c['headId']];}
+ if(in_array($name,['save_chapter_proposal','list_chapter_proposals','read_chapter_proposal'],true))return chapterProposalTool($db,$name,$args,$loaded);
  if(in_array($name,['list_materials','read_material','save_idea','save_artifact'],true))return materialTool($db,$name,$args,$loaded);
  $c=record($s['chapters'],(string)($args['chapter_id']??''));$r=record($s['revisions'],$c['headId']);
  if($name==='read_chapter'){if(isset($args['revision_id'])){$r=record($s['revisions'],$args['revision_id']);if($r['chapterId']!==$c['id'])fail(422,'Revision belongs to another chapter.');}if(isset($args['paragraph_ids'])){if(!is_array($args['paragraph_ids']))fail(422,'Invalid paragraph IDs.');$ids=$args['paragraph_ids'];$r['paragraphs']=array_values(array_filter($r['paragraphs'],fn($p)=>in_array($p['id'],$ids,true)));if(count($r['paragraphs'])!==count(array_unique($ids)))fail(404,'One or more paragraphs are absent from this revision.');}return ['chapter'=>$c,'revision'=>$r,'reference'=>'R'.$r['edition'].':C'.$c['code'],'isLatest'=>$r['id']===$c['headId']];}
@@ -147,4 +149,56 @@ function callTool(PDO $db,string $name,array $args):array {
  if(!empty($c['deletedAt']))fail(409,'Chapter is in Trash. The author must restore it before adding proposals or context.');
  if($name==='save_proposal'){if(($args['base_revision_id']??null)!==$r['id'])fail(409,'Chapter changed. Read latest and prepare a fresh proposal.');$item=['id'=>uuid(),'chapterId'=>$c['id'],'baseRevisionId'=>$r['id'],'title'=>$args['title']??null,'rationale'=>$args['rationale']??null,'paragraphs'=>$args['paragraphs']??null,'status'=>'pending','createdAt'=>stamp()];$s['proposals'][]=$item;}else{if(($args['revision_id']??null)!==$r['id'])fail(409,'Chapter changed. Reindex latest source.');$item=['id'=>uuid(),'chapterId'=>$c['id'],'revisionId'=>$r['id'],'summary'=>$args['summary']??null,'facts'=>$args['facts']??null,'createdAt'=>stamp()];$s['contexts'][]=$item;}
  $v=writeWorkspace($db,$s,$loaded['version'],$op,$hash);return ['saved'=>true,'id'=>$item['id'],'workspaceVersion'=>$v,'message'=>$name==='save_proposal'?'Proposal saved for author review. Current manuscript unchanged.':'Context saved.'];
+}
+
+// New chapters remain separate from manuscript chapters until owner confirmation.
+function validateChapterProposals(array $s):void {
+ $rows=array_key_exists('chapterProposals',$s)?$s['chapterProposals']:[];
+ if(!is_array($rows)||!array_is_list($rows)||count($rows)>100000)fail(422,'Invalid new-chapter proposal collection.');
+ $books=array_column($s['books'],null,'id');$chapters=array_column($s['chapters'],null,'id');$revisions=array_column($s['revisions'],null,'id');$ids=[];
+ foreach($rows as $p){
+  if(!is_array($p)||!idvalid($p['id']??null)||isset($ids[$p['id']])||!isset($books[$p['bookId']??''])||!materialText($p['title']??null,300)||trim($p['title'])===''||!materialText($p['synopsis']??null,200000)||!materialText($p['rationale']??null,200000)||!in_array($p['status']??null,['pending','accepted','rejected'],true)||!is_string($p['createdAt']??null)||strtotime($p['createdAt'])===false||!array_key_exists('afterChapterId',$p))fail(422,'Invalid new-chapter proposal.');
+  $ids[$p['id']]=true;
+  $anchor=$p['afterChapterId'];if($anchor!==null&&(!idvalid($anchor)||!isset($chapters[$anchor])||$chapters[$anchor]['bookId']!==$p['bookId']))fail(422,'New-chapter position belongs to another manuscript.');
+  paragraphs($p['paragraphs']??null);if(count($p['paragraphs'])===0)fail(422,'A proposed chapter needs at least one paragraph.');
+  foreach($p['paragraphs'] as $block)if(!materialText($block['text'],200000)||!materialText($block['section'],200))fail(422,'Proposed paragraph exceeds browser limits.');
+  $v=$p['review']??null;if((array_key_exists('review',$p)&&!is_array($p['review']))||($p['status']==='accepted')!==is_array($v))fail(422,'Invalid chapter creation receipt.');
+  if($v!==null){
+   $c=$chapters[$v['chapterId']??'']??null;$r=$revisions[$v['revisionId']??'']??null;
+   if(!$c||$c['id']!==$p['id']||$c['bookId']!==$p['bookId']||!$r||$r['chapterId']!==$c['id']||$r['parentId']!==null||$r['source']!=='proposal'||!$r['paragraphs']||!materialText($v['title']??null,300)||trim($v['title'])===''||!materialText($v['synopsis']??null,200000)||!is_string($v['createdAt']??null)||strtotime($v['createdAt'])===false||!array_key_exists('afterChapterId',$v))fail(422,'Invalid created chapter references.');
+   $a=$v['afterChapterId'];if($a!==null&&(!idvalid($a)||!isset($chapters[$a])||$chapters[$a]['bookId']!==$p['bookId']||$a===$c['id']))fail(422,'Invalid reviewed chapter position.');
+  }
+ }
+}
+function chapterProposalTools():array {
+ $str=['type'=>'string'];$paragraph=['type'=>'object','properties'=>['id'=>$str,'label'=>['type'=>'integer','minimum'=>1],'text'=>$str,'section'=>$str],'required'=>['id','label','text','section'],'additionalProperties'=>false];
+ return [
+ ['save_chapter_proposal','Propose a NEW chapter with title, synopsis, rationale and complete draft. Does not create a chapter or change the manuscript until the author confirms in Khosra Proposals. after_chapter_id must be an active chapter UUID in this book, or null to place first. Use fresh paragraph UUIDs, unique positive labels, and a durable operation_id for identical retries.',['operation_id'=>$str,'book_id'=>$str,'title'=>$str,'synopsis'=>$str,'rationale'=>$str,'after_chapter_id'=>['type'=>['string','null']],'paragraphs'=>['type'=>'array','minItems'=>1,'maxItems'=>20000,'items'=>$paragraph]],['operation_id','book_id','title','synopsis','rationale','after_chapter_id','paragraphs']],
+ ['list_chapter_proposals','List NEW-chapter proposal metadata for a manuscript, newest first, up to 100 per page. Separate from existing-chapter revisions; pending proposals are not manuscript chapters.',['book_id'=>$str,'status'=>['type'=>'string','enum'=>['pending','accepted','rejected']],'page'=>['type'=>'integer','minimum'=>1]],['book_id']],
+ ['read_chapter_proposal','Read an exact NEW-chapter proposal and its creation receipt if accepted. This is a suggestion, not current manuscript text. Read the created chapter separately after author acceptance.',['book_id'=>$str,'proposal_id'=>$str],['book_id','proposal_id']],
+ ];
+}
+function chapterProposalTool(PDO $db,string $name,array $args,array $loaded):array {
+ $s=$loaded['state'];$bid=(string)($args['book_id']??'');record($s['books'],$bid);
+ $rows=array_values(array_filter($s['chapterProposals']??[],fn($p)=>$p['bookId']===$bid));
+ if($name==='list_chapter_proposals'){
+  if(array_diff(array_keys($args),['book_id','status','page']))fail(422,'Unexpected chapter discovery argument.');
+  $page=$args['page']??1;if(!is_int($page)||$page<1)fail(422,'Invalid page.');
+  if(isset($args['status'])){if(!in_array($args['status'],['pending','accepted','rejected'],true))fail(422,'Invalid proposal status.');$rows=array_values(array_filter($rows,fn($p)=>$p['status']===$args['status']));}
+  usort($rows,fn($a,$b)=>strcmp($b['createdAt'],$a['createdAt'])?:strcmp($b['id'],$a['id']));
+  return ['proposals'=>array_map(fn($p)=>array_diff_key($p,['paragraphs'=>true]),array_slice($rows,($page-1)*100,100)),'total'=>count($rows),'page'=>$page,'pageSize'=>100];
+ }
+ if($name==='read_chapter_proposal'){
+  if(array_diff(array_keys($args),['book_id','proposal_id']))fail(422,'Unexpected proposal read argument.');
+  return ['proposal'=>record($rows,(string)($args['proposal_id']??''))];
+ }
+ if(array_diff(array_keys($args),['operation_id','book_id','title','synopsis','rationale','after_chapter_id','paragraphs']))fail(422,'Unexpected chapter proposal argument.');
+ $op=(string)($args['operation_id']??'');if(!idvalid($op))fail(422,'A durable operation UUID is required.');
+ $hash=hash('sha256',json_encode([$name,$args],JSON_THROW_ON_ERROR));$q=$db->prepare('SELECT payload_hash,result_version FROM operations WHERE operation_id=?');$q->execute([$op]);$known=$q->fetch(PDO::FETCH_ASSOC);$q->closeCursor();
+ if($known){if(!hash_equals($known['payload_hash'],$hash))fail(409,'Operation ID reused for different content.');return ['saved'=>true,'id'=>$op,'duplicate'=>true,'workspaceVersion'=>(int)$known['result_version']];}
+ if(!array_key_exists('after_chapter_id',$args))fail(422,'Choose an after_chapter_id or null for the first position.');
+ $anchor=$args['after_chapter_id'];if($anchor!==null){$c=record($s['chapters'],(string)$anchor);if($c['bookId']!==$bid||!empty($c['deletedAt']))fail(422,'Choose an active chapter in this manuscript.');}
+ $item=['id'=>$op,'bookId'=>$bid,'title'=>$args['title']??null,'synopsis'=>$args['synopsis']??null,'rationale'=>$args['rationale']??null,'afterChapterId'=>$anchor,'paragraphs'=>$args['paragraphs']??null,'status'=>'pending','createdAt'=>stamp()];
+ $s['chapterProposals'][]=$item;$v=writeWorkspace($db,$s,$loaded['version'],$op,$hash);
+ return ['saved'=>true,'id'=>$op,'workspaceVersion'=>$v,'message'=>'New chapter proposed for author confirmation in Proposals. No chapter has been created.'];
 }

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add author-confirmed new-chapter proposals: models suggest title, synopsis, position and draft through three scoped MCP tools; authors edit/review and confirm creation or rejection in Proposals, including for manuscripts without chapters. Preserve original suggestions, creation receipts, stable codes, history and duplicate-safe identities. Include proposals in sync/backups and update the discovery guide to version 5 (18 tools).
+
 - Remove the domain from the sign-in header; show “Running locally” only on loopback and localhost hosts. Use distinct connection status text beneath the workspace loading heading.
 
 - Fix false Workspace unavailable / another-tab conflicts after full or partial proposal acceptance. Keep the validated state representation in React, incoming sync application and IndexedDB instead of discarding normalization, preserving version checks and real concurrent-tab conflict detection.

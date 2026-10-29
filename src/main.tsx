@@ -31,8 +31,7 @@ import Library from "./components/Library";
 import SyncReview from "./components/SyncReview";
 import History from "./components/History";
 import Empty from "./components/Empty";
-import ProposalCard from "./components/ProposalCard";
-import PaginatedProposals from "./components/PaginatedProposals";
+import ProposalsPage from "./components/ProposalsPage";
 import PaginatedList from "./components/PaginatedList";
 import React, { useEffect, useRef, useState, useMemo } from "react";
 import { createRoot } from "react-dom/client";
@@ -77,9 +76,6 @@ import {
   head,
   reference,
   commit,
-  acceptProposal,
-  rejectProposal,
-  labelProposalParagraphs,
   addChapter,
   renumber,
   nextParagraphLabel,
@@ -139,9 +135,6 @@ function App() {
       quote: "",
     }),
     [historicalId, setHistoricalId] = useState(""),
-    [proposalFilter, setProposalFilter] = useState<
-      "all" | "pending" | "accepted" | "partially-accepted" | "rejected"
-    >("pending"),
     [scrolled, setScrolled] = useState(false),
     [serverReady, setServerReady] = useState(false);
   const [hostedStatus, setHostedStatus] = useState<HostedStatus>({
@@ -151,9 +144,11 @@ function App() {
   const [contextSection, setContextSection] =
     useState<ContextSection>("context");
   const [materialEditing, setMaterialEditing] = useState(false);
+  const [proposalEditing, setProposalEditing] = useState(false);
   const central = useRef<HostedWorkspace | null>(null);
   const syncBlocked = useRef(false);
-  syncBlocked.current = !!editing || !!modal || shareOpen || materialEditing;
+  syncBlocked.current =
+    !!editing || !!modal || shareOpen || materialEditing || proposalEditing;
   const localSaveError = useRef<unknown>(null);
   const [incoming, setIncoming] = useState<{
     state: State;
@@ -964,7 +959,10 @@ function App() {
               icon,
               count:
                 id === "review"
-                  ? pending.length
+                  ? pending.length +
+                    state.chapterProposals.filter(
+                      (p) => p.bookId === book.id && p.status === "pending",
+                    ).length
                   : id === "flags"
                     ? flags.filter((f) => f.status === "open").length
                     : 0,
@@ -1097,6 +1095,30 @@ function App() {
               />
             )}
           </main>
+        ) : book && view === "review" && !reading ? (
+          <ProposalsPage
+            key={`${book.id}:${chapter?.id ?? ""}`}
+            state={state}
+            bookId={book.id}
+            chapter={chapter}
+            onImport={() => setModal("proposal")}
+            onEditing={setProposalEditing}
+            onSave={(change) =>
+              act(() => {
+                update(change(latest.current));
+                setNotice("Review saved.");
+              })
+            }
+            onOpenChapter={(id) => {
+              const c = latest.current.chapters.find(
+                (c) => c.id === id && !c.deletedAt,
+              );
+              if (c) {
+                choose(c);
+                setView("manuscript");
+              }
+            }}
+          />
         ) : !chapter ? (
           <main className="page no-chapters">
             <Empty
@@ -1817,135 +1839,6 @@ function App() {
                         {f.status === "open" ? "Mark resolved" : "Reopen"}
                       </button>
                     </section>
-                  )}
-                />
-              </main>
-            ) : view === "review" ? (
-              <main className="page">
-                <div className="section-heading">
-                  <div>
-                    <h2>Proposals</h2>
-                  </div>
-                  {state.proposals.some((p) => p.chapterId === chapter.id) && (
-                    <button
-                      className="button"
-                      onClick={() => setModal("proposal")}
-                    >
-                      <UploadSimple />
-                      Import proposal
-                    </button>
-                  )}
-                </div>
-                <div
-                  className="review-tabs proposal-filters"
-                  role="group"
-                  aria-label="Filter proposals"
-                >
-                  {(
-                    [
-                      "all",
-                      "pending",
-                      "accepted",
-                      "partially-accepted",
-                      "rejected",
-                    ] as const
-                  ).map((filter) => (
-                    <button
-                      key={filter}
-                      className={proposalFilter === filter ? "active" : ""}
-                      aria-pressed={proposalFilter === filter}
-                      aria-label={`${(filter[0].toUpperCase() + filter.slice(1)).replace("-", " ")} proposals`}
-                      onClick={() => setProposalFilter(filter)}
-                    >
-                      {(filter[0].toUpperCase() + filter.slice(1)).replace(
-                        "-",
-                        " ",
-                      )}{" "}
-                      <span>
-                        {
-                          state.proposals.filter(
-                            (p) =>
-                              p.chapterId === chapter.id &&
-                              (filter === "all" || p.status === filter),
-                          ).length
-                        }
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                {state.proposals.some((p) => p.chapterId === chapter.id) &&
-                  !state.proposals.some(
-                    (p) =>
-                      p.chapterId === chapter.id &&
-                      (proposalFilter === "all" || p.status === proposalFilter),
-                  ) && <p>No {proposalFilter.replace("-", " ")} proposals.</p>}
-                {state.proposals.filter((p) => p.chapterId === chapter.id)
-                  .length === 0 && (
-                  <Empty
-                    icon={GitBranch}
-                    title="No proposals yet"
-                    text="Download proposals saved by ChatGPT, or import one to review locally."
-                  >
-                    <button
-                      className="button primary"
-                      onClick={() => setModal("proposal")}
-                    >
-                      <UploadSimple />
-                      Import proposal
-                    </button>
-                    <button
-                      className="button quiet"
-                      onClick={() =>
-                        void copy(
-                          `Chapter ${reference(chapter, current!)}; chapter_id ${chapter.id}; revision_id ${current!.id}. Retrieve the latest text through Khosra and save rewrites as proposals.`,
-                        )
-                      }
-                    >
-                      <Copy />
-                      Copy chapter reference
-                    </button>
-                  </Empty>
-                )}
-                <PaginatedProposals
-                  key={`${chapter.id}:${proposalFilter}`}
-                  proposals={state.proposals.filter(
-                    (p) =>
-                      p.chapterId === chapter.id &&
-                      (proposalFilter === "all" || p.status === proposalFilter),
-                  )}
-                  renderProposal={(p) => (
-                    <ProposalCard
-                      key={p.id}
-                      proposal={p}
-                      original={state.revisions.find(
-                        (r) => r.id === p.baseRevisionId,
-                      )!}
-                      current={current!}
-                      previewParagraphs={(paragraphs) =>
-                        labelProposalParagraphs(
-                          state,
-                          chapter,
-                          current!,
-                          paragraphs,
-                        )
-                      }
-                      onAccept={(paragraphs, resolution) =>
-                        act(() => {
-                          update(
-                            acceptProposal(
-                              latest.current,
-                              p,
-                              paragraphs,
-                              resolution,
-                            ),
-                          );
-                          setNotice("Review saved. Earlier text is preserved.");
-                        })
-                      }
-                      onReject={() =>
-                        act(() => update(rejectProposal(latest.current, p.id)))
-                      }
-                    />
                   )}
                 />
               </main>

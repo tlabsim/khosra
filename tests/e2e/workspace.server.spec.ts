@@ -538,3 +538,196 @@ test("full and partial proposal acceptance autosave without a false other-tab co
   await expect(device.locator(".paper")).toContainText("Accepted ending");
   await other.close();
 });
+
+test("new-chapter suggestions require confirmation and preserve the author-edited draft across devices", async ({
+  page,
+  context,
+  browser,
+}, info) => {
+  const state = emptyState(),
+    bid = uid();
+  state.books.push({
+    id: bid,
+    title: "Unwritten mystery",
+    premise: "",
+    language: "bn",
+    createdAt: now(),
+  });
+  state.chapterProposals = ["The station clock", "Alternative beginning"].map(
+    (title, i) => ({
+      id: uid(),
+      bookId: bid,
+      title,
+      synopsis: "An investigator arrives",
+      rationale: "Open with a new clue",
+      afterChapterId: null,
+      paragraphs: [
+        { id: uid(), label: 1, section: "", text: "স্টেশনের ঘড়িটি থেমে ছিল।" },
+        { id: uid(), label: 2, section: "", text: "তবু ট্রেনটি সময়মতো এল।" },
+      ],
+      status: "pending",
+      createdAt: new Date(Date.UTC(2026, 9, 29, 0, 0, i)).toISOString(),
+    }),
+  );
+  const server = serverFixture(state);
+  await server.attach(context);
+  await page.goto("/");
+  await signIn(page);
+  if (
+    await page.getByRole("button", { name: "Open Unwritten mystery" }).count()
+  )
+    await page.getByRole("button", { name: "Open Unwritten mystery" }).click();
+  await expect(
+    page.getByRole("heading", { name: "No chapters yet" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: /^Proposals/ })
+    .filter({ visible: true })
+    .first()
+    .click();
+  await expect(page.locator(".proposal-card")).toHaveCount(2);
+  expect(server.state().chapters).toHaveLength(0);
+  const rejected = page
+    .locator(".proposal-card")
+    .filter({
+      has: page.getByRole("heading", {
+        name: "Alternative beginning",
+        exact: true,
+      }),
+    });
+  await rejected.getByRole("button", { name: "Reject this proposal" }).click();
+  let confirmation = page.getByRole("dialog", {
+    name: "Reject this chapter proposal?",
+    exact: true,
+  });
+  await expect(
+    confirmation.getByRole("button", { name: "Cancel", exact: true }),
+  ).toBeFocused();
+  await confirmation
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  expect(
+    server.state().chapterProposals.every((p) => p.status === "pending"),
+  ).toBe(true);
+  await rejected.getByRole("button", { name: "Reject this proposal" }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Confirm rejection" })
+    .click();
+  await expect
+    .poll(
+      () =>
+        server
+          .state()
+          .chapterProposals.find((p) => p.title === "Alternative beginning")
+          ?.status,
+    )
+    .toBe("rejected");
+  expect(server.state().chapters).toHaveLength(0);
+  const card = page.locator(".proposal-card");
+  await card.getByRole("button", { name: "Review new chapter" }).click();
+  const review = page.getByRole("dialog", {
+    name: "New chapter proposal",
+    exact: true,
+  });
+  await review.getByLabel("Proposed chapter title").fill("Author’s opening");
+  await review
+    .getByLabel("Proposed chapter synopsis")
+    .fill("The author’s revised outline");
+  await review
+    .getByLabel("New chapter paragraph P1")
+    .fill("লেখকের পরিমার্জিত সূচনা।");
+  await expect(review.getByLabel("New chapter position")).toHaveValue("");
+  if (info.project.name === "android") {
+    const rect = await review.boundingBox();
+    expect(rect?.x).toBe(0);
+    expect(rect?.width).toBe(page.viewportSize()!.width);
+  }
+  await page.screenshot({
+    path: `test-results/${info.project.name}-new-chapter-review.png`,
+  });
+  await review
+    .getByRole("button", { name: "Create chapter", exact: true })
+    .click();
+  confirmation = page.getByRole("dialog", {
+    name: "Create this chapter?",
+    exact: true,
+  });
+  await expect(
+    confirmation.getByRole("button", { name: "Cancel", exact: true }),
+  ).toBeFocused();
+  await confirmation
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  expect(server.state().chapters).toHaveLength(0);
+  await expect(review.getByLabel("Proposed chapter title")).toHaveValue(
+    "Author’s opening",
+  );
+  await review
+    .getByRole("button", { name: "Create chapter", exact: true })
+    .click();
+  await page
+    .getByRole("dialog", { name: "Create this chapter?", exact: true })
+    .getByRole("button", { name: "Confirm creation" })
+    .click();
+  await expect.poll(() => server.state().chapters.length).toBe(1);
+  await expect(
+    page.getByRole("heading", { name: "Workspace unavailable" }),
+  ).toHaveCount(0);
+  const accepted = server
+    .state()
+    .chapterProposals.find((p) => p.status === "accepted")!;
+  expect(accepted.paragraphs[0].text).toBe("স্টেশনের ঘড়িটি থেমে ছিল।");
+  expect(server.state().chapters[0]).toMatchObject({
+    title: "Author’s opening",
+    synopsis: "The author’s revised outline",
+    approvedId: null,
+  });
+  expect(server.state().revisions[0].paragraphs[0].text).toBe(
+    "লেখকের পরিমার্জিত সূচনা।",
+  );
+  await page
+    .getByRole("button", { name: "Accepted proposals", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Open created chapter" }).click();
+  await expect(page.locator(".paragraph-content").first()).toContainText(
+    "লেখকের পরিমার্জিত সূচনা।",
+  );
+  await page.reload();
+  await expect(page.locator(".paragraph-content").first()).toContainText(
+    "লেখকের পরিমার্জিত সূচনা।",
+  );
+  expect(server.state().chapters).toHaveLength(1);
+  const other = await browser.newContext();
+  try {
+    await server.attach(other);
+    const second = await other.newPage();
+    await second.goto("http://127.0.0.1:5180/");
+    await signIn(second);
+    await expect(second.locator(".paragraph-content").first()).toContainText(
+      "লেখকের পরিমার্জিত সূচনা।",
+    );
+    await second
+      .getByRole("button", { name: /^Proposals/ })
+      .filter({ visible: true })
+      .first()
+      .click();
+    await second
+      .getByRole("button", { name: "Accepted proposals", exact: true })
+      .click();
+    await second.getByRole("button", { name: "View chapter proposal" }).click();
+    const savedReview = second.getByRole("dialog", {
+      name: "New chapter proposal",
+      exact: true,
+    });
+    await expect(savedReview.getByLabel("Proposed chapter title")).toHaveValue(
+      "Author’s opening",
+    );
+    await expect(savedReview).toContainText("লেখকের পরিমার্জিত সূচনা।");
+    await expect(
+      savedReview.getByRole("button", { name: "Create chapter", exact: true }),
+    ).toHaveCount(0);
+  } finally {
+    await other.close();
+  }
+});

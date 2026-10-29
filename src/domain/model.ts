@@ -81,6 +81,36 @@ export const ProposalSchema = z.object({
     .optional(),
   createdAt: z.string(),
 });
+export const ChapterProposalSchema = z.object({
+  id: z.string().uuid(),
+  bookId: z.string().uuid(),
+  title: z
+    .string()
+    .min(1)
+    .max(300)
+    .refine((value) => value.trim().length > 0),
+  synopsis: z.string().max(200000),
+  rationale: z.string().max(200000),
+  afterChapterId: z.string().uuid().nullable(),
+  paragraphs: z.array(ParagraphSchema).min(1).max(20000),
+  status: z.enum(["pending", "accepted", "rejected"]),
+  review: z
+    .object({
+      chapterId: z.string().uuid(),
+      revisionId: z.string().uuid(),
+      title: z
+        .string()
+        .min(1)
+        .max(300)
+        .refine((value) => value.trim().length > 0),
+      synopsis: z.string().max(200000),
+      afterChapterId: z.string().uuid().nullable(),
+      createdAt: z.string().datetime(),
+    })
+    .optional(),
+  createdAt: z.string().datetime(),
+});
+export type ChapterProposal = z.infer<typeof ChapterProposalSchema>;
 export const ContextSchema = z.object({
   id: z.string().uuid(),
   chapterId: z.string().uuid(),
@@ -110,6 +140,7 @@ export const StateSchema = z.object({
   flags: z.array(FlagSchema),
   proposals: z.array(ProposalSchema),
   contexts: z.array(ContextSchema),
+  chapterProposals: z.array(ChapterProposalSchema).default([]),
   materials: z.array(MaterialSchema).default([]),
   files: z.array(FileSchema).default([]),
   materialDeletions: z.array(MaterialDeletionSchema).default([]),
@@ -132,6 +163,7 @@ export const emptyState = (): State => ({
   flags: [],
   proposals: [],
   contexts: [],
+  chapterProposals: [],
   materials: [],
   files: [],
   materialDeletions: [],
@@ -147,6 +179,7 @@ export function validateState(value: unknown): State {
       s.revisions,
       s.flags,
       s.proposals,
+      s.chapterProposals,
       s.contexts,
       s.materials,
       s.files,
@@ -155,6 +188,39 @@ export function validateState(value: unknown): State {
   )
     throw Error("Duplicate record IDs.");
   validateMaterials(s);
+  for (const p of s.chapterProposals) {
+    const validAnchor = (id: string | null) =>
+      id === null ||
+      s.chapters.some((c) => c.id === id && c.bookId === p.bookId);
+    if (
+      !s.books.some((b) => b.id === p.bookId) ||
+      !validAnchor(p.afterChapterId) ||
+      !unique(p.paragraphs) ||
+      new Set(p.paragraphs.map((x) => x.label)).size !== p.paragraphs.length
+    )
+      throw Error("Invalid new-chapter proposal.");
+    if ((p.status === "accepted") !== !!p.review)
+      throw Error("Invalid chapter creation receipt.");
+    if (p.review) {
+      const c = s.chapters.find(
+        (c) => c.id === p.review!.chapterId && c.bookId === p.bookId,
+      );
+      const r = s.revisions.find(
+        (r) => r.id === p.review!.revisionId && r.chapterId === c?.id,
+      );
+      if (
+        !c ||
+        c.id !== p.id ||
+        !r ||
+        r.parentId !== null ||
+        r.source !== "proposal" ||
+        !r.paragraphs.length ||
+        p.review.afterChapterId === c.id ||
+        !validAnchor(p.review.afterChapterId)
+      )
+        throw Error("Invalid created chapter references.");
+    }
+  }
   const codes = new Set<string>();
   for (const c of s.chapters) {
     const code = c.bookId + ":" + c.code;

@@ -33,7 +33,12 @@ export function acceptedProposalParagraphs(
   while (revision && unresolved.size && !visited.has(revision.id)) {
     visited.add(revision.id);
     const parent = byId.get(revision.parentId ?? "");
-    if (!parent) break;
+    if (!parent) {
+      if (revision.source === "proposal")
+        for (const p of revision.paragraphs)
+          if (unresolved.has(p.id)) marked.add(p.id);
+      break;
+    }
     const before = new Map(parent.paragraphs.map((p) => [p.id, p]));
     for (const p of revision.paragraphs) {
       if (!unresolved.has(p.id)) continue;

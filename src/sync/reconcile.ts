@@ -1,6 +1,7 @@
 import { applyMaterialDeletions } from "../domain/materials";
 import {
   ProposalSchema,
+  ChapterProposalSchema,
   validateState,
   type State,
   type Chapter,
@@ -120,6 +121,24 @@ export function reconcile(local: State, remote: State, choices: Choices = {}) {
       revisions,
       flags,
       proposals,
+      chapterProposals: union(
+        local.chapterProposals ?? [],
+        remote.chapterProposals ?? [],
+        (a, b) => {
+          const strip = (p: typeof a) => ({
+            ...ChapterProposalSchema.parse(p),
+            status: "pending",
+            review: undefined,
+          });
+          if (!equal(strip(a), strip(b)))
+            throw Error("New-chapter proposal content differs between copies.");
+          if (a.status !== "pending" && b.status !== "pending" && !equal(a, b))
+            throw Error(
+              "This chapter proposal was reviewed differently on another device. Keep both backups and review the server copy.",
+            );
+          return b.status === "pending" ? a : b;
+        },
+      ),
       contexts: union(local.contexts, remote.contexts),
       materials: union(local.materials ?? [], remote.materials ?? []),
       files: union(local.files ?? [], remote.files ?? []),

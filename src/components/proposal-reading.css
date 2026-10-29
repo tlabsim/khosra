@@ -452,3 +452,41 @@
     width: 100%;
   }
 }
+
+.chapter-proposal-fields {
+  display: grid;
+  gap: 16px;
+  margin: 24px 0;
+}
+.chapter-proposal-fields label {
+  display: grid;
+  gap: 8px;
+}
+.chapter-proposal-fields input,
+.chapter-proposal-fields textarea,
+.chapter-proposal-fields select {
+  width: 100%;
+  min-width: 0;
+}
+.chapter-proposal-prose > div {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  gap: 12px;
+  margin: 0 0 16px;
+}
+.chapter-proposal-prose textarea {
+  width: 100%;
+  font: 19px/1.8 var(--serif);
+  resize: vertical;
+}
+.chapter-proposal-prose p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 19px/1.8 var(--serif);
+  margin-top: 0;
+}
+.chapter-proposal-dialog > .proposal-card-actions {
+  flex-shrink: 0;
+  padding: 14px 24px;
+  margin: 0;
+}
