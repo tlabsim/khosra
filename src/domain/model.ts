@@ -1,3 +1,7 @@
+import {
+  ChapterCleanupSchema,
+  validateChapterCleanups,
+} from "./chapterCleanupSchema";
 import { proposalChanges, selectProposalChanges } from "./proposalSelection";
 import { z } from "zod";
 import {
@@ -144,6 +148,7 @@ export const StateSchema = z.object({
   materials: z.array(MaterialSchema).default([]),
   files: z.array(FileSchema).default([]),
   materialDeletions: z.array(MaterialDeletionSchema).default([]),
+  chapterCleanups: z.array(ChapterCleanupSchema).default([]),
 });
 export type Paragraph = z.infer<typeof ParagraphSchema>;
 export type Revision = z.infer<typeof RevisionSchema>;
@@ -167,6 +172,7 @@ export const emptyState = (): State => ({
   materials: [],
   files: [],
   materialDeletions: [],
+  chapterCleanups: [],
 });
 export function validateState(value: unknown): State {
   const s = StateSchema.parse(value);
@@ -184,10 +190,12 @@ export function validateState(value: unknown): State {
       s.materials,
       s.files,
       s.materialDeletions,
+      s.chapterCleanups,
     ].every(unique)
   )
     throw Error("Duplicate record IDs.");
   validateMaterials(s);
+  validateChapterCleanups(s);
   for (const p of s.chapterProposals) {
     const validAnchor = (id: string | null) =>
       id === null ||

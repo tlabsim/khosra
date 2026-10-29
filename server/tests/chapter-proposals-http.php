@@ -26,7 +26,7 @@ try{
  $r=chapterRpc('',[],null,'tools/list');checkChapterHttp($r['status']===401,'Anonymous discovery denied');
  $r=chapterRpc('',[],$read,'tools/list');$tools=array_column($r['body']['result']['tools']??[],null,'name');checkChapterHttp(count($tools)===18&&isset($tools['save_chapter_proposal'],$tools['list_chapter_proposals'],$tools['read_chapter_proposal']),'Live tools/list exposes all 18 capabilities');
  checkChapterHttp(!isset($tools['accept_chapter_proposal'])&&$tools['save_chapter_proposal']['securitySchemes'][0]['scopes']===['manuscript.propose'],'Models have propose scope and no chapter approval tool');
- $r=chapterRpc('get_khosra_guide',[],$read);$guide=rpcChapterValue($r);checkChapterHttp(($guide['guideVersion']??0)===7&&isset($guide['newChapterProposals']),'Authenticated guide describes the real new-chapter workflow');
+ $r=chapterRpc('get_khosra_guide',[],$read);$guide=rpcChapterValue($r);checkChapterHttp(($guide['guideVersion']??0)===8&&isset($guide['newChapterProposals']),'Authenticated guide describes the real new-chapter workflow');
  $args=['operation_id'=>uuid(),'book_id'=>$bid,'title'=>'New arrival','synopsis'=>'An arrival','rationale'=>'A new opening','after_chapter_id'=>null,'paragraphs'=>[['id'=>uuid(),'label'=>1,'text'=>'স্টেশনে কেউ ছিল না।','section'=>'']]];
  $r=chapterRpc('save_chapter_proposal',$args,$read);checkChapterHttp(($r['body']['result']['isError']??false)&&str_contains($r['raw'],'Token scope'),'Read-only token cannot propose a chapter');
  $r=chapterRpc('save_chapter_proposal',$args,$propose);$saved=rpcChapterValue($r);checkChapterHttp(($saved['saved']??false)&&$saved['id']===$args['operation_id'],'Propose token stores a chapter suggestion over HTTP');
@@ -52,6 +52,17 @@ try{
  $stored=loadWorkspace($db);checkChapterHttp($stored['state']['chapters'][0]['headId']===$newer['id']&&$stored['state']['proposals'][0]['baseRevisionId']===$base['id'],'MCP proposal preserves author head and original source');
  $r=chapterRpc('save_proposal',$rewrite,$propose);checkChapterHttp(rpcChapterValue($r)['duplicate']&&loadWorkspace($db)['version']===$stored['version'],'HTTP ancestor submission retries without duplication');
  $rewrite['operation_id']=uuid();$rewrite['base_revision_id']=uuid();$r=chapterRpc('save_proposal',$rewrite,$propose);checkChapterHttp(($r['body']['result']['isError']??false)&&loadWorkspace($db)['version']===$stored['version'],'HTTP unknown source remains rejected without mutation');
+ // Author cleanup goes through normal owner authentication, CSRF and version checks.
+ $loaded=loadWorkspace($db);$done=$loaded['state'];$done['proposals'][0]['status']='rejected';writeWorkspace($db,$done,$loaded['version'],uuid(),'owner-reject-for-cleanup');
+ $loaded=loadWorkspace($db);$compacted=$loaded['state'];$removed=$compacted['proposals'][0]['id'];$compacted['proposals']=[];$compacted['chapterCleanups']=[['id'=>uuid(),'chapterId'=>$id,'createdAt'=>stamp(),'proposalIds'=>[$removed],'contextIds'=>[],'chapterProposalIds'=>[]]];
+ $cleanupBody=['state'=>$compacted,'baseVersion'=>$loaded['version'],'operationId'=>uuid()];
+ $r=chapterHttp('/api/workspace','POST',$cleanupBody);checkChapterHttp($r['status']===401,'Anonymous cleanup is denied');
+ $r=chapterHttp('/api/workspace','POST',$cleanupBody,['Cookie: '.$cookie]);checkChapterHttp($r['status']===403,'Chapter cleanup requires CSRF');
+ $r=chapterHttp('/api/workspace','POST',$cleanupBody,$headers);checkChapterHttp($r['status']===200&&loadWorkspace($db)['state']===$compacted,'Owner cleanup persists through actual workspace endpoint');
+ $r=chapterHttp('/api/workspace','POST',$cleanupBody,$headers);checkChapterHttp($r['status']===200,'Identical cleanup retry is idempotent');
+ $r=chapterRpc('read_proposal',['chapter_id'=>$id,'proposal_id'=>$removed],$read);checkChapterHttp(($r['body']['result']['isError']??false),'Removed proposal is absent from exact MCP read');
+ $r=chapterRpc('save_proposal',array_replace($rewrite,['operation_id'=>$compacted['chapterCleanups'][0]['id']]),$propose);checkChapterHttp(($r['body']['result']['isError']??false),'Models cannot reuse a cleanup operation to change state');
+ $oldBody=['state'=>$done,'baseVersion'=>loadWorkspace($db)['version'],'operationId'=>uuid()];$r=chapterHttp('/api/workspace','POST',$oldBody,$headers);checkChapterHttp($r['status']===409,'Older client cannot erase cleanup receipt or resurrect prose copies');
  echo "$count chapter HTTP checks passed.\n";
 }finally{
  if(is_resource($process)){proc_terminate($process);proc_close($process);}unset($q,$db);

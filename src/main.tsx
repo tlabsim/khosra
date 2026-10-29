@@ -1,3 +1,4 @@
+import ChapterCleanup from "./components/ChapterCleanup";
 import { usePageTransition } from "./usePageTransition";
 import { acceptedProposalParagraphs } from "./domain/proposalPresentation";
 import { initializeAppearance } from "./appearance";
@@ -1846,6 +1847,26 @@ function App() {
             ) : view === "history" ? (
               <main className="page">
                 <h2>Revision history</h2>
+                <ChapterCleanup
+                  state={state}
+                  chapterId={chapter.id}
+                  enabled={
+                    !hosted ||
+                    (online &&
+                      hostedStatus.phase === "ready" &&
+                      hostedStatus.message === "Saved to server" &&
+                      !incoming)
+                  }
+                  currentState={() => latest.current}
+                  onEditing={setProposalEditing}
+                  onError={setError}
+                  onSave={(next) => {
+                    update(next);
+                    setNotice(
+                      "Chapter cleanup saved locally; synchronization will resume. Keep your backup for removed proposals.",
+                    );
+                  }}
+                />
                 {state.revisions.filter((r) => r.chapterId === chapter.id)
                   .length <= 1 ? (
                   <Empty

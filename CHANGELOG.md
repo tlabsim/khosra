@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add History → Clean up chapter with UTF-8 size estimates, a full-backup download step and explicit confirmation. Remove only reviewed proposal copies/receipts, accepted new-chapter suggestions for that chapter and obsolete context indexes. Keep every manuscript revision, pending work, flags, latest context and private materials. Add immutable cleanup receipts to backups and reconciliation so older devices cannot resurrect discarded copies; enforce owner/CSRF/version and pending/history guards on the server. Guide version 8, unchanged 18 tools.
+
 - Allow proposal submissions against the exact earlier source in the current chapter ancestry and reference edition. Preserve the source snapshot, report newer edits, and use existing author conflict review instead of rejecting long-running drafts after an autosave. Keep branch/edition, stable-reference, retry and workspace concurrency guards. Guide version 7; 18 tools.
 
 - Fix scroll freezing after nested proposal review/confirmation dialogs close together using shared scroll-lock ownership. Preserve native and window-filling fullscreen while navigating owner/guest chapters, resetting page/scroll/turn state. Group full and partial acceptances in Accepted while keeping exact status badges and records. Use Bengali chapter labels and digits in Bengali reading mode. Update the workflow guide to version 6; the tool inventory remains 18.

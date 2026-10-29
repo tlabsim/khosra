@@ -10,7 +10,7 @@ function khosraInstructions(): string {
 /** Product documentation only: never reads workspace records or credentials. */
 function khosraGuide(): array {
  return [
-  'guideVersion'=>7,
+  'guideVersion'=>8,
   'product'=>'Khosra',
   'purpose'=>'A private, single-owner, server-backed manuscript library with a local recovery cache. The author directs the work; an LLM reads source, discusses ideas, and saves proposed prose. The author edits, reviews and approves in Khosra. Khosra does not call paid model or speech APIs.',
   'startHere'=>[
@@ -47,6 +47,11 @@ function khosraGuide(): array {
    'Global Accept all proposed changes or Accept selected actions and Reject this proposal remain available. Every acceptance or rejection requires confirmation. Pending is the default filter; All, Accepted and Rejected are available. Accepted includes fully and partially accepted proposals; card badges preserve the exact outcome. Partial acceptance completes the review: unchecked changes are declined and do not remain pending.',
    'Acceptance writes a new immutable revision parented to the latest working draft, preserving unrelated author edits and stable references. Overlapping selected passages or incompatible ordering require explicit choices. A draft change invalidates an open confirmation; review again. Tool scopes never permit accepting or rejecting proposals.',
    'The original proposal is immutable. New accepted decisions include a review record containing the author-edited proposal, selected and declined paragraph UUIDs, conflict choices, reviewed source revision and resulting revision UUID. Older completed proposals may lack a review record. list_proposals includes status but omits receipt prose; read_proposal includes the receipt. Always reread current source after a completed review, because partial selection, author edits or conflict choices can differ from the original suggestion.',
+  ],
+  'chapterCleanup'=>[
+   'The author can use History → Clean up chapter after reviews are saved to the server. A size preview lists reviewed proposal copies/receipts and obsolete context indexes; the application offers a full workspace backup before explicit permanent confirmation.',
+   'Cleanup retains current and approved manuscript revisions, all revision history and stable references, pending proposals, flags, the latest context, ideas and artifacts. Accepted new-chapter suggestion copies for that chapter may also be removed; the created chapter remains intact. It does not compact revision history or reduce attachment storage.',
+   'Removed proposals and old context indexes remain readable only in the pre-cleanup backup. Exact reads for removed proposal IDs return not found; refresh discovery rather than retrying old IDs. Cleanup receipts prevent older devices/backups from resurrecting removed copies into this synced workspace. No model cleanup/delete tool is exposed.',
   ],
   'references'=>[
    'Books, chapters, revisions and paragraphs have permanent UUIDs. Use these IDs for tool calls; titles and visual order are not unique identifiers.',

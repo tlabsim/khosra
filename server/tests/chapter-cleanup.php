@@ -1,0 +1,30 @@
+<?php
+declare(strict_types=1);
+require __DIR__.'/run.php';
+$db=openDatabase(['dsn'=>'sqlite::memory:']);$db->exec('CREATE TABLE workspace(id INTEGER PRIMARY KEY,version INTEGER,payload TEXT)');$db->exec('CREATE TABLE operations(operation_id TEXT PRIMARY KEY,payload_hash TEXT,result_version INTEGER)');
+$state=$s;$pending=['id'=>uuid(),'chapterId'=>$cid,'baseRevisionId'=>$rid,'title'=>'Rewrite','rationale'=>'Tone','paragraphs'=>$s['revisions'][0]['paragraphs'],'status'=>'pending','createdAt'=>stamp()];
+$done=$pending;$done['id']=uuid();$done['status']='rejected';$state['proposals']=[$pending,$done];
+foreach([1,2] as $n)$state['contexts'][]=['id'=>uuid(),'chapterId'=>$cid,'revisionId'=>$rid,'summary'=>'Index '.$n,'facts'=>[],'createdAt'=>stamp()];
+$q=$db->prepare('INSERT INTO workspace VALUES(1,1,?)');$q->execute([json_encode($state)]);
+$cleaned=$state;$cleaned['proposals']=[$pending];$cleaned['contexts']=[$state['contexts'][1]];$receipt=['id'=>uuid(),'chapterId'=>$cid,'createdAt'=>stamp(),'proposalIds'=>[$done['id']],'contextIds'=>[$state['contexts'][0]['id']],'chapterProposalIds'=>[]];$cleaned['chapterCleanups']=[$receipt];
+validate($cleaned);preserveHistory($state,$cleaned);check(true,'Reviewed copies and obsolete context may be removed with explicit cleanup receipt');
+$v=writeWorkspace($db,$cleaned,1,uuid(),'cleanup');check($v===2&&loadWorkspace($db)['state']===$cleaned,'Cleanup is an atomic workspace write');
+check($cleaned['chapters']===$state['chapters']&&$cleaned['revisions']===$state['revisions'],'Cleanup preserves manuscript heads, source history and references');
+$bad=$state;$bad['proposals']=[$pending];rejects(fn()=>preserveHistory($state,$bad),409,'Deletion without receipt remains forbidden');
+$bad=$cleaned;$bad['proposals']=[];$bad['chapterCleanups'][0]['proposalIds'][]=$pending['id'];rejects(fn()=>preserveHistory($state,$bad),409,'Pending proposals cannot be removed by cleanup');
+$bad=$cleaned;$bad['contexts']=[];$bad['chapterCleanups'][0]['contextIds'][]=$state['contexts'][1]['id'];rejects(fn()=>preserveHistory($state,$bad),409,'Cleanup cannot remove the last context');
+$bad=$cleaned;$bad['contexts']=[$state['contexts'][0]];$bad['chapterCleanups'][0]['contextIds']=[$state['contexts'][1]['id']];rejects(fn()=>preserveHistory($state,$bad),409,'Cleanup must preserve the latest context');
+$bad=$cleaned;unset($bad['chapterCleanups']);rejects(fn()=>preserveHistory($cleaned,$bad),409,'Older clients cannot erase cleanup receipts');
+$bad=$cleaned;$bad['chapterCleanups'][0]['createdAt']='2020-01-01T00:00:00Z';rejects(fn()=>preserveHistory($cleaned,$bad),409,'Cleanup receipts are immutable');
+$bad=$cleaned;$bad['proposals'][]=$done;rejects(fn()=>validate($bad),422,'Older workspace cannot resurrect a removed proposal');
+$bad=$cleaned;$bad['chapterCleanups'][0]['contextIds'][]=$bad['chapterCleanups'][0]['contextIds'][0];rejects(fn()=>validate($bad),422,'Duplicate cleanup IDs rejected');
+$bad=$cleaned;$bad['chapterCleanups'][0]['chapterId']=uuid();rejects(fn()=>validate($bad),422,'Unknown cleanup chapter rejected');
+$bad=$cleaned;$bad['chapterCleanups']=null;rejects(fn()=>validate($bad),422,'Malformed cleanup collection rejected');
+$bad=$cleaned;$bad['revisions'][0]['paragraphs'][0]['text']='Corrupt';rejects(fn()=>preserveHistory($cleaned,$bad),409,'Cleanup does not weaken immutable source guard');
+rejects(fn()=>writeWorkspace($db,$state,1,uuid(),'stale'),409,'Stale owner cannot restore a pre-cleanup workspace');
+$version=loadWorkspace($db)['version'];$bad=$cleaned;$bad['proposals']=[];$bad['chapterCleanups'][0]['proposalIds'][]=$pending['id'];rejects(fn()=>writeWorkspace($db,$bad,2,uuid(),'bad-cleanup'),409,'Invalid pending deletion rolls back atomically');check(loadWorkspace($db)['version']===$version,'Rejected cleanup leaves server unchanged');
+$otherChapter=$state['chapters'][0];$otherChapter['id']=uuid();$otherChapter['code']=2;$otherRevision=$state['revisions'][0];$otherRevision['id']=uuid();$otherRevision['chapterId']=$otherChapter['id'];$otherChapter['headId']=$otherRevision['id'];$cross=$state;$cross['chapters'][]=$otherChapter;$cross['revisions'][]=$otherRevision;$bad=$cross;$bad['proposals']=[$pending];$bad['chapterCleanups']=[array_replace($receipt,['chapterId'=>$otherChapter['id'],'contextIds'=>[]])];rejects(fn()=>preserveHistory($cross,$bad),409,'Valid chapter cannot clean another chapter records');
+$copy=$cleaned;$copy['chapterCleanups'][]=array_replace($receipt,['id'=>uuid()]);validate($copy);preserveHistory($cleaned,$copy);check(true,'Equivalent concurrent cleanup receipts remain compatible');
+// A model-created chapter keeps its root even after removing the accepted suggestion copy.
+$root=$otherRevision;$root['id']=$otherChapter['id'];$root['source']='proposal';$otherChapter['headId']=$root['id'];$created=$state;$created['chapters'][]=$otherChapter;$created['revisions'][]=$root;$created['chapterProposals']=[['id'=>$otherChapter['id'],'bookId'=>$bid,'title'=>'New chapter','synopsis'=>'','rationale'=>'New scene','afterChapterId'=>$cid,'paragraphs'=>$root['paragraphs'],'status'=>'accepted','createdAt'=>stamp(),'review'=>['chapterId'=>$otherChapter['id'],'revisionId'=>$root['id'],'title'=>'New chapter','synopsis'=>'','afterChapterId'=>$cid,'createdAt'=>stamp()]]];validate($created);$compact=$created;$compact['chapterProposals']=[];$compact['chapterCleanups']=[['id'=>uuid(),'chapterId'=>$otherChapter['id'],'createdAt'=>stamp(),'proposalIds'=>[],'contextIds'=>[],'chapterProposalIds'=>[$otherChapter['id']]]];validate($compact);preserveHistory($created,$compact);check($compact['revisions']===$created['revisions'],'Accepted chapter suggestion copies can be cleaned without deleting the created chapter root');
+echo "$count total cleanup checks passed.\n";

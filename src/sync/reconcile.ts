@@ -1,3 +1,4 @@
+import { applyChapterCleanups } from "../domain/chapterCleanup";
 import { applyMaterialDeletions } from "../domain/materials";
 import {
   ProposalSchema,
@@ -34,8 +35,13 @@ function union<T extends { id: string }>(
   return [...map.values()];
 }
 export function reconcile(local: State, remote: State, choices: Choices = {}) {
-  validateState(local);
-  validateState(remote);
+  local = validateState(local);
+  remote = validateState(remote);
+  // Apply receipts before immutable-record comparison so old devices cannot
+  // revive cleaned proposal copies, including older pending versions.
+  const chapterCleanups = union(local.chapterCleanups, remote.chapterCleanups);
+  local = applyChapterCleanups({ ...local, chapterCleanups });
+  remote = applyChapterCleanups({ ...remote, chapterCleanups });
   const conflicts: Conflict[] = [];
   const revisions = union(local.revisions, remote.revisions);
   const ancestor = (id: string, target: string) => {
@@ -116,6 +122,7 @@ export function reconcile(local: State, remote: State, choices: Choices = {}) {
   const state = validateState(
     applyMaterialDeletions({
       schemaVersion: 1,
+      chapterCleanups,
       books,
       chapters,
       revisions,

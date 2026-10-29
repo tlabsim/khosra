@@ -751,3 +751,51 @@ test("new-chapter suggestions require confirmation and preserve the author-edite
     await other.close();
   }
 });
+
+test("chapter cleanup waits for server save, downloads backup and syncs permanent removal", async ({
+  page,
+  context,
+}) => {
+  const s = fixture(),
+    chapter = s.chapters[0],
+    base = head(s, chapter);
+  base.paragraphs[0].text = "A completed chapter. ".repeat(1000);
+  s.proposals.push({
+    id: uid(),
+    chapterId: chapter.id,
+    baseRevisionId: base.id,
+    title: "Reviewed rewrite",
+    rationale: "Review complete",
+    paragraphs: base.paragraphs,
+    status: "rejected",
+    createdAt: now(),
+  });
+  const fixtureServer = serverFixture(s);
+  await fixtureServer.attach(context);
+  await page.goto("/");
+  await signIn(page);
+  await expect(page.locator(".server-sync")).toContainText("Saved to server");
+  await page
+    .getByRole("button", { name: /^History/ })
+    .filter({ visible: true })
+    .first()
+    .click();
+  await page
+    .getByRole("button", { name: "Clean up chapter", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "Clean up chapter" });
+  const downloading = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "Download backup first" }).click();
+  await downloading;
+  await dialog.getByRole("button", { name: "Confirm cleanup" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator(".server-sync")).toContainText("Saved to server");
+  expect(fixtureServer.state().proposals).toEqual([]);
+  expect(fixtureServer.state().revisions).toEqual(s.revisions);
+  expect(fixtureServer.state().chapterCleanups).toHaveLength(1);
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Workspace unavailable" }),
+  ).toHaveCount(0);
+  await expect(page.locator(".server-sync")).toContainText("Saved to server");
+});

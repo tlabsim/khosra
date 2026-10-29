@@ -39,7 +39,7 @@ function ownerPasswordMatches(string $password,array $config):bool {
  $configured=$config['owner_password']??null;
  return is_string($configured)&&strlen($configured)>=16&&hash_equals(hash('sha256',$configured),hash('sha256',$password));
 }
-function blank():array{return ['schemaVersion'=>1,'books'=>[],'chapters'=>[],'revisions'=>[],'flags'=>[],'proposals'=>[],'contexts'=>[],'chapterProposals'=>[],'materials'=>[],'files'=>[],'materialDeletions'=>[]];}
+function blank():array{return ['schemaVersion'=>1,'books'=>[],'chapters'=>[],'revisions'=>[],'flags'=>[],'proposals'=>[],'contexts'=>[],'chapterProposals'=>[],'materials'=>[],'files'=>[],'materialDeletions'=>[],'chapterCleanups'=>[]];}
 function idvalid(mixed $v):bool{return is_string($v)&&preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i',$v)===1;}
 function text(mixed $v,int $max=200000):bool{return is_string($v)&&strlen($v)<=$max;}
 function record(array $rows,string $id):array{foreach($rows as $r)if(($r['id']??null)===$id)return $r;fail(404,'Record not found.');}
@@ -47,6 +47,7 @@ function paragraphs(mixed $ps):void{if(!is_array($ps)||!array_is_list($ps)||coun
 function validate(array $s):void {
  if(($s['schemaVersion']??null)!==1)fail(422,'Unsupported workspace schema.');foreach(['books','chapters','revisions','flags','proposals','contexts'] as $key){if(!isset($s[$key])||!is_array($s[$key])||!array_is_list($s[$key])||count($s[$key])>100000)fail(422,'Invalid collection.');$seen=[];foreach($s[$key] as $r){if(!is_array($r)||!idvalid($r['id']??null)||isset($seen[$r['id']]))fail(422,'Invalid or duplicate record ID.');$seen[$r['id']]=true;}}
  validateMaterials($s);
+ cleanupTargets($s);
  validateChapterProposals($s);
  $books=array_column($s['books'],null,'id');$chapters=array_column($s['chapters'],null,'id');$revisions=array_column($s['revisions'],null,'id');
  foreach($books as $b)if(!text($b['title']??null,1200)||trim($b['title'])===''||!text($b['premise']??null)||!in_array($b['language']??null,['bn','en'],true)||!text($b['createdAt']??null,100))fail(422,'Invalid book.');
@@ -80,7 +81,24 @@ function validateProposalReview(array $p,array $revisions):void {
  if(!$reordered)foreach($anchors as $anchor){$eb=$anchor?$bp[$anchor['id']]:count($before);$ea=$anchor?$ap[$anchor['id']]:count($after);$l=array_slice($before,$bi,$eb-$bi);$r=array_slice($after,$ai,$ea-$ai);$struct=false;$ids=[];foreach($l as $row){$ids[$row['id']]=true;if(!isset($a[$row['id']]))$struct=true;}foreach($r as $row){$ids[$row['id']]=true;if(!isset($b[$row['id']]))$struct=true;}if($struct&&array_intersect_key($ids,$selected)&&array_intersect_key($ids,$declined))fail(422,'Linked changes must be selected together.');$bi=$eb+1;$ai=$ea+1;}
  if(!is_array($v['choices']??null)||!array_is_list($v['choices']))fail(422,'Invalid conflict choices.');$seen=[];foreach($v['choices'] as $choice){$id=$choice['id']??'';if(($id!=='paragraph-order'&&!idvalid($id))||isset($seen[$id])||!in_array($choice['choice']??null,['current','proposal'],true))fail(422,'Invalid conflict choice.');$seen[$id]=true;}
 }
+// Author-only cleanup receipts contain identifiers, never discarded prose.
+function cleanupTargets(array $s):array {
+ $rows=array_key_exists('chapterCleanups',$s)?$s['chapterCleanups']:[];
+ if(!is_array($rows)||!array_is_list($rows)||count($rows)>100000)fail(422,'Invalid chapter cleanup collection.');
+ $chapters=array_column($s['chapters'],null,'id');$seen=[];$targets=['proposals'=>[],'contexts'=>[],'chapterProposals'=>[]];
+ foreach($rows as $r){
+  if(!is_array($r)||!idvalid($r['id']??null)||isset($seen[$r['id']])||!isset($chapters[$r['chapterId']??''])||!is_string($r['createdAt']??null)||!preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/D',$r['createdAt'])||strtotime($r['createdAt'])===false)fail(422,'Invalid chapter cleanup receipt.');
+  $seen[$r['id']]=true;
+  foreach(['proposals'=>'proposalIds','contexts'=>'contextIds','chapterProposals'=>'chapterProposalIds'] as $key=>$field){
+   $ids=$r[$field]??null;if(!is_array($ids)||!array_is_list($ids)||count($ids)>100000)fail(422,'Invalid cleanup targets.');$unique=[];
+   foreach($ids as $id){if(!idvalid($id)||isset($unique[$id]))fail(422,'Invalid or duplicate cleanup target.');$unique[$id]=true;if(isset($targets[$key][$id])&&$targets[$key][$id]!==$r['chapterId'])fail(422,'Cleanup target belongs to another chapter.');$targets[$key][$id]=$r['chapterId'];}
+  }
+ }
+ foreach($targets as $key=>$ids)foreach($s[$key]??[] as $r)if(isset($ids[$r['id']]))fail(422,'Cleaned records cannot be restored by an older workspace.');
+ return $targets;
+}
 function preserveHistory(array $old,array $new):void {
+ $cleaned=cleanupTargets($new);
  $oldDeletes=array_column($old['materialDeletions']??[],null,'id');
  $deleted=[];
  foreach($new['materialDeletions']??[] as $d){
@@ -93,15 +111,28 @@ function preserveHistory(array $old,array $new):void {
  $removableFiles=[];
  foreach($old['materials']??[] as $m)if(($deleted[$m['itemId']]??null)===$m['bookId']&&$m['fileId']!==null)$removableFiles[$m['fileId']]=true;
  foreach($new['materials']??[] as $m)if($m['fileId']!==null)unset($removableFiles[$m['fileId']]);
- foreach(['books','chapters','revisions','flags','proposals','contexts','chapterProposals','materials','files','materialDeletions'] as $key){
+ foreach(['books','chapters','revisions','flags','proposals','contexts','chapterProposals','materials','files','materialDeletions','chapterCleanups'] as $key){
   $lookup=array_column($new[$key]??[],null,'id');
   foreach($old[$key]??[] as $r){
    if(!isset($lookup[$r['id']])){
+    if(isset($cleaned[$key][$r['id']])){
+     $chapterId=$key==='chapterProposals'?($r['review']['chapterId']??null):($r['chapterId']??null);
+     if($chapterId!==$cleaned[$key][$r['id']])fail(409,'Cleanup record belongs to another chapter.');
+     if(in_array($key,['proposals','chapterProposals'],true)&&$r['status']==='pending')fail(409,'Pending proposals cannot be cleaned. Sync completed reviews before cleanup.');
+     if($key==='contexts'){
+      $remaining=array_filter($new['contexts'],fn($x)=>$x['chapterId']===$chapterId);
+      if(!$remaining)fail(409,'Keep the latest context index when cleaning a chapter.');
+      $original=array_values(array_filter($old['contexts'],fn($x)=>$x['chapterId']===$chapterId));
+      $last=end($original);
+      if($last['id']===$r['id']&&!array_filter($remaining,fn($x)=>!in_array($x['id'],array_column($original,'id'),true)))fail(409,'Latest context index cannot be cleaned.');
+     }
+     continue;
+    }
     if($key==='materials'&&($deleted[$r['itemId']]??null)===$r['bookId'])continue;
     if($key==='files'&&isset($removableFiles[$r['id']]))continue;
     fail(409,'Server records are missing locally. Download the latest workspace before uploading.');
    }
-   if(in_array($key,['revisions','contexts','materials','files','materialDeletions'],true)&&$lookup[$r['id']]!=$r)fail(409,'Historical records are immutable.');
+   if(in_array($key,['revisions','contexts','materials','files','materialDeletions','chapterCleanups'],true)&&$lookup[$r['id']]!=$r)fail(409,'Historical records are immutable.');
    if(in_array($key,['proposals','chapterProposals'],true)){
     $incoming=$lookup[$r['id']];unset($incoming['status'],$incoming['review']);$previous=$r;unset($previous['status'],$previous['review']);
     if($incoming!=$previous||($r['status']!=='pending'&&($lookup[$r['id']]['status']!==$r['status']||($lookup[$r['id']]['review']??null)!=($r['review']??null))))fail(409,'Proposal content and completed decisions are immutable.');
