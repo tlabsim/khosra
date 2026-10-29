@@ -132,7 +132,24 @@ test("login, automatic saving and another device opening the same manuscript", a
 }, info) => {
   const server = serverFixture();
   await server.attach(context);
+  let finishSessionCheck!: () => void;
+  const sessionCheck = new Promise<void>((resolve) => {
+    finishSessionCheck = resolve;
+  });
+  await page.route("**/api/session", async (route) => {
+    await sessionCheck;
+    await route.fallback();
+  });
   await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "Opening your workspace" }),
+  ).toBeVisible();
+  await expect(page.getByRole("status")).toHaveText(
+    "Connecting to your workspace…",
+  );
+  finishSessionCheck();
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await expect(page.locator(".access-host")).toHaveText("Running locally");
   await expect(
     page.getByRole("button", { name: "Begin a manuscript" }),
   ).toHaveCount(0);

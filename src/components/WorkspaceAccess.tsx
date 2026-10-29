@@ -37,7 +37,9 @@ export default function WorkspaceAccess({
         <div className="access-brand">
           <AppLogo />
         </div>
-        <span className="access-host">{window.location.host}</span>
+        {/^(localhost|.+\.localhost|127(?:\.\d{1,3}){3}|\[::1\])$/i.test(
+          window.location.hostname,
+        ) && <span className="access-host">Running locally</span>}
       </header>
       <section className="access-layout" aria-labelledby="access-heading">
         <div className="access-intro">

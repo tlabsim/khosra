@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Remove the domain from the sign-in header; show “Running locally” only on loopback and localhost hosts. Use distinct connection status text beneath the workspace loading heading.
+
 - Fix false Workspace unavailable / another-tab conflicts after full or partial proposal acceptance. Keep the validated state representation in React, incoming sync application and IndexedDB instead of discarding normalization, preserving version checks and real concurrent-tab conflict detection.
 
 - Add a subtle 150ms opacity fade when switching workspace views, chapters, Context sections, library and settings. Keep navigation and editor state intact, leave reader page turns separate, and skip/cancel fades when reduced motion is preferred. No animation library or persistent compositor layers are added.

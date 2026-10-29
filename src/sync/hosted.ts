@@ -32,7 +32,7 @@ const serialize = (state: State) => JSON.stringify(state);
 export class HostedWorkspace {
   status: HostedStatus = {
     phase: "checking",
-    message: "Opening your workspace…",
+    message: "Connecting to your workspace…",
   };
   private authenticated = false;
   private closing = false;
@@ -63,7 +63,9 @@ export class HostedWorkspace {
     this.show({
       phase: "checking",
       message:
-        password === undefined ? "Opening your workspace…" : "Signing in…",
+        password === undefined
+          ? "Connecting to your workspace…"
+          : "Signing in…",
     });
     try {
       if (password === undefined) await this.adapter.session();

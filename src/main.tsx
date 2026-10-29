@@ -146,7 +146,7 @@ function App() {
     [serverReady, setServerReady] = useState(false);
   const [hostedStatus, setHostedStatus] = useState<HostedStatus>({
     phase: "checking",
-    message: "Opening your workspace…",
+    message: "Connecting to your workspace…",
   });
   const [contextSection, setContextSection] =
     useState<ContextSection>("context");
