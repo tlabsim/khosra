@@ -1147,7 +1147,8 @@ function App() {
           </main>
         ) : reading ? (
           <Reader
-            key={`${chapter.id}:${displayed?.id}`}
+            key={book.id}
+            contentId={`${chapter.id}:${displayed?.id}`}
             title={chapter.title}
             number={chapters.indexOf(chapter) + 1}
             language={book.language}

@@ -26,7 +26,7 @@ try{
  $r=chapterRpc('',[],null,'tools/list');checkChapterHttp($r['status']===401,'Anonymous discovery denied');
  $r=chapterRpc('',[],$read,'tools/list');$tools=array_column($r['body']['result']['tools']??[],null,'name');checkChapterHttp(count($tools)===18&&isset($tools['save_chapter_proposal'],$tools['list_chapter_proposals'],$tools['read_chapter_proposal']),'Live tools/list exposes all 18 capabilities');
  checkChapterHttp(!isset($tools['accept_chapter_proposal'])&&$tools['save_chapter_proposal']['securitySchemes'][0]['scopes']===['manuscript.propose'],'Models have propose scope and no chapter approval tool');
- $r=chapterRpc('get_khosra_guide',[],$read);$guide=rpcChapterValue($r);checkChapterHttp(($guide['guideVersion']??0)===5&&isset($guide['newChapterProposals']),'Authenticated guide describes the real new-chapter workflow');
+ $r=chapterRpc('get_khosra_guide',[],$read);$guide=rpcChapterValue($r);checkChapterHttp(($guide['guideVersion']??0)===6&&isset($guide['newChapterProposals']),'Authenticated guide describes the real new-chapter workflow');
  $args=['operation_id'=>uuid(),'book_id'=>$bid,'title'=>'New arrival','synopsis'=>'An arrival','rationale'=>'A new opening','after_chapter_id'=>null,'paragraphs'=>[['id'=>uuid(),'label'=>1,'text'=>'স্টেশনে কেউ ছিল না।','section'=>'']]];
  $r=chapterRpc('save_chapter_proposal',$args,$read);checkChapterHttp(($r['body']['result']['isError']??false)&&str_contains($r['raw'],'Token scope'),'Read-only token cannot propose a chapter');
  $r=chapterRpc('save_chapter_proposal',$args,$propose);$saved=rpcChapterValue($r);checkChapterHttp(($saved['saved']??false)&&$saved['id']===$args['operation_id'],'Propose token stores a chapter suggestion over HTTP');

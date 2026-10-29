@@ -12,6 +12,7 @@ import { Minus } from "@phosphor-icons/react/dist/csr/Minus";
 import { Plus } from "@phosphor-icons/react/dist/csr/Plus";
 import { pageFormats, type PageFormat, type PageMargins } from "./pageGeometry";
 import "./reader-settings.css";
+import { lockScroll } from "../scrollLock";
 export default function ReaderSettings({
   prefs,
   guest = false,
@@ -30,11 +31,7 @@ export default function ReaderSettings({
   };
   useEffect(() => {
     if (!open) return;
-    const old = document.documentElement.style.overflow;
-    document.documentElement.style.overflow = "hidden";
-    return () => {
-      document.documentElement.style.overflow = old;
-    };
+    return lockScroll();
   }, [open]);
   return (
     <div className="reading-settings">

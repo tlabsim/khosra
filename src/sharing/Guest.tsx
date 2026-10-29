@@ -123,7 +123,6 @@ export default function Guest() {
   useEffect(() => {
     if (!session || !chapterId) return;
     const controller = new AbortController();
-    setChapter(null);
     setParagraphId("");
     setText("");
     setFeedback(false);
@@ -186,7 +185,7 @@ export default function Guest() {
             </select>
             <button
               className="button quiet"
-              disabled={!chapter}
+              disabled={!chapter || chapter.id !== chapterId}
               onClick={() => {
                 void openFeedback();
               }}
@@ -211,20 +210,21 @@ export default function Guest() {
         </main>
       ) : chapter ? (
         <Reader
-          key={chapter.id}
+          contentId={chapter.id}
           guest
+          loading={chapter.id !== chapterId}
           title={chapter.title}
           number={chapter.number}
           language={session.language}
           paragraphs={chapter.paragraphs}
           historical={false}
           previous={
-            index > 0
+            chapter.id === chapterId && index > 0
               ? () => setChapterId(session.chapters[index - 1].id)
               : undefined
           }
           next={
-            index < session.chapters.length - 1
+            chapter.id === chapterId && index < session.chapters.length - 1
               ? () => setChapterId(session.chapters[index + 1].id)
               : undefined
           }

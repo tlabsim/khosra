@@ -10,6 +10,7 @@ import { ArrowLeft } from "@phosphor-icons/react/dist/csr/ArrowLeft";
 import { ArrowRight } from "@phosphor-icons/react/dist/csr/ArrowRight";
 import { ArrowsOut } from "@phosphor-icons/react/dist/csr/ArrowsOut";
 import { ArrowsIn } from "@phosphor-icons/react/dist/csr/ArrowsIn";
+import { lockScroll } from "../scrollLock";
 import ReaderSettings from "./ReaderSettings";
 import ReadingProgress from "./ReadingProgress";
 import { useMousePageTurn } from "./useMousePageTurn";
@@ -20,21 +21,25 @@ import { pageGeometry, marginFactors, pageFormats } from "./pageGeometry";
 import PageTurn, { type Turn } from "./PageTurn";
 
 export default function Reader({
+  contentId,
   title,
   number,
   language,
   paragraphs,
   historical,
   guest = false,
+  loading = false,
   previous,
   next,
 }: {
+  contentId: string;
   title: string;
   number: number;
   language: string;
   paragraphs: Paragraph[];
   historical: boolean;
   guest?: boolean;
+  loading?: boolean;
   previous?: () => void;
   next?: () => void;
 }) {
@@ -61,6 +66,7 @@ export default function Reader({
   const [screenNotice, setScreenNotice] = useState("");
   const immersive = nativeFullscreen || focusMode;
   const turning = useRef(false);
+  const contentGeneration = useRef(0);
   const queued = useRef<number | null>(null);
   const navigate = useRef<(page: number) => void>(() => {});
 
@@ -113,7 +119,7 @@ export default function Reader({
     if (chapterNavigation.current) observer.observe(chapterNavigation.current);
     measure();
     return () => observer.disconnect();
-  }, [immersive, paged, spread, screenNotice]);
+  }, [immersive, paged, spread, screenNotice, loading]);
   useLayoutEffect(() => {
     if (immersive && paged && root.current) root.current.scrollTop = 0;
   }, [immersive, paged, prefs.fullscreenZoom]);
@@ -127,8 +133,7 @@ export default function Reader({
   }, []);
   useEffect(() => {
     if (!immersive) return;
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const unlock = lockScroll(document.body);
     const escape = (e: KeyboardEvent) => {
       if (e.key === "Escape" && focusMode && !e.defaultPrevented) {
         setFocusMode(false);
@@ -138,7 +143,7 @@ export default function Reader({
     };
     document.addEventListener("keydown", escape);
     return () => {
-      document.body.style.overflow = overflow;
+      unlock();
       document.removeEventListener("keydown", escape);
     };
   }, [immersive, focusMode]);
@@ -168,9 +173,16 @@ export default function Reader({
       );
     }
   }
-  useEffect(() => {
+  useLayoutEffect(() => {
+    contentGeneration.current++;
+    turning.current = false;
+    queued.current = null;
+    touch.current = null;
+    setTurn(null);
+    setPage(0);
+    root.current?.scrollTo(0, 0);
     window.scrollTo(0, 0);
-  }, []);
+  }, [contentId]);
   useEffect(() => {
     try {
       localStorage.setItem(
@@ -250,7 +262,11 @@ export default function Reader({
     setTurn(null);
     const target = queued.current;
     queued.current = null;
-    if (target !== null) requestAnimationFrame(() => navigate.current(target));
+    const generation = contentGeneration.current;
+    if (target !== null)
+      requestAnimationFrame(() => {
+        if (generation === contentGeneration.current) navigate.current(target);
+      });
   }
 
   useEffect(() => {
@@ -280,7 +296,11 @@ export default function Reader({
   const content = (
     <>
       <header className="reading-title">
-        <span>CHAPTER {String(number).padStart(2, "0")}</span>
+        <span lang={language}>
+          {language === "bn"
+            ? `অধ্যায় ${new Intl.NumberFormat("bn", { useGrouping: false }).format(number)}`
+            : `CHAPTER ${String(number).padStart(2, "0")}`}
+        </span>
         <h1>{title}</h1>
         <i />
       </header>
@@ -302,6 +322,7 @@ export default function Reader({
   return (
     <main
       ref={root}
+      aria-busy={loading || undefined}
       className={`reader-page book-reader ${paged ? "is-paged" : "is-continuous"} ${prefs.mode === "spread" ? "wants-spread" : ""} ${prefs.flip ? "with-flip" : ""} paper-${prefs.paper} texture-${prefs.texture} ${prefs.selectable ? "" : "text-unselectable"} ${prefs.showIds ? "show-paragraph-ids" : ""} ${immersive ? "is-immersive" : ""}`}
     >
       <div
@@ -350,6 +371,7 @@ export default function Reader({
         </button>
         {prefs.progress && (
           <ReadingProgress
+            key={contentId}
             paged={paged}
             page={page}
             pages={pages}
@@ -360,6 +382,11 @@ export default function Reader({
           />
         )}
       </div>
+      {loading && (
+        <p className="reader-screen-notice" role="status">
+          Loading chapter…
+        </p>
+      )}
       {screenNotice && (
         <p className="reader-screen-notice" role="status">
           {screenNotice}

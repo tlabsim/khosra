@@ -672,3 +672,8 @@
 .book-reader.is-immersive .reading-toolbar .reader-settings-trigger {
   border-radius: 6px;
 }
+
+.reading-title > span[lang="bn"] {
+  letter-spacing: 0;
+  font-size: 12px;
+}

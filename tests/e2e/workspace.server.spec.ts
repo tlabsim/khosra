@@ -522,6 +522,28 @@ test("full and partial proposal acceptance autosave without a false other-tab co
       (p) => p.text,
     ),
   ).toEqual(["Accepted opening", "Accepted ending"]);
+  await expect
+    .poll(() =>
+      page.evaluate(() => getComputedStyle(document.documentElement).overflowY),
+    )
+    .not.toBe("hidden");
+  await expect(
+    page.getByRole("button", {
+      name: "Partially accepted proposals",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Accepted proposals", exact: true })
+    .click();
+  await expect(page.locator(".proposal-card")).toHaveCount(2);
+  await expect(
+    page.getByRole("button", { name: "Accepted proposals", exact: true }),
+  ).toContainText("2");
+  await expect(page.locator(".proposal-status")).toHaveText([
+    "partially accepted",
+    "accepted",
+  ]);
   const revisions = server.state().revisions.length;
   await page.getByRole("button", { name: "Sync now", exact: true }).click();
   await expect(page.locator(".server-sync")).toContainText("Saved to server");
@@ -587,14 +609,12 @@ test("new-chapter suggestions require confirmation and preserve the author-edite
     .click();
   await expect(page.locator(".proposal-card")).toHaveCount(2);
   expect(server.state().chapters).toHaveLength(0);
-  const rejected = page
-    .locator(".proposal-card")
-    .filter({
-      has: page.getByRole("heading", {
-        name: "Alternative beginning",
-        exact: true,
-      }),
-    });
+  const rejected = page.locator(".proposal-card").filter({
+    has: page.getByRole("heading", {
+      name: "Alternative beginning",
+      exact: true,
+    }),
+  });
   await rejected.getByRole("button", { name: "Reject this proposal" }).click();
   let confirmation = page.getByRole("dialog", {
     name: "Reject this chapter proposal?",

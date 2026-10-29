@@ -238,6 +238,7 @@ export default function ProposalCard({
                     });
                   else onReject();
                   setConfirmation(null);
+                  setOpen(false);
                 }}
               >
                 {confirmation.kind === "reject" ? (
@@ -261,7 +262,7 @@ export default function ProposalCard({
               ? "Your manuscript will remain unchanged."
               : selectedGroups === total
                 ? "The selected changes will be saved as a new revision. Earlier text remains in history."
-                : `The remaining ${total - selectedGroups} ${total - selectedGroups === 1 ? "change" : "changes"} will be declined. This completes the review and moves the proposal to Partially accepted.`}
+                : `The remaining ${total - selectedGroups} ${total - selectedGroups === 1 ? "change" : "changes"} will be declined. This completes the review. The proposal will appear under Accepted with a partially accepted badge.`}
           </p>
           {confirmation.signature !== signature && (
             <p role="alert">

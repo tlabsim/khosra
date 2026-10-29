@@ -8,7 +8,7 @@ function khosraInstructions(): string {
 /** Product documentation only: never reads workspace records or credentials. */
 function khosraGuide(): array {
  return [
-  'guideVersion'=>5,
+  'guideVersion'=>6,
   'product'=>'Khosra',
   'purpose'=>'A private, single-owner, server-backed manuscript library with a local recovery cache. The author directs the work; an LLM reads source, discusses ideas, and saves proposed prose. The author edits, reviews and approves in Khosra. Khosra does not call paid model or speech APIs.',
   'startHere'=>[
@@ -42,7 +42,7 @@ function khosraGuide(): array {
   'proposalAcceptance'=>[
    'The author opens Review proposal in Khosra for one continuous, color-coded reading view: unchanged text dark grey, additions green, modifications blue, deletions red with strikethrough. Show deleted hides or reveals deletions. Show current is available only on modified paragraphs and reveals their latest counterpart; completed reviews use Show original. Edit changes proposed wording only. Five context paragraphs surround changes; longer omitted gaps use two left-aligned dotted lines.',
    'Accept checkboxes default checked. The author may decline individual edits; linked split/join/replacement changes and reordered proposals are selected together to avoid losing or duplicating prose. Unchecked changes retain the latest current manuscript content, not the older source. A hidden deletion remains included in selection until unchecked or changed through the Accept header checkbox.',
-   'Global Accept all proposed changes or Accept selected actions and Reject this proposal remain available. Every acceptance or rejection requires confirmation. Pending is the default filter; All, Accepted, Partially accepted and Rejected are available. Partial acceptance completes the review: unchecked changes are declined and do not remain pending.',
+   'Global Accept all proposed changes or Accept selected actions and Reject this proposal remain available. Every acceptance or rejection requires confirmation. Pending is the default filter; All, Accepted and Rejected are available. Accepted includes fully and partially accepted proposals; card badges preserve the exact outcome. Partial acceptance completes the review: unchecked changes are declined and do not remain pending.',
    'Acceptance writes a new immutable revision parented to the latest working draft, preserving unrelated author edits and stable references. Overlapping selected passages or incompatible ordering require explicit choices. A draft change invalidates an open confirmation; review again. Tool scopes never permit accepting or rejecting proposals.',
    'The original proposal is immutable. New accepted decisions include a review record containing the author-edited proposal, selected and declined paragraph UUIDs, conflict choices, reviewed source revision and resulting revision UUID. Older completed proposals may lack a review record. list_proposals includes status but omits receipt prose; read_proposal includes the receipt. Always reread current source after a completed review, because partial selection, author edits or conflict choices can differ from the original suggestion.',
   ],

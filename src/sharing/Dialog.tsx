@@ -1,6 +1,7 @@
 import { useEffect, useRef, useId, type ReactNode } from "react";
 import { X } from "@phosphor-icons/react/dist/csr/X";
 import "./sharing.css";
+import { lockScroll } from "../scrollLock";
 export default function Dialog({
   title,
   children,
@@ -29,11 +30,10 @@ export default function Dialog({
     const el = ref.current!;
     el.showModal();
     if (initialFocus) el.querySelector<HTMLElement>(initialFocus)?.focus();
-    const old = document.documentElement.style.overflow;
-    document.documentElement.style.overflow = "hidden";
+    const unlock = lockScroll();
     return () => {
       el.close();
-      document.documentElement.style.overflow = old;
+      unlock();
       if (focused?.isConnected && focused !== document.body) focused.focus();
       else if (returnFocus)
         document.querySelector<HTMLElement>(returnFocus)?.focus();

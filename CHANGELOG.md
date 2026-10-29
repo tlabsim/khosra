@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix scroll freezing after nested proposal review/confirmation dialogs close together using shared scroll-lock ownership. Preserve native and window-filling fullscreen while navigating owner/guest chapters, resetting page/scroll/turn state. Group full and partial acceptances in Accepted while keeping exact status badges and records. Use Bengali chapter labels and digits in Bengali reading mode. Update the workflow guide to version 6; the tool inventory remains 18.
+
 - Add author-confirmed new-chapter proposals: models suggest title, synopsis, position and draft through three scoped MCP tools; authors edit/review and confirm creation or rejection in Proposals, including for manuscripts without chapters. Preserve original suggestions, creation receipts, stable codes, history and duplicate-safe identities. Include proposals in sync/backups and update the discovery guide to version 5 (18 tools).
 
 - Remove the domain from the sign-in header; show “Running locally” only on loopback and localhost hosts. Use distinct connection status text beneath the workspace loading heading.

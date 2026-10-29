@@ -113,7 +113,7 @@ test("one continuous review has colors, compact windows, current text, deleted t
 }) => {
   const before = await readState(page);
   const filters = page.getByRole("group", { name: "Filter proposals" });
-  await expect(filters.getByRole("button")).toHaveCount(5);
+  await expect(filters.getByRole("button")).toHaveCount(4);
   const activeTab = filters.getByRole("button", {
     name: "Pending proposals",
     exact: true,
@@ -148,7 +148,7 @@ test("one continuous review has colors, compact windows, current text, deleted t
       page.getByRole("button", { name: action, exact: true }).locator("svg"),
     ).toHaveCount(1);
   if (test.info().project.name === "android") {
-    expect(lastTab!.y).toBeGreaterThan(firstTab!.y);
+    expect(lastTab!.y).toBeGreaterThanOrEqual(firstTab!.y);
     expect(await accept.innerText()).toBe("Accept all");
   } else expect(await accept.innerText()).toBe("Accept all proposed changes");
   await page.screenshot({
@@ -335,8 +335,30 @@ test("partial acceptance confirms, preserves declined and unrelated text, and pe
     .getByRole("button", { name: "Confirm acceptance", exact: true })
     .dblclick();
   await expect(dialog).toHaveCount(0);
+  await expect(page.locator("dialog[open]")).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate(() => getComputedStyle(document.documentElement).overflowY),
+    )
+    .not.toBe("hidden");
   await page
-    .getByRole("button", { name: "Partially accepted proposals", exact: true })
+    .getByRole("button", { name: "Manuscript", exact: true })
+    .filter({ visible: true })
+    .first()
+    .click();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.mouse.move(200, 300);
+  await page.mouse.wheel(0, 600);
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY))
+    .toBeGreaterThan(80);
+  await page
+    .getByRole("button", { name: /^Proposals/ })
+    .filter({ visible: true })
+    .first()
+    .click();
+  await page
+    .getByRole("button", { name: "Accepted proposals", exact: true })
     .click();
   await expect(page.locator(".proposal-status")).toHaveText(
     "partially accepted",
@@ -372,7 +394,7 @@ test("partial acceptance confirms, preserves declined and unrelated text, and pe
     .first()
     .click();
   await page
-    .getByRole("button", { name: "Partially accepted proposals", exact: true })
+    .getByRole("button", { name: "Accepted proposals", exact: true })
     .click();
   await page
     .getByRole("button", { name: "View reviewed proposal", exact: true })
@@ -585,3 +607,52 @@ test("linked deletion group toggles together even when deleted prose is hidden",
     .click();
   expect(await readState(page)).toBe(initial);
 });
+
+for (const outcome of ["accept", "reject"] as const)
+  test(`nested ${outcome} from All closes both dialogs and releases manuscript scrolling`, async ({
+    page,
+  }) => {
+    await page
+      .getByRole("button", { name: "All proposals", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "Review proposal", exact: true })
+      .click();
+    await review(page)
+      .getByRole("button", {
+        name:
+          outcome === "accept"
+            ? "Accept all proposed changes"
+            : "Reject this proposal",
+        exact: true,
+      })
+      .click();
+    await page
+      .getByRole("button", {
+        name: outcome === "accept" ? "Confirm acceptance" : "Confirm rejection",
+        exact: true,
+      })
+      .click();
+    await expect(page.locator("dialog[open]")).toHaveCount(0);
+    await expect(page.locator(".proposal-status")).toHaveText(
+      outcome === "accept" ? "accepted" : "rejected",
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => getComputedStyle(document.documentElement).overflowY,
+        ),
+      )
+      .not.toBe("hidden");
+    await page
+      .getByRole("button", { name: "Manuscript", exact: true })
+      .filter({ visible: true })
+      .first()
+      .click();
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.mouse.move(200, 300);
+    await page.mouse.wheel(0, 600);
+    await expect
+      .poll(() => page.evaluate(() => window.scrollY))
+      .toBeGreaterThan(80);
+  });

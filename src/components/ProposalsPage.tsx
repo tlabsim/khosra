@@ -45,8 +45,12 @@ export default function ProposalsPage({
       .filter((p) => p.bookId === bookId)
       .map((proposal) => ({ kind: "chapter" as const, proposal })),
   ];
+  const matches = (status: string, value: string) =>
+    value === "all" ||
+    status === value ||
+    (value === "accepted" && status === "partially-accepted");
   const filtered = entries
-    .filter((x) => filter === "all" || x.proposal.status === filter)
+    .filter((x) => matches(x.proposal.status, filter))
     .map((entry, index) => ({ entry, index }))
     .sort(
       (a, b) =>
@@ -76,26 +80,20 @@ export default function ProposalsPage({
         role="group"
         aria-label="Filter proposals"
       >
-        {["all", "pending", "accepted", "partially-accepted", "rejected"].map(
-          (value) => (
-            <button
-              key={value}
-              className={filter === value ? "active" : ""}
-              aria-pressed={filter === value}
-              aria-label={`${(value[0].toUpperCase() + value.slice(1)).replace("-", " ")} proposals`}
-              onClick={() => setFilter(value)}
-            >
-              {(value[0].toUpperCase() + value.slice(1)).replace("-", " ")}{" "}
-              <span>
-                {
-                  entries.filter(
-                    (x) => value === "all" || x.proposal.status === value,
-                  ).length
-                }
-              </span>
-            </button>
-          ),
-        )}
+        {["all", "pending", "accepted", "rejected"].map((value) => (
+          <button
+            key={value}
+            className={filter === value ? "active" : ""}
+            aria-pressed={filter === value}
+            aria-label={`${(value[0].toUpperCase() + value.slice(1)).replace("-", " ")} proposals`}
+            onClick={() => setFilter(value)}
+          >
+            {(value[0].toUpperCase() + value.slice(1)).replace("-", " ")}{" "}
+            <span>
+              {entries.filter((x) => matches(x.proposal.status, value)).length}
+            </span>
+          </button>
+        ))}
       </div>
       {entries.length === 0 ? (
         <Empty
