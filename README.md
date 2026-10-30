@@ -64,6 +64,12 @@ The 19 tools cover onboarding, book discovery, references, chapter reads, flags,
 
 For example: “Read chapter two and help me make the dialogue less formal,” “Compare this scene with the earlier revision,” or “Keep the ending, but propose a slower reveal.” Start by having the model retrieve the relevant source. Review saved proposals in Khosra before continuing from an accepted revision.
 
+### Incremental workspace sync
+
+After the initial download, routine saves send only changed record fields and new records. Revision snapshots and proposal/review paragraphs reuse their exact source revision and transfer changed paragraph rows, with explicit ordering only when needed. Unchanged polls return a version/fingerprint; changed downloads fetch only the affected records. The server still reconstructs and validates the complete workspace atomically, retaining all history and review safeguards. Gzip is used only when the actual request exceeds 20 MiB, regardless of total workspace size.
+
+The first run after upgrading builds a verified local sync cache. Existing full-snapshot clients and uncertain full uploads remain supported. No database migration is required. Export a backup before updating, keep the existing browser data/config, and upload the new backend dependency before the updated library/API and browser entry points.
+
 ### ChatGPT plugin branding
 
 `python3 scripts/package-plugin.py` creates a separate branded plugin ZIP with Khosra’s light/dark listing and composer icons and the existing remote MCP endpoint. The normal `python3 scripts/package.py` command also creates this ZIP beside the two website releases. See [plugin setup and installation](plugin/README.md). Optional `node scripts/render-plugin-icons.mjs` exports PNG copies for manual icon uploads. Website/SFTP updates do not change the branding of an existing ChatGPT connection; apply the plugin package through a supported dashboard/installation workflow or use that connection’s icon upload control if available. No remote installation or publication is performed by these scripts.
@@ -90,7 +96,7 @@ Artifacts can contain a reference link, notes, and a PNG, JPEG, WebP or PDF atta
 
 Connected models use `list_materials` (100 per page), `read_material`, `save_idea` and `save_artifact`. Lists omit note bodies and file bytes; explicit `include_file: true` returns native MCP image content or an embedded PDF resource, depending on client support. Models can create new speculative ideas and new references, but cannot edit existing author notes or mark ideas Planned/Used. Refresh the connected app's tool discovery after updating the backend. Khosra does not fetch external reference URLs automatically.
 
-Full archives include material versions and attachment bytes. Reader shares exclude all Ideas and Artifacts. Concurrent edits retain separate visible versions; compare them before deciding which to use. Hosted synchronization still transfers the whole workspace, so keep attachments small. Current archives without these collections load with empty lists; older deployed clients are prevented from erasing new material history and should be refreshed.
+Full archives include material versions and attachment bytes. Reader shares exclude all Ideas and Artifacts. Concurrent edits retain separate visible versions; compare them before deciding which to use. Hosted synchronization sends changed records; unchanged attachment versions are not uploaded again. Initial synchronization and archives still include the required file bytes. Current archives without these collections load with empty lists; older deployed clients are prevented from erasing new material history and should be refreshed.
 
 ### Share with trusted readers
 
@@ -104,7 +110,7 @@ Use **Settings → Backups & recovery → Download full archive** regularly and 
 
 Restore accepts only the current, checksummed `khosra-archive` format; early prototype exports are unsupported. Browser archives contain workspace history. Guest invitations and reader feedback are stored separately on the server and require a database backup.
 
-Long record lists use 100-item pages: proposals, flags, history sessions and recovery snapshots, deleted passages, the manuscript library, chapter Trash, context facts, ideas, artifacts, material version histories, reading invitations, reader feedback and sync conflicts. Controls appear only when needed; totals include the complete list. Collapsed history and Trash previews load their contents when opened. Manuscript text and chapter navigation stay continuous. Pagination limits rendered records; the workspace still synchronizes as a whole.
+Long record lists use 100-item pages: proposals, flags, history sessions and recovery snapshots, deleted passages, the manuscript library, chapter Trash, context facts, ideas, artifacts, material version histories, reading invitations, reader feedback and sync conflicts. Controls appear only when needed; totals include the complete list. Collapsed history and Trash previews load their contents when opened. Manuscript text and chapter navigation stay continuous. Pagination limits rendered records; differential sync separately limits network transfers to changed records.
 
 ## Local development and standalone editing
 
@@ -214,7 +220,7 @@ Rename the packaged `private/config.example.php` to `config.php` in the private 
 
 Leave `tool_token_hash` empty for normal OAuth use. Keep passwords and tokens out of browser environment variables, repository files, screenshots and chat messages.
 
-Keep `lib.php`, `guide.php`, `proposal-edits.php`, `materials.php`, `oauth.php` and `sharing.php` together in that private directory. Before uploading, edit the private file paths near the top of `webroot/api/index.php` to match the host. For example:
+Keep `lib.php`, `guide.php`, `proposal-edits.php`, `workspace-sync.php`, `materials.php`, `oauth.php` and `sharing.php` together in that private directory. Before uploading, edit the private file paths near the top of `webroot/api/index.php` to match the host. For example:
 
 ```php
 require '/home/YOUR_ACCOUNT/khosra-private/lib.php';
@@ -224,7 +230,7 @@ require '/home/YOUR_ACCOUNT/khosra-private/sharing.php';
 $file = '/home/YOUR_ACCOUNT/khosra-private/config.php';
 ```
 
-`lib.php` loads `guide.php`, `proposal-edits.php` and `materials.php` from its own directory; no extra public path is needed.
+`lib.php` loads `guide.php`, `proposal-edits.php`, `workspace-sync.php` and `materials.php` from its own directory; no extra public path is needed.
 
 ### 5. Upload and verify
 
@@ -247,7 +253,7 @@ The MCP URL is `https://YOUR_DOMAIN/api/mcp`. It uses stateless Streamable HTTP 
 - Server sign-in protects remote endpoints, not an existing browser profile. No end-to-end encryption is provided.
 - Connected tool retrieval sends requested source text to the chat provider under that account's data controls. Khosra itself makes no paid model/STT API calls; hosting and any chat subscription remain separate costs.
 - The owner MCP connection can access the saved server workspace; OAuth is not currently restricted to one manuscript.
-- The server stores a versioned workspace document. Owner saves support **64 MiB of decoded JSON**, with negotiated gzip uploads for large workspaces; other API requests retain a 20 MiB limit. Host request/memory limits still apply and histories continue to grow. Sync is automatic, with conservative conflict checks and explicit review for divergent edits rather than automatic paragraph-level merging.
+- The server stores a versioned workspace document. Owner saves send record/paragraph deltas, with a **64 MiB decoded request limit** and negotiated gzip only when that actual request exceeds **20 MiB**; other API requests retain a 20 MiB limit. Host request/memory limits still apply and histories continue to grow. Sync is automatic, with conservative conflict checks and explicit review for divergent edits rather than automatic paragraph-level merging.
 - Prose is plain text with optional subsection headings. Rich inline formatting, EPUB/PDF export and multi-author editing are not implemented.
 - Local automated checks do not establish hosted compatibility or a successful real chat-model connection. Verify your deployed MCP/OAuth routes and run a real-client pilot before relying on model collaboration.
 

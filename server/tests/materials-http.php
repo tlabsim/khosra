@@ -5,7 +5,7 @@ require dirname(__DIR__).'/lib.php';require dirname(__DIR__).'/oauth.php';
 $root='C:/wamp64/tmp/khosra-materials-regression';$url='http://127.0.0.1:18083';
 if(in_array('--prepare',$argv,true)){
  if(!is_dir($root.'/public/api'))mkdir($root.'/public/api',0777,true);if(!is_dir($root.'/sessions'))mkdir($root.'/sessions');
- foreach(['lib.php','materials.php','proposal-edits.php','oauth.php','sharing.php','guide.php'] as $f)copy(dirname(__DIR__).'/'.$f,$root.'/'.$f);
+ foreach(['lib.php','materials.php','proposal-edits.php','workspace-sync.php','oauth.php','sharing.php','guide.php'] as $f)copy(dirname(__DIR__).'/'.$f,$root.'/'.$f);
  copy(dirname(__DIR__).'/public/api/index.php',$root.'/public/api/index.php');
  file_put_contents($root.'/public/.htaccess',"RewriteEngine On\nRewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]\nRewriteRule ^api(?:/.*)?$ api/index.php [L,QSA]\n");
  $config=['dsn'=>'sqlite:'.$root.'/fixture.sqlite','origin'=>$url,'owner_password'=>'materials-http-test-only','tool_token_hash'=>''];file_put_contents($root.'/config.php','<?php return '.var_export($config,true).';');

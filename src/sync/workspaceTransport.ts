@@ -1,4 +1,8 @@
-export type WorkspaceTransport = { gzip: boolean; maxDecodedBytes: number };
+export type WorkspaceTransport = {
+  gzip: boolean;
+  maxDecodedBytes: number;
+  differential?: 1;
+};
 export class WorkspaceSizeError extends Error {}
 
 /** Compress only after the authenticated server advertises support. */
@@ -13,7 +17,7 @@ export async function workspaceBody(
     );
   if (
     !transport?.gzip ||
-    original.size < 1024 * 1024 ||
+    original.size <= 20 * 1024 * 1024 ||
     typeof CompressionStream === "undefined"
   )
     return { body: serialized, gzip: false };

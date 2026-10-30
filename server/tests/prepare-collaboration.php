@@ -4,7 +4,7 @@ declare(strict_types=1);
 if(!in_array('--isolated-mysql', $argv, true))throw new RuntimeException('Requires --isolated-mysql and a disposable MySQL server on port 33319.');
 $root=__DIR__.'/.sharing-runtime';
 if(!is_dir($root.'/public/api')&&!mkdir($root.'/public/api',0777,true))throw new RuntimeException('Cannot create test fixture.');
-foreach(['lib.php','oauth.php','sharing.php','guide.php','materials.php','proposal-edits.php'] as $name)copy(dirname(__DIR__).'/'.$name,$root.'/'.$name);
+foreach(['lib.php','oauth.php','sharing.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php'] as $name)copy(dirname(__DIR__).'/'.$name,$root.'/'.$name);
 copy(dirname(__DIR__).'/public/api/index.php',$root.'/public/api/index.php');
 $config=['dsn'=>'mysql:host=127.0.0.1;port=33319;dbname=khosra_test;charset=utf8mb4','db_user'=>'root','db_password'=>'','origin'=>'https://khosra.example.com','owner_password_hash'=>password_hash('khosra-test-only',PASSWORD_DEFAULT),'tool_token_hash'=>'','oauth_redirect_allowlist'=>['https://chatgpt.com/connector_platform_oauth_redirect']];
 file_put_contents($root.'/config.php','<?php return '.var_export($config,true).';');

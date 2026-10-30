@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add differential owner sync in both directions: changed record fields, source-relative paragraph deltas for revision/proposal/review snapshots, ordered hash manifests and unchanged cursors. Apply writes atomically with exact version/fingerprint, durable retries and unchanged history/cleanup/deletion guards. Maintain a checksummed CAS-protected local sync cache, preserve legacy pending requests and retain full endpoint compatibility without a SQL migration. Compress only actual request payloads strictly above 20 MiB.
+
 - Fix large workspace sync beyond the former 20 MiB request cap. Owner saves support 64 MiB decoded JSON and negotiated native gzip uploads; keep other API routes at 20 MiB, authenticate before bounded gzip expansion, and preserve operation identity across plain/compressed retries. Retain local drafts/pending saves on failure and show upload-size errors. No history is pruned or schema changed.
 
 - Add a separate branded ChatGPT plugin ZIP: portable manifests for the existing OAuth MCP endpoint, listing/composer logomarks with light/dark variants and optional PNG exports. Preserve existing mark geometry/colors, validate asset paths and safe deployment origins, exclude private files and write reproducible archives with checksums. Normal website packaging also builds the separate plugin; website uploads do not alter existing connector branding.

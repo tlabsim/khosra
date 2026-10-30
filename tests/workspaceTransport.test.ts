@@ -38,7 +38,7 @@ it("keeps small requests and older servers on ordinary JSON", async () => {
 
 it("falls back to plain JSON on browsers without native compression", async () => {
   vi.stubGlobal("CompressionStream", undefined);
-  const json = JSON.stringify({ text: "x".repeat(2 * 1024 * 1024) });
+  const json = JSON.stringify({ text: "x".repeat(21 * 1024 * 1024) });
   expect(await workspaceBody(json, transport)).toEqual({
     body: json,
     gzip: false,
@@ -62,7 +62,7 @@ it("negotiates compression after sign-in and sends CSRF with the exact JSON cont
     .mockResolvedValueOnce(new Response('{"version":8}'));
   vi.stubGlobal("fetch", fetcher);
   await request("session");
-  const body = { operationId: "same-operation", text: "বাংলা".repeat(100000) };
+  const body = { operationId: "same-operation", text: "বাংলা".repeat(1500000) };
   await request("workspace", body);
   const options = fetcher.mock.calls[1][1];
   expect(options.headers["Content-Encoding"]).toBe("gzip");
@@ -99,4 +99,13 @@ it("identifies a hosting-level HTML 413 and preserves pending retry identity and
   expect(retry.operationId).toBe(JSON.parse(pending!.value).id);
   expect(await db.meta.get("pendingPush")).toBeUndefined();
   expect((await db.meta.get("serverVersion"))?.value).toBe("8");
+});
+
+it("compresses only when the actual UTF-8 payload is strictly larger than 20 MiB", async () => {
+  const exact = "x".repeat(20 * 1024 * 1024);
+  expect((await workspaceBody(exact, transport)).gzip).toBe(false);
+  expect((await workspaceBody(exact + "x", transport)).gzip).toBe(true);
+  expect(
+    (await workspaceBody("x".repeat(2 * 1024 * 1024), transport)).gzip,
+  ).toBe(false);
 });

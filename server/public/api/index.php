@@ -6,7 +6,7 @@ require dirname(__DIR__,2).'/sharing.php';
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');header('X-Content-Type-Options: nosniff');header('X-Robots-Tag: noindex, nofollow');header('Referrer-Policy: no-referrer');
 function respond(mixed $value,int $status=200):never{http_response_code($status);echo json_encode($value,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);exit;}
 const KHOSRA_WORKSPACE_BYTES=64*1024*1024;
-function workspaceTransportInfo():array{return ['gzip'=>function_exists('gzdecode'),'maxDecodedBytes'=>KHOSRA_WORKSPACE_BYTES];}
+function workspaceTransportInfo():array{return ['gzip'=>function_exists('gzdecode'),'maxDecodedBytes'=>KHOSRA_WORKSPACE_BYTES,'differential'=>1];}
 $rpc=null;
 try{
  $file=dirname(__DIR__,2).'/config.php';if(!is_file($file))respond(['error'=>'Private server is not configured. Local workspace remains available.','code'=>'server_not_configured'],503);$config=require $file;
@@ -15,7 +15,7 @@ try{
  // OAuth authorization is entered by navigation from the external client.
  // Consent POSTs and all other API requests retain the same-origin check.
  if(isset($_SERVER['HTTP_ORIGIN'])&&$_SERVER['HTTP_ORIGIN']!==$config['origin']&&!($path==='oauth/authorize'&&$method==='GET'))fail(403,'Origin is not allowed.');
- $workspacePost=$path==='workspace'&&$method==='POST';
+ $workspacePost=in_array($path,['workspace','workspace/sync'],true)&&$method==='POST';
  $encoding=strtolower(trim($_SERVER['HTTP_CONTENT_ENCODING']??''));$gzip=$encoding==='gzip';
  if($encoding!==''&&$encoding!=='identity'&&!($workspacePost&&$gzip))fail(415,'This content encoding is not supported for this endpoint.');
  $limit=$workspacePost?KHOSRA_WORKSPACE_BYTES:20*1024*1024;
@@ -57,6 +57,7 @@ try{
  if($path==='shares'||str_starts_with($path,'shares/'))shareOwner($db,$config,$path,$method,$body);
  if($path==='session'&&$method==='GET')respond(['csrf'=>$_SESSION['csrf'],'workspaceTransport'=>workspaceTransportInfo()]);
  if($path==='logout'&&$method==='POST'){$_SESSION=[];session_destroy();respond(['ok'=>true]);}
+ if($path==='workspace/sync')workspaceSyncRoute($db,$method,$body);
  if($path==='workspace'&&$method==='GET')respond(loadWorkspace($db));
  if($path==='workspace'&&$method==='POST'){if(!is_array($body['state']??null)||!is_int($body['baseVersion']??null))fail(422,'Workspace and baseVersion required.');$version=writeWorkspace($db,$body['state'],$body['baseVersion'],(string)($body['operationId']??''),hash('sha256',$raw));respond(['version'=>$version]);}
  fail(404,'Endpoint not found.');

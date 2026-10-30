@@ -19,7 +19,7 @@ archive=out/'khosra-0.2.0-ftp.zip'
 with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED) as z:
  for p in sorted((root/'dist').rglob('*')):
   if p.is_file():z.write(p,'webroot/'+str(p.relative_to(root/'dist')))
- for name in ['lib.php','oauth.php','sharing.php','guide.php','materials.php','proposal-edits.php','config.example.php']:
+ for name in ['lib.php','oauth.php','sharing.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php','config.example.php']:
   z.write(root/'server'/name,'private/'+name)
  z.writestr('private/.htaccess','Require all denied\n')
  z.write(root/'server/schema.sql','database/schema.sql')
@@ -57,7 +57,7 @@ with zipfile.ZipFile(portable,'w',zipfile.ZIP_DEFLATED) as z:
  htaccess=(root/'server/public/.htaccess').read_text().replace('RewriteEngine On','RewriteEngine On\n# Portable backend/config must never be served directly.\nRewriteRule ^(?:khosra-server(?:/|$)|khosra\\.config(?:\\.[^/]*)?$) - [F,L,NC]')
  z.writestr('.htaccess',htaccess)
  z.writestr('khosra-server/.htaccess','Require all denied\n')
- for name in ['lib.php','oauth.php','sharing.php','guide.php','materials.php','proposal-edits.php']:
+ for name in ['lib.php','oauth.php','sharing.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php']:
   z.writestr('khosra-server/'+name,guarded((root/'server'/name).read_text()))
  z.writestr('khosra-server/bootstrap.php',guarded((root/'server/deployment/bootstrap.php').read_text()))
  for name in ['schema','schema.sqlite']:

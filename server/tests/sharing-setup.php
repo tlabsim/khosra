@@ -2,7 +2,7 @@
 // Local integration fixture only. Never deployed by the package script.
 if(PHP_SAPI!=='cli')exit;
 $root=__DIR__.'/.sharing-runtime';@mkdir($root.'/public/api',0777,true);
-foreach(['lib.php','oauth.php','sharing.php','guide.php','materials.php','proposal-edits.php'] as $name)copy(dirname(__DIR__).'/'.$name,$root.'/'.$name);
+foreach(['lib.php','oauth.php','sharing.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php'] as $name)copy(dirname(__DIR__).'/'.$name,$root.'/'.$name);
 copy(dirname(__DIR__).'/public/api/index.php',$root.'/public/api/index.php');
 $mysql=in_array('--mysql',$argv,true);
 file_put_contents($root.'/config.php',"<?php return ['dsn'=>'sqlite:'.__DIR__.'/test.sqlite','db_user'=>null,'db_password'=>null,'origin'=>'http://127.0.0.1:8081','owner_password_hash'=>'','tool_token_hash'=>'','oauth_redirect_allowlist'=>[]];");

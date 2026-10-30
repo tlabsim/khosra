@@ -15,7 +15,7 @@ function chapterRpc(string $name,array $args=[],?string $token=null,string $meth
 }
 function rpcChapterValue(array $r):array{return json_decode($r['body']['result']['content'][0]['text']??'{}',true)??[];}
 try{
- foreach(['lib.php','oauth.php','guide.php','materials.php','proposal-edits.php','sharing.php'] as $file)copy(dirname(__DIR__).'/'.$file,$root.'/'.$file);
+ foreach(['lib.php','oauth.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php','sharing.php'] as $file)copy(dirname(__DIR__).'/'.$file,$root.'/'.$file);
  copy(dirname(__DIR__).'/public/api/index.php',$root.'/public/api/index.php');
  file_put_contents($root.'/router.php',"<?php require __DIR__.'/public/api/index.php';");
  $config=['dsn'=>'sqlite:'.$root.'/fixture.sqlite','origin'=>$origin,'owner_password'=>'isolated-chapter-test-password','tool_token_hash'=>''];file_put_contents($root.'/config.php','<?php return '.var_export($config,true).';');
@@ -29,7 +29,7 @@ try{
   $response=file_get_contents($origin.'/api/workspace',false,stream_context_create($options));preg_match('/\s(\d{3})\s/',$http_response_header[0]??'',$m);return ['status'=>(int)($m[1]??0),'body'=>json_decode($response?:'',true)];
  }
  $r=chapterHttp('/api/login','POST',['password'=>$config['owner_password']]);checkChapterHttp($r['status']===200,'Owner signs in');$csrf=$r['body']['csrf'];$cookie='';foreach($r['headers'] as $h)if(str_starts_with(strtolower($h),'set-cookie:'))$cookie=explode(';',trim(substr($h,11)))[0];
- checkChapterHttp($r['body']['workspaceTransport']===['gzip'=>true,'maxDecodedBytes'=>64*1024*1024],'Login advertises gzip and 64 MiB decoded workspace limit');
+ checkChapterHttp($r['body']['workspaceTransport']===['gzip'=>true,'maxDecodedBytes'=>64*1024*1024,'differential'=>1],'Login advertises gzip and 64 MiB decoded workspace limit');
  $headers=['Cookie: '.$cookie,'X-CSRF-Token: '.$csrf,'Origin: '.$origin];
  $r=chapterHttp('/api/session','GET',null,['Cookie: '.$cookie]);checkChapterHttp($r['body']['workspaceTransport']['gzip'],'Existing sessions discover upload capability');
  $cid=uuid();$rid=uuid();$state['chapters'][]=['id'=>$cid,'bookId'=>$bid,'code'=>1,'title'=>'Large Bengali chapter','position'=>0,'headId'=>$rid,'approvedId'=>null,'synopsis'=>''];
@@ -54,6 +54,31 @@ try{
  $state['books'][0]['title']='Owner saved again';$next=['state'=>$state,'baseVersion'=>1,'operationId'=>uuid()];
  $r=largeRequest(gzencode(json_encode($next,JSON_UNESCAPED_UNICODE)),array_merge($headers,['Content-Encoding: gzip']));checkChapterHttp($r['status']===200&&$r['body']['version']===2,'A subsequent large owner save validates against existing server history and commits');
  $stored=loadWorkspace($db);checkChapterHttp($stored['state']===$state,'Subsequent sync preserves every paragraph and source reference');
+
+ // A real paragraph delta against a >25 MiB baseline must stay small on the wire.
+ $snapshot=loadWorkspace($db);$cursor=$snapshot['fingerprint'];$newId=uuid();
+ $r=chapterHttp('/api/workspace/sync?version=2&fingerprint='.$cursor,'GET',null,['Cookie: '.$cookie]);checkChapterHttp($r['body']['mode']==='unchanged'&&!isset($r['body']['state'])&&strlen($r['raw'])<256,'Unchanged polling returns only a fingerprint/version, not the workspace');
+ $r=chapterHttp('/api/workspace/sync','GET',null,['Cookie: '.$cookie]);checkChapterHttp($r['body']['mode']==='manifest'&&!str_contains($r['raw'],'গল্প'),'Changed polling returns record hashes without manuscript prose');
+ $revision=$state['revisions'][0];unset($revision['id']);$revision['parentId']=$rid;$revision['message']='One paragraph edit';$revision['paragraphs']=['format'=>'paragraph-delta-v1','baseRevisionId'=>$rid,'upserts'=>[array_replace($paragraphs[0],['text'=>'একটি নতুন সূত্র।'])]];
+ $patch=['action'=>'push','baseVersion'=>2,'baseFingerprint'=>$cursor,'operationId'=>uuid(),'delta'=>['schemaVersion'=>1,'collections'=>['chapters'=>['upserts'=>[['id'=>$cid,'set'=>['headId'=>$newId],'unset'=>[]]],'remove'=>[]],'revisions'=>['upserts'=>[['id'=>$newId,'set'=>$revision,'unset'=>[]]],'remove'=>[]]]]];
+ checkChapterHttp(strlen(json_encode($patch))<2000,'A new full revision uploads only changed paragraph text and metadata, below 2 KiB');
+ $r=chapterHttp('/api/workspace/sync','POST',$patch);checkChapterHttp($r['status']===401,'Anonymous differential writes denied');
+ $r=chapterHttp('/api/workspace/sync','POST',$patch,['Cookie: '.$cookie]);checkChapterHttp($r['status']===403,'Differential writes require CSRF');
+ $r=chapterHttp('/api/workspace/sync','POST',$patch,$headers);checkChapterHttp($r['status']===200&&$r['body']['version']===3&&isset($r['body']['hashes']['revisions'][$newId]),'Differential commit returns exact fingerprint and changed-record hashes');$newCursor=$r['body']['fingerprint'];
+ $stored=loadWorkspace($db);$latest=record($stored['state']['revisions'],$newId);checkChapterHttp($latest['paragraphs'][0]['text']==='একটি নতুন সূত্র।'&&array_slice($latest['paragraphs'],1)===array_slice($paragraphs,1)&&record($stored['state']['revisions'],$rid)['paragraphs']===$paragraphs,'Sparse upload reconstructs full immutable history and all untouched Bengali paragraphs');
+ checkChapterHttp($newCursor===$stored['fingerprint'],'Acknowledged cursor fingerprints the committed snapshot exactly');
+ $r=chapterHttp('/api/workspace/sync','POST',$patch,$headers);checkChapterHttp($r['status']===200&&$r['body']['duplicate']&&!isset($r['body']['fingerprint']),'Lost-response retry acknowledges once without mislabeling a newer snapshot');
+ $bad=$patch;$bad['operationId']=uuid();$r=chapterHttp('/api/workspace/sync','POST',$bad,$headers);checkChapterHttp($r['status']===409,'Stale differential update rejected');
+ $bad=$patch;$bad['delta']['collections']['chapters']['upserts'][0]['set']['title']='Different';$r=chapterHttp('/api/workspace/sync','POST',$bad,$headers);checkChapterHttp($r['status']===409,'Reusing an operation for changed differential content rejected');
+ $bad=$patch;$bad['operationId']=uuid();$bad['baseVersion']=3;$bad['baseFingerprint']=str_repeat('0',64);$r=chapterHttp('/api/workspace/sync','POST',$bad,$headers);checkChapterHttp($r['status']===409,'Same-version fingerprint mismatch cannot overwrite a restored/reset server');
+ $download=['action'=>'pull','version'=>3,'fingerprint'=>$newCursor,'ids'=>['revisions'=>[$newId],'chapters'=>[$cid]]];$r=chapterHttp('/api/workspace/sync','POST',$download,$headers);checkChapterHttp($r['status']===200&&strlen($r['raw'])<2000&&$r['body']['records']['revisions'][0]['paragraphs']['format']==='paragraph-delta-v1','Differential download also transfers only the changed paragraph, below 2 KiB');
+ $reconstructed=$state;$reconstructed['revisions'][]=$r['body']['records']['revisions'][0];$reconstructed['chapters'][0]=$r['body']['records']['chapters'][0];checkChapterHttp(syncExpandState($reconstructed)===$stored['state'],'Downloaded paragraph wire format reconstructs the exact saved workspace');
+ $download['version']=2;$r=chapterHttp('/api/workspace/sync','POST',$download,$headers);checkChapterHttp($r['status']===409,'Download races cannot mix records from different snapshots');
+ $bad=['action'=>'push','baseVersion'=>3,'baseFingerprint'=>$newCursor,'operationId'=>uuid(),'delta'=>['schemaVersion'=>1,'collections'=>['revisions'=>['upserts'=>[['id'=>$rid,'set'=>['message'=>'Tampered'],'unset'=>[]]],'remove'=>[]]]]];
+ $r=chapterHttp('/api/workspace/sync','POST',$bad,$headers);checkChapterHttp($r['status']===409,'Differential transport cannot alter immutable revision metadata');
+ $bad['operationId']=uuid();$bad['delta']['collections']=['unknown'=>['upserts'=>[],'remove'=>[]]];$r=chapterHttp('/api/workspace/sync','POST',$bad,$headers);checkChapterHttp($r['status']===422,'Unknown collections rejected');
+ $bad['operationId']=uuid();$bad['delta']['collections']=['chapters'=>['upserts'=>[],'remove'=>[],'order'=>[]]];$r=chapterHttp('/api/workspace/sync','POST',$bad,$headers);checkChapterHttp($r['status']===422,'Ordering cannot silently delete records');
+ $r=chapterHttp('/api/workspace/sync','POST',$patch,$headers);checkChapterHttp($r['body']['version']===3&&loadWorkspace($db)['fingerprint']===$newCursor,'Failures and retries leave the exact committed state intact');
  echo "$count large-workspace HTTP checks passed; ".strlen($raw).' bytes JSON -> '.strlen($gzip)." bytes gzip.\n";
 }finally{
  if(is_resource($process)){proc_terminate($process);proc_close($process);}unset($q,$db);

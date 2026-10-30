@@ -5,6 +5,7 @@ if(!defined('KHOSRA_DEPLOYMENT')){http_response_code(404);exit;}
 require_once __DIR__.'/guide.php';
 require_once __DIR__.'/materials.php';
 require_once __DIR__.'/proposal-edits.php';
+require_once __DIR__.'/workspace-sync.php';
 final class ApiError extends RuntimeException { public function __construct(public int $status,string $message){parent::__construct($message);} }
 function fail(int $status,string $message):never {throw new ApiError($status,$message);}
 function uuid():string {$d=random_bytes(16);$d[6]=chr((ord($d[6])&15)|64);$d[8]=chr((ord($d[8])&63)|128);return vsprintf('%s%s-%s-%s-%s-%s%s%s',str_split(bin2hex($d),4));}
@@ -143,11 +144,14 @@ function preserveHistory(array $old,array $new):void {
   }
  }
 }
-function loadWorkspace(PDO $db,bool $lock=false):array {$q=$db->query('SELECT version,payload FROM workspace WHERE id=1'.($lock?databaseLock($db):''));$row=$q->fetch(PDO::FETCH_ASSOC);$q->closeCursor();return $row?['version'=>(int)$row['version'],'state'=>json_decode($row['payload'],true,512,JSON_THROW_ON_ERROR)]:['version'=>0,'state'=>blank()];}
-function writeWorkspace(PDO $db,array $s,int $base,string $op,string $hash):int {
- if(!idvalid($op))fail(422,'A durable operation UUID is required.');validate($s);beginWrite($db);try{$q=$db->prepare('SELECT payload_hash,result_version FROM operations WHERE operation_id=?');$q->execute([$op]);$known=$q->fetch(PDO::FETCH_ASSOC);$q->closeCursor();if($known){if(!hash_equals($known['payload_hash'],$hash))fail(409,'Operation ID reused for different content.');$db->commit();return (int)$known['result_version'];}
- // The singleton row must exist before SELECT FOR UPDATE; installer inserts it.
- $old=loadWorkspace($db,true);if($old['version']!==$base)fail(409,'Server workspace changed. Download it and reconcile with your local safety backup; nothing was overwritten.');preserveHistory($old['state'],$s);$v=$base+1;$q=$db->prepare('UPDATE workspace SET version=?,payload=? WHERE id=1 AND version=?');$q->execute([$v,json_encode($s,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$base]);if($q->rowCount()!==1)fail(409,'Workspace not initialized or changed.');$q=$db->prepare('INSERT INTO operations(operation_id,payload_hash,result_version) VALUES(?,?,?)');$q->execute([$op,$hash,$v]);$db->commit();return $v;}catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}}
+function loadWorkspace(PDO $db,bool $lock=false,bool $decode=true):array {
+ $q=$db->query('SELECT version,payload FROM workspace WHERE id=1'.($lock?databaseLock($db):''));$row=$q->fetch(PDO::FETCH_ASSOC);$q->closeCursor();$payload=$row?$row['payload']:json_encode(blank(),JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+ $out=['version'=>$row?(int)$row['version']:0,'fingerprint'=>hash('sha256',$payload)];if($decode)$out['state']=json_decode($payload,true,512,JSON_THROW_ON_ERROR);return $out;
+}
+function writeWorkspace(PDO $db,array|callable $s,int $base,string $op,string $hash,?string $fingerprint=null):int {
+ if(!idvalid($op))fail(422,'A durable operation UUID is required.');if(is_array($s))validate($s);beginWrite($db);try{$q=$db->prepare('SELECT payload_hash,result_version FROM operations WHERE operation_id=?');$q->execute([$op]);$known=$q->fetch(PDO::FETCH_ASSOC);$q->closeCursor();if($known){if(!hash_equals($known['payload_hash'],$hash))fail(409,'Operation ID reused for different content.');$db->commit();return (int)$known['result_version'];}
+ $old=loadWorkspace($db,true);if($old['version']!==$base||($fingerprint!==null&&!hash_equals($old['fingerprint'],$fingerprint)))fail(409,'Server workspace changed. Download it and reconcile with your local safety backup; nothing was overwritten.');
+ if(!is_array($s)){$s=$s($old['state']);validate($s);}preserveHistory($old['state'],$s);$v=$base+1;$q=$db->prepare('UPDATE workspace SET version=?,payload=? WHERE id=1 AND version=?');$q->execute([$v,json_encode($s,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$base]);if($q->rowCount()!==1)fail(409,'Workspace not initialized or changed.');$q=$db->prepare('INSERT INTO operations(operation_id,payload_hash,result_version) VALUES(?,?,?)');$q->execute([$op,$hash,$v]);$db->commit();return $v;}catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}}
 function tools():array {
  $str=['type'=>'string'];$props=['chapter_id'=>$str,'revision_id'=>$str];$definitions=[
  ['get_khosra_guide','Read this first: what Khosra is, safe author/LLM workflows, permanent references, proposal/context examples, history, retries and limitations. Static product documentation; no manuscript content or credentials. Takes no arguments.',[],[]],

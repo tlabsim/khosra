@@ -2,7 +2,7 @@
 // Run only against the extracted portable test installation on localhost:8081.
 declare(strict_types=1);
 $count=0;
-foreach(['/khosra.config.php','/khosra.config.example.php','/KHOSRA.CONFIG.PHP','/khosra-server/lib.php','/khosra-server/bootstrap.php','/khosra-server/schema.sqlite.php','/khosra-server/guide.php','/khosra-server/proposal-edits.php','/khosra-server/.htaccess','/khosra-server/'] as $path){
+foreach(['/khosra.config.php','/khosra.config.example.php','/KHOSRA.CONFIG.PHP','/khosra-server/lib.php','/khosra-server/bootstrap.php','/khosra-server/schema.sqlite.php','/khosra-server/guide.php','/khosra-server/proposal-edits.php','/khosra-server/workspace-sync.php','/khosra-server/.htaccess','/khosra-server/'] as $path){
  $body=file_get_contents('http://127.0.0.1:8081'.$path,false,stream_context_create(['http'=>['ignore_errors'=>true,'timeout'=>10]]));
  if(!preg_match('/\s403\s/',$http_response_header[0]??'')||str_contains($body,'khosra-test-only')||str_contains($body,'<?php'))throw new RuntimeException('Portable file protection failed: '.$path);
  echo 'PASS: HTTP access denied '.$path.PHP_EOL;$count++;
