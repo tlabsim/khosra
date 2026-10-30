@@ -5,6 +5,8 @@ require dirname(__DIR__,2).'/oauth.php';
 require dirname(__DIR__,2).'/sharing.php';
 header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');header('X-Content-Type-Options: nosniff');header('X-Robots-Tag: noindex, nofollow');header('Referrer-Policy: no-referrer');
 function respond(mixed $value,int $status=200):never{http_response_code($status);echo json_encode($value,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);exit;}
+const KHOSRA_WORKSPACE_BYTES=64*1024*1024;
+function workspaceTransportInfo():array{return ['gzip'=>function_exists('gzdecode'),'maxDecodedBytes'=>KHOSRA_WORKSPACE_BYTES];}
 $rpc=null;
 try{
  $file=dirname(__DIR__,2).'/config.php';if(!is_file($file))respond(['error'=>'Private server is not configured. Local workspace remains available.','code'=>'server_not_configured'],503);$config=require $file;
@@ -13,7 +15,14 @@ try{
  // OAuth authorization is entered by navigation from the external client.
  // Consent POSTs and all other API requests retain the same-origin check.
  if(isset($_SERVER['HTTP_ORIGIN'])&&$_SERVER['HTTP_ORIGIN']!==$config['origin']&&!($path==='oauth/authorize'&&$method==='GET'))fail(403,'Origin is not allowed.');
- if((int)($_SERVER['CONTENT_LENGTH']??0)>20*1024*1024)fail(413,'Workspace exceeds the 20 MB request limit.');$raw=file_get_contents('php://input',false,null,0,20*1024*1024+1);if(strlen($raw)>20*1024*1024)fail(413,'Request too large.');$body=[];if(str_contains($_SERVER['CONTENT_TYPE']??'','application/x-www-form-urlencoded'))parse_str($raw,$body);else $body=$raw!==''?json_decode($raw,true,128,JSON_THROW_ON_ERROR):[];if(!is_array($body))fail(422,'JSON object required.');
+ $workspacePost=$path==='workspace'&&$method==='POST';
+ $encoding=strtolower(trim($_SERVER['HTTP_CONTENT_ENCODING']??''));$gzip=$encoding==='gzip';
+ if($encoding!==''&&$encoding!=='identity'&&!($workspacePost&&$gzip))fail(415,'This content encoding is not supported for this endpoint.');
+ $limit=$workspacePost?KHOSRA_WORKSPACE_BYTES:20*1024*1024;
+ if((int)($_SERVER['CONTENT_LENGTH']??0)>$limit)fail(413,$workspacePost?'Workspace upload exceeds the supported size. Export a device backup; your local changes are retained.':'Request too large.');
+ $raw=file_get_contents('php://input',false,null,0,$limit+1);if(strlen($raw)>$limit)fail(413,'Request too large.');
+ // Workspace JSON is parsed (and gzip expanded) only after owner authentication and CSRF.
+ $body=[];if(!$workspacePost){if(str_contains($_SERVER['CONTENT_TYPE']??'','application/x-www-form-urlencoded'))parse_str($raw,$body);else $body=$raw!==''?json_decode($raw,true,128,JSON_THROW_ON_ERROR):[];if(!is_array($body))fail(422,'JSON object required.');}
  if(isset($_GET['discovery'])&&in_array($_GET['discovery'],['oauth-protected-resource','oauth-authorization-server'],true))respond(oauthMetadata($config,$_GET['discovery']));
  if(str_starts_with($path,'guest/'))guestRoute($db,$config,$path,$method,$body);
  if(str_starts_with($path,'oauth/'))oauthRoute($db,$config,$path,$method,$body);
@@ -31,12 +40,22 @@ try{
  ini_set('session.use_strict_mode','1');session_name('khosra_owner');session_set_cookie_params(['httponly'=>true,'secure'=>true,'samesite'=>'Strict','path'=>'/api']);session_start();
  if($path==='login'&&$method==='POST'){
   throttleIdentity($db,hash('sha256',$_SERVER['REMOTE_ADDR']??'unknown'),8,'Too many login attempts. Try again in 15 minutes.');
-  if(!text($body['password']??null,1000)||!ownerPasswordMatches($body['password'],$config))fail(401,'Incorrect owner password.');session_regenerate_id(true);$_SESSION=['owner'=>true,'last'=>time(),'csrf'=>bin2hex(random_bytes(24))];respond(['csrf'=>$_SESSION['csrf']]);
+  if(!text($body['password']??null,1000)||!ownerPasswordMatches($body['password'],$config))fail(401,'Incorrect owner password.');session_regenerate_id(true);$_SESSION=['owner'=>true,'last'=>time(),'csrf'=>bin2hex(random_bytes(24))];respond(['csrf'=>$_SESSION['csrf'],'workspaceTransport'=>workspaceTransportInfo()]);
  }
  if(empty($_SESSION['owner'])||time()-(int)($_SESSION['last']??0)>1800){$_SESSION=[];fail(401,'Owner session required.');}$_SESSION['last']=time();
  if($method==='POST'&&!hash_equals($_SESSION['csrf']??'',$_SERVER['HTTP_X_CSRF_TOKEN']??''))fail(403,'CSRF validation failed.');
+ if($workspacePost){
+  if($gzip){
+   if(!function_exists('gzdecode'))fail(415,'Compressed workspace uploads require the PHP zlib extension.');
+   $decoded=@gzdecode($raw,KHOSRA_WORKSPACE_BYTES+1);
+   if($decoded===false)fail(400,'Compressed workspace is invalid or exceeds the 64 MiB decoded limit.');
+   if(strlen($decoded)>KHOSRA_WORKSPACE_BYTES)fail(413,'Workspace exceeds the 64 MiB decoded limit. Export a backup before reducing retained data.');
+   $raw=$decoded;unset($decoded);
+  }
+  $body=json_decode($raw,true,128,JSON_THROW_ON_ERROR);if(!is_array($body))fail(422,'JSON object required.');
+ }
  if($path==='shares'||str_starts_with($path,'shares/'))shareOwner($db,$config,$path,$method,$body);
- if($path==='session'&&$method==='GET')respond(['csrf'=>$_SESSION['csrf']]);
+ if($path==='session'&&$method==='GET')respond(['csrf'=>$_SESSION['csrf'],'workspaceTransport'=>workspaceTransportInfo()]);
  if($path==='logout'&&$method==='POST'){$_SESSION=[];session_destroy();respond(['ok'=>true]);}
  if($path==='workspace'&&$method==='GET')respond(loadWorkspace($db));
  if($path==='workspace'&&$method==='POST'){if(!is_array($body['state']??null)||!is_int($body['baseVersion']??null))fail(422,'Workspace and baseVersion required.');$version=writeWorkspace($db,$body['state'],$body['baseVersion'],(string)($body['operationId']??''),hash('sha256',$raw));respond(['version'=>$version]);}

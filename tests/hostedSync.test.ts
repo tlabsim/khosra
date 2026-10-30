@@ -260,6 +260,25 @@ it("keeps offline changes and uploads them after reconnection", async () => {
   await t.actor.retry();
   expect(t.remote().state).toEqual(local);
 });
+it("shows upload-size failures while retaining the unsynced manuscript and baseline", async () => {
+  const base = fixture(),
+    t = setup(base, { state: base, version: "1" }, base);
+  await t.actor.start();
+  const local = edit(base, "Unsent manuscript");
+  t.setLocal(local);
+  t.adapter.push = vi.fn(async () => {
+    throw new ServerRequestError(
+      "The hosting server rejected the upload size.",
+      413,
+    );
+  });
+  await t.actor.sync();
+  expect(t.actor.status.phase).toBe("ready");
+  expect(t.actor.status.message).toContain("rejected the upload size");
+  expect(t.local()).toEqual(local);
+  expect(t.remote().state).toEqual(base);
+  expect(t.baseline()).toBe(JSON.stringify(base));
+});
 it("only offers offline cache after a network failure, never after 401", async () => {
   const base = fixture(),
     t = setup(base, { state: base, version: "1" }, base);

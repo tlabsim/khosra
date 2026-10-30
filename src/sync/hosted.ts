@@ -106,7 +106,9 @@ export class HostedWorkspace {
       this.show({
         phase: this.wasReady ? "ready" : "unavailable",
         message: this.wasReady
-          ? "Saved on this device · waiting for server"
+          ? error instanceof ServerRequestError
+            ? `Saved on this device · ${error.message}`
+            : "Saved on this device · waiting for server"
           : error instanceof ServerRequestError
             ? error.code === "invalid_response"
               ? `The server returned HTTP ${error.status} instead of a Khosra API response. Check API routing, file permissions and the server error log.`

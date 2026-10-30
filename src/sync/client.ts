@@ -1,5 +1,10 @@
 import { validateState, type State, uid } from "../domain/model";
 import { db } from "../storage/db";
+import {
+  workspaceBody,
+  WorkspaceSizeError,
+  type WorkspaceTransport,
+} from "./workspaceTransport";
 export class SyncConflict extends Error {}
 export class ServerRequestError extends Error {
   constructor(
@@ -11,18 +16,36 @@ export class ServerRequestError extends Error {
   }
 }
 let csrf = "";
+let workspaceTransport: WorkspaceTransport | undefined;
 export async function request(path: string, body?: unknown) {
+  const serialized = body === undefined ? undefined : JSON.stringify(body);
+  const encoded = await (async () => {
+    try {
+      return path === "workspace" && serialized !== undefined
+        ? await workspaceBody(serialized, workspaceTransport)
+        : { body: serialized, gzip: false };
+    } catch (error) {
+      if (error instanceof WorkspaceSizeError)
+        throw new ServerRequestError(error.message, 413, "workspace_too_large");
+      throw error;
+    }
+  })();
   const response = await fetch("/api/" + path, {
     credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
       ...(csrf ? { "X-CSRF-Token": csrf } : {}),
+      ...(encoded.gzip ? { "Content-Encoding": "gzip" } : {}),
     },
-    ...(body !== undefined
-      ? { method: "POST", body: JSON.stringify(body) }
-      : {}),
+    ...(body !== undefined ? { method: "POST", body: encoded.body } : {}),
   });
   const data = await response.json().catch(() => {
+    if (response.status === 413)
+      throw new ServerRequestError(
+        "The hosting server rejected the upload size. Your changes remain on this device. Export a backup and check PHP/web-server request limits.",
+        413,
+        "upload_too_large",
+      );
     throw new ServerRequestError(
       "The Khosra server returned an unexpected response.",
       response.status,
@@ -45,6 +68,20 @@ export async function request(path: string, body?: unknown) {
     );
   }
   if (data.csrf) csrf = data.csrf;
+  if (path === "session" || path === "login") {
+    const capability = data.workspaceTransport;
+    workspaceTransport =
+      capability &&
+      typeof capability.gzip === "boolean" &&
+      Number.isSafeInteger(capability.maxDecodedBytes) &&
+      capability.maxDecodedBytes > 0
+        ? capability
+        : undefined;
+  }
+  if (path === "logout") {
+    csrf = "";
+    workspaceTransport = undefined;
+  }
   return data;
 }
 export async function login(password: string) {

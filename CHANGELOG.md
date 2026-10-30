@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix large workspace sync beyond the former 20 MiB request cap. Owner saves support 64 MiB decoded JSON and negotiated native gzip uploads; keep other API routes at 20 MiB, authenticate before bounded gzip expansion, and preserve operation identity across plain/compressed retries. Retain local drafts/pending saves on failure and show upload-size errors. No history is pruned or schema changed.
+
 - Add a separate branded ChatGPT plugin ZIP: portable manifests for the existing OAuth MCP endpoint, listing/composer logomarks with light/dark variants and optional PNG exports. Preserve existing mark geometry/colors, validate asset paths and safe deployment origins, exclude private files and write reproducible archives with checksums. Normal website packaging also builds the separate plugin; website uploads do not alter existing connector branding.
 
 - Add `save_proposal_edits` for differential existing-chapter suggestions: send only inclusive range replacements/deletions and anchored insertions. Reconstruct a full immutable review snapshot on the server, preserve untouched prose/references/headings and allocate new paragraph IDs/labels. Retain `save_proposal` for complete rewrites and reordering. Both require author review; neither changes the manuscript directly. Add strict source/overlap/no-op validation, durable retry identity, guide version 10 and a 19-tool MCP inventory.

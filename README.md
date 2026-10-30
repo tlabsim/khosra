@@ -247,7 +247,7 @@ The MCP URL is `https://YOUR_DOMAIN/api/mcp`. It uses stateless Streamable HTTP 
 - Server sign-in protects remote endpoints, not an existing browser profile. No end-to-end encryption is provided.
 - Connected tool retrieval sends requested source text to the chat provider under that account's data controls. Khosra itself makes no paid model/STT API calls; hosting and any chat subscription remain separate costs.
 - The owner MCP connection can access the saved server workspace; OAuth is not currently restricted to one manuscript.
-- The server stores a versioned workspace document with a **20 MB request limit**. Large histories may exceed it. Sync is automatic, with conservative conflict checks and explicit review for divergent edits rather than automatic paragraph-level merging.
+- The server stores a versioned workspace document. Owner saves support **64 MiB of decoded JSON**, with negotiated gzip uploads for large workspaces; other API requests retain a 20 MiB limit. Host request/memory limits still apply and histories continue to grow. Sync is automatic, with conservative conflict checks and explicit review for divergent edits rather than automatic paragraph-level merging.
 - Prose is plain text with optional subsection headings. Rich inline formatting, EPUB/PDF export and multi-author editing are not implemented.
 - Local automated checks do not establish hosted compatibility or a successful real chat-model connection. Verify your deployed MCP/OAuth routes and run a real-client pilot before relying on model collaboration.
 
