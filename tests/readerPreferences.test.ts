@@ -64,6 +64,7 @@ it("uses responsive guest defaults without changing author preferences", () => {
       paper: "sepia",
       texture: "grain",
       size: 12,
+      leading: 1.6,
       selectable: false,
       drag: true,
     });
@@ -73,6 +74,7 @@ it("uses responsive guest defaults without changing author preferences", () => {
     paper: "ivory",
     texture: "smooth",
     size: 14,
+    leading: 1.9,
     selectable: true,
     drag: false,
   });
@@ -87,6 +89,7 @@ it("retains saved guest choices and fills missing or invalid fields with guest d
             paper: "white",
             texture: "linen",
             size: 16,
+            leading: 2.2,
             selectable: true,
             drag: false,
           })
@@ -97,17 +100,19 @@ it("retains saved guest choices and fills missing or invalid fields with guest d
     paper: "white",
     texture: "linen",
     size: 16,
+    leading: 2.2,
     selectable: true,
     drag: false,
   });
   vi.stubGlobal("localStorage", {
-    getItem: () => JSON.stringify({ paper: "white", size: 99 }),
+    getItem: () => JSON.stringify({ paper: "white", size: 99, leading: 99 }),
   });
   expect(readGuestPreferences(1440)).toMatchObject({
     mode: "spread",
     paper: "white",
     texture: "grain",
     size: 12,
+    leading: 1.6,
   });
   vi.stubGlobal("localStorage", {
     getItem: () => {
@@ -119,5 +124,6 @@ it("retains saved guest choices and fills missing or invalid fields with guest d
     paper: "sepia",
     texture: "grain",
     size: 12,
+    leading: 1.6,
   });
 });

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Default guest reader line spacing to Close (1.6), retaining saved guest spacing and the author’s existing default.
+
 - Default guest reading to text selection off and mouse page dragging on. Allow guests to adjust selection and drag controls; preserve saved guest choices and existing author defaults. Drag applies to paged layouts; continuous scrolling and touch swipes retain their behavior.
 
 - Prefer A5 for author and guest page formats while retaining saved format choices. Contain animated paper painting within its frame so page-turn overlays cannot expand document/fullscreen scroll extents or flash a scrollbar.
