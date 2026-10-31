@@ -94,5 +94,7 @@ export function readGuestPreferences(viewportWidth: number): Preferences {
     paper: "sepia",
     texture: "grain",
     size: 12,
+    selectable: false,
+    drag: true,
   });
 }

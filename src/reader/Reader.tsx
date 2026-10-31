@@ -51,7 +51,7 @@ export default function Reader({
     const p = guest
       ? readGuestPreferences(window.innerWidth)
       : readPreferences();
-    return guest ? { ...p, showIds: false, selectable: true } : p;
+    return guest ? { ...p, showIds: false } : p;
   });
   const [width, setWidth] = useState(0);
   const [fullscreenHeight, setFullscreenHeight] = useState(

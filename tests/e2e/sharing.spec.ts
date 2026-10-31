@@ -107,7 +107,7 @@ test("guest reader stays separate, accepts anchored feedback and clears revoked 
   ).toHaveCount(0);
   await expect(
     page.getByRole("switch", { name: "Text selectable" }),
-  ).toHaveCount(0);
+  ).not.toBeChecked();
   await page.getByRole("button", { name: "Close reading preferences" }).click();
   await page.screenshot({
     path: `test-results/${info.project.name}-guest-reader.png`,
@@ -144,6 +144,77 @@ test("guest reader stays separate, accepts anchored feedback and clears revoked 
     chapter.paragraphs[0].text,
   );
 });
+test("guest interaction defaults disable selection and enable page dragging with saved overrides", async ({
+  page,
+}, info) => {
+  await guestFixture(page);
+  await page.route("**/api/guest/chapter?**", async (route) =>
+    route.fulfill({
+      json: {
+        chapter: {
+          ...chapter,
+          paragraphs: [
+            {
+              ...chapter.paragraphs[0],
+              text: "নদীর ওপারে আলো জ্বলছিল। A reader turns a page. ".repeat(
+                800,
+              ),
+            },
+          ],
+        },
+      },
+    }),
+  );
+  await page.goto("/guest#token=" + token);
+  await expect(page.locator(".book-reader")).toHaveClass(/text-unselectable/);
+  await expect(page.locator(".reading-text")).toHaveCSS("user-select", "none");
+  await page.getByLabel("Reading layout").selectOption("pages");
+  await expect(page.locator(".reading-viewport")).toHaveClass(
+    /mouse-page-drag/,
+  );
+  await page.getByRole("button", { name: "Reading settings" }).click();
+  await expect(
+    page.getByRole("switch", { name: "Text selectable" }),
+  ).not.toBeChecked();
+  await expect(
+    page.getByRole("switch", { name: "Drag to turn pages" }),
+  ).toBeChecked();
+  await page.getByRole("button", { name: "Close reading preferences" }).click();
+  if (info.project.name === "desktop") {
+    await expect(
+      page.getByRole("button", { name: "Next page", exact: true }),
+    ).toBeEnabled();
+    const frame = page.locator(".reading-viewport");
+    await frame.scrollIntoViewIfNeeded();
+    const box = (await frame.boundingBox())!;
+    await page.mouse.move(box.x + box.width * 0.7, box.y + 80);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width * 0.7 - 150, box.y + 80, {
+      steps: 8,
+    });
+    await page.mouse.up();
+    await expect(page.getByLabel("Go to page")).toHaveValue("1");
+  }
+  await page.getByRole("button", { name: "Reading settings" }).click();
+  await page.getByRole("switch", { name: "Text selectable" }).check();
+  await page.getByRole("switch", { name: "Drag to turn pages" }).uncheck();
+  await page.getByRole("button", { name: "Close reading preferences" }).click();
+  await page.reload();
+  await expect(page.locator(".book-reader")).not.toHaveClass(
+    /text-unselectable/,
+  );
+  await expect(page.locator(".reading-viewport")).not.toHaveClass(
+    /mouse-page-drag/,
+  );
+  await page.getByRole("button", { name: "Reading settings" }).click();
+  await expect(
+    page.getByRole("switch", { name: "Text selectable" }),
+  ).toBeChecked();
+  await expect(
+    page.getByRole("switch", { name: "Drag to turn pages" }),
+  ).not.toBeChecked();
+});
+
 test("guest content clears at expiry and remains unavailable offline", async ({
   page,
 }) => {

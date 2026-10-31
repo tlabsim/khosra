@@ -270,12 +270,8 @@ export default function ReaderSettings({
             )}
             {(
               [
-                ...(!guest
-                  ? [
-                      ["selectable", "Text selectable"],
-                      ["showIds", "Show paragraph IDs"],
-                    ]
-                  : []),
+                ["selectable", "Text selectable"],
+                ...(!guest ? [["showIds", "Show paragraph IDs"]] : []),
                 ["progress", "Show reading progress"],
                 ...(prefs.mode !== "continuous"
                   ? [
