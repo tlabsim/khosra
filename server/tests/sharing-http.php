@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__).'/lib.php';
+require dirname(__DIR__).'/sharing.php';
 $count=0;
 function verify(bool $v,string $label):void{global $count;if(!$v)throw new RuntimeException('FAIL: '.$label);$count++;echo 'PASS: '.$label.PHP_EOL;}
 function http(string $path,string $method='GET',?array $body=null,array $headers=[]):array{
@@ -17,8 +18,21 @@ $bad=$create;$bad['expiresAt']=time()+91*86400;$r=http('/api/shares','POST',$bad
 $bad=$create;$bad['recipient']=str_repeat('ক',101);$r=http('/api/shares','POST',$bad,$headers);verify($r['status']===422,'Unicode reader-name length enforced');
 $bad=$create;$bad['chapters']=[];$r=http('/api/shares','POST',$bad,$headers);verify($r['status']===422,'Empty chapter scope rejected');
 $r=http('/api/shares','POST',$create,$headers);verify($r['status']===201,'Owner creates fixed selected-chapter invitation');$id=$r['json']['id'];$url=$r['json']['url'];parse_str(parse_url($url,PHP_URL_FRAGMENT),$fragment);$token=$fragment['token'];verify(strlen($token)===43&&!parse_url($url,PHP_URL_QUERY),'256-bit token travels in fragment only');
-$config=require __DIR__.'/.sharing-runtime/config.php';$db=new PDO($config['dsn'],$config['db_user'],$config['db_password'],[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);$stored=$db->query('SELECT token_hash,snapshot FROM reading_grants')->fetch(PDO::FETCH_ASSOC);verify($stored['token_hash']===hash('sha256',$token)&&!str_contains(json_encode($stored),$token),'Only hashed access token stored');
+$config=require __DIR__.'/.sharing-runtime/config.php';$db=new PDO($config['dsn'],$config['db_user'],$config['db_password'],[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);$stored=$db->query('SELECT token_hash,snapshot FROM reading_grants')->fetch(PDO::FETCH_ASSOC);verify($stored['token_hash']===hash('sha256',$token)&&!str_contains(json_encode($stored),$token),'Token hash and encrypted recovery copy contain no plaintext token');
 $r=http('/api/shares?bookId='.$book['id'],'GET',null,$headers);verify(!str_contains($r['text'],$token)&&!str_contains($r['text'],'snapshot'),'Invitation list never rediscloses tokens or manuscript');
+$r=http('/api/shares/'.$id.'/link');verify($r['status']===401,'Anonymous cannot retrieve invitation link');
+$r=http('/api/shares/'.$id.'/link','GET',null,$headers);verify($r['status']===200&&$r['json']['url']===$url,'Owner retrieves original link after creation');
+verify(str_contains(strtolower(implode(' ',$r['headers'])),'no-store'),'Retrieved bearer link is never cached');
+$r=http('/api/shares/'.$id.'/replace-link','POST',[],['Cookie: '.$owner]);verify($r['status']===403,'Link replacement requires owner CSRF');
+verify(!str_contains($stored['snapshot'],$token),'Recovery ciphertext is not plaintext');
+$sealedGrant=['id'=>$id,'snapshot'=>$stored['snapshot'],'token_hash'=>$stored['token_hash']];
+verify(shareStoredToken($sealedGrant,$config)===$token,'Encrypted link round trips');
+$wrongConfig=$config;$wrongConfig['owner_password_hash']='rotated-fixture-recovery-key';verify(shareStoredToken($sealedGrant,$wrongConfig)===null,'Changed owner secret cannot decrypt previous link');
+$wrongGrant=$sealedGrant;$wrongGrant['id']=uuid();verify(shareStoredToken($wrongGrant,$config)===null,'Ciphertext is bound to invitation identity');
+$plainConfig=['owner_password'=>'fixture-portable-password'];$plainGrant=$sealedGrant;$plainGrant['snapshot']=json_encode(['_ownerLink'=>shareSealLink($token,$id,$plainConfig)]);
+verify(shareStoredToken($plainGrant,$plainConfig)===$token,'Portable owner-password configuration supports link recovery');
+$tampered=$sealedGrant;$tamperedSnapshot=json_decode($tampered['snapshot'],true);$cipher=base64_decode($tamperedSnapshot['_ownerLink']);$cipher[40]=chr(ord($cipher[40])^1);$tamperedSnapshot['_ownerLink']=base64_encode($cipher);$tampered['snapshot']=json_encode($tamperedSnapshot);
+verify(shareStoredToken($tampered,$config)===null,'Tampered recovery ciphertext is rejected');
 $malformed=http('/api/guest/session','GET',null,['Cookie: khosra_guest[]=bad']);verify($malformed['status']===401,'Malformed guest cookie rejected');
 $r=http('/api/guest/exchange','POST',['token'=>str_repeat('x',43)]);verify($r['status']===410,'Unknown reading token denied');
 $r=http('/api/guest/exchange','POST',['token'=>$token],['Origin: https://attacker.invalid']);verify($r['status']===403,'Cross-origin token exchange denied');
@@ -43,12 +57,28 @@ $r=http('/api/shares/'.$id.'/comments','GET',null,$headers);verify(count($r['jso
 $before=$db->query('SELECT payload FROM workspace')->fetchColumn();$changed=json_decode($before,true);$changed['revisions'][0]['paragraphs'][0]['text']='LATER PRIVATE EDIT';$db->prepare('UPDATE workspace SET payload=?')->execute([json_encode($changed)]);
 $r=http('/api/guest/chapter?id='.$chapter['id'],'GET',null,$gh);verify(str_contains($r['text'],'Shared text.')&&!str_contains($r['text'],'LATER PRIVATE EDIT'),'Later author edits do not alter shared snapshot');
 $db->prepare('UPDATE workspace SET payload=?')->execute([$before]);
+// Simulate an older hash-only invitation without changing its snapshot or feedback.
+$q=$db->prepare('SELECT snapshot FROM reading_grants WHERE id=?');$q->execute([$id]);$snapshot=json_decode($q->fetchColumn(),true);$q->closeCursor();unset($snapshot['_ownerLink']);
+$db->prepare('UPDATE reading_grants SET snapshot=? WHERE id=?')->execute([json_encode($snapshot),$id]);
+$r=http('/api/shares/'.$id.'/link','GET',null,$headers);verify($r['status']===200&&$r['json']['url']===null,'Legacy invitation clearly reports unavailable original link');
+$r=http('/api/shares/'.$id.'/replace-link','POST',[],$headers);verify($r['status']===200,'Owner confirms legacy link replacement');$replacement=$r['json']['url'];
+$r=http('/api/shares/'.$id.'/replace-link','POST',[],$headers);verify($r['json']['url']===$replacement,'Replacement retry does not rotate a recoverable link');
+$r=http('/api/guest/exchange','POST',['token'=>$token]);verify($r['status']===410,'Replacement invalidates previous bearer link');
+$r=http('/api/guest/session','GET',null,$gh);verify($r['status']===401,'Replacement invalidates previous guest sessions');
+parse_str(parse_url($replacement,PHP_URL_FRAGMENT),$newFragment);$token=$newFragment['token'];
+$r=http('/api/guest/exchange','POST',['token'=>$token]);verify($r['status']===200,'Replacement link opens same invitation');$guest=cookie($r);
+$gh=array_map(fn($h)=>str_starts_with($h,'Cookie: ')?'Cookie: '.$guest:$h,$gh);
+$r=http('/api/guest/chapter?id='.$chapter['id'],'GET',null,$gh);verify(str_contains($r['text'],'Shared text.')&&!str_contains($r['text'],'_ownerLink'),'Guest snapshot never exposes encrypted owner link');
+$r=http('/api/shares/'.$id.'/comments','GET',null,$headers);verify(count($r['json']['comments'])===1,'Replacement preserves existing feedback');
 $r=http('/api/shares/'.$id.'/revoke','POST',[],$headers);verify($r['status']===200,'Owner revokes invitation');
+$r=http('/api/shares/'.$id.'/link','GET',null,$headers);verify($r['status']===410,'Revoked link cannot be retrieved');
+$r=http('/api/shares/'.$id.'/replace-link','POST',[],$headers);verify($r['status']===410,'Revoked link cannot be replaced');
 foreach(['session','chapter?id='.$chapter['id'],'comments'] as $path){$r=http('/api/guest/'.$path,'GET',null,$gh);verify($r['status']===410,'Revocation enforced for '.$path);}
 $r=http('/api/guest/comments','POST',['operationId'=>uuid(),...array_diff_key($comment,['operationId'=>true])],$gh);verify($r['status']===410,'Revoked session cannot write feedback');
 $r=http('/api/guest/exchange','POST',['token'=>$token]);verify($r['status']===410,'Revoked link cannot open a new session');
 $r=http('/api/shares','POST',$create,$headers);parse_str(parse_url($r['json']['url'],PHP_URL_FRAGMENT),$fragment);$expiredId=$r['json']['id'];$r=http('/api/guest/exchange','POST',['token'=>$fragment['token']]);$expiredCookie=cookie($r);$wrong=http('/api/guest/session','GET',null,['Cookie: '.$expiredCookie,'X-Guest-Invitation: '.$id]);verify($wrong['status']===401,'Cross-tab invitation mismatch rejected');$db->prepare('UPDATE reading_grants SET expires_at=? WHERE id=?')->execute([time()-1,$expiredId]);
 $r=http('/api/guest/session','GET',null,['Cookie: '.$expiredCookie]);verify($r['status']===410,'Expiry enforced on existing sessions');
 $r=http('/api/guest/exchange','POST',['token'=>$fragment['token']]);verify($r['status']===410,'Expired link denied');
+$r=http('/api/shares/'.$expiredId.'/link','GET',null,$headers);verify($r['status']===410,'Expired link cannot be retrieved');
 verify($db->query('SELECT payload FROM workspace')->fetchColumn()===$before,'Sharing and feedback leave manuscript unchanged');
 echo "$count sharing HTTP checks passed.\n";

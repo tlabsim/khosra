@@ -3,7 +3,10 @@ import { BookOpen } from "@phosphor-icons/react/dist/csr/BookOpen";
 import { CloudSlash } from "@phosphor-icons/react/dist/csr/CloudSlash";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
-import { Copy } from "@phosphor-icons/react/dist/csr/Copy";
+import { Plus } from "@phosphor-icons/react/dist/csr/Plus";
+import { ChatCircleText } from "@phosphor-icons/react/dist/csr/ChatCircleText";
+import { Prohibit } from "@phosphor-icons/react/dist/csr/Prohibit";
+import InvitationLink from "./InvitationLink";
 import { LinkSimple } from "@phosphor-icons/react/dist/csr/LinkSimple";
 import type { Book, Chapter } from "../domain/model";
 import { request, login, ServerRequestError } from "../sync/client";
@@ -36,16 +39,14 @@ export default function Share({
       "checking" | "signin" | "unavailable" | "ready"
     >("checking"),
     [notConfigured, setNotConfigured] = useState(false),
-    [formOpen, setFormOpen] = useState(true),
+    [formOpen, setFormOpen] = useState(false),
     [password, setPassword] = useState(""),
     [recipient, setRecipient] = useState(""),
     [days, setDays] = useState(7),
     [selected, setSelected] = useState(chapters.map((c) => c.id)),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [link, setLink] = useState(""),
-    [linkId, setLinkId] = useState(""),
-    [copied, setCopied] = useState(false),
+    [createdLinks, setCreatedLinks] = useState<Record<string, string>>({}),
     [revokeId, setRevokeId] = useState(""),
     [feedbackId, setFeedbackId] = useState(""),
     [comments, setComments] = useState<ReaderComment[]>([]);
@@ -127,11 +128,8 @@ export default function Share({
           <div>
             <strong>{book.title}</strong>
             <span>
-              {selected.length === chapters.length
-                ? "Entire manuscript"
-                : "Selected chapters"}{" "}
-              · {selected.length}{" "}
-              {selected.length === 1 ? "chapter" : "chapters"}
+              {chapters.length} {chapters.length === 1 ? "chapter" : "chapters"}{" "}
+              · Private reader access
             </span>
           </div>
         </div>
@@ -225,8 +223,25 @@ export default function Share({
         </form>
       ) : (
         <>
-          {formOpen ? (
+          <div className="sharing-section-heading">
+            <div>
+              <h3>Reader invitations</h3>
+              <p>
+                Each invitation has its own private link and access settings.
+              </p>
+            </div>
+            {invitations.length > 0 && !formOpen && (
+              <button
+                className="button primary compact"
+                onClick={() => setFormOpen(true)}
+              >
+                <Plus size={18} /> Invite reader
+              </button>
+            )}
+          </div>
+          {(formOpen || invitations.length === 0) && (
             <form
+              className="sharing-create-form"
               onSubmit={(e) => {
                 e.preventDefault();
                 void run(async () => {
@@ -244,15 +259,16 @@ export default function Share({
                         headId: c.headId,
                       })),
                   });
-                  setLink(z.string().url().parse(result.url));
-                  setLinkId(z.string().uuid().parse(result.id));
-                  setCopied(false);
+                  const id = z.string().uuid().parse(result.id);
+                  const url = z.string().url().parse(result.url);
+                  setCreatedLinks((links) => ({ ...links, [id]: url }));
                   setRecipient("");
                   setFormOpen(false);
                   await refresh();
                 });
               }}
             >
+              <h4>Invite a reader</h4>
               <div className="sharing-fields">
                 <label>
                   Reader name
@@ -315,53 +331,32 @@ export default function Share({
               <p className="caption">
                 Shares fixed, uploaded revisions. Later edits stay private.
               </p>
-              <button
-                className="button primary"
-                disabled={busy || !selected.length}
-              >
-                <LinkSimple size={18} />
-                Create reading link
-              </button>
+              <div className="sharing-create-actions">
+                <button
+                  className="button primary"
+                  disabled={busy || !selected.length}
+                >
+                  <LinkSimple size={18} /> Create reading link
+                </button>
+                {invitations.length > 0 && (
+                  <button
+                    type="button"
+                    className="button quiet"
+                    disabled={busy}
+                    onClick={() => setFormOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                )}
+              </div>
             </form>
-          ) : (
-            <button className="button" onClick={() => setFormOpen(true)}>
-              New invitation
-            </button>
-          )}
-          {link && (
-            <div className="sharing-link" role="status">
-              <label>
-                Copy this link now
-                <input
-                  readOnly
-                  value={link}
-                  aria-label="Reading link"
-                  onFocus={(e) => e.currentTarget.select()}
-                />
-              </label>
-              <button
-                className="button"
-                onClick={() => {
-                  void navigator.clipboard
-                    .writeText(link)
-                    .then(() => setCopied(true))
-                    .catch(() =>
-                      setError("Select the link and copy it manually."),
-                    );
-                }}
-              >
-                <Copy size={17} />
-                {copied ? "Copied" : "Copy link"}
-              </button>
-              <small>
-                Anyone with this link can read the selected chapters until it
-                expires or you revoke it. The code is shown only once.
-              </small>
-            </div>
           )}
           {invitations.length > 0 && (
             <section className="sharing-invitations">
-              <h3>Invitations</h3>
+              <p className="sharing-list-count">
+                {invitations.length}{" "}
+                {invitations.length === 1 ? "invitation" : "invitations"}
+              </p>
               <PaginatedList
                 items={invitations}
                 label="Invitation"
@@ -375,75 +370,103 @@ export default function Share({
                   const ended =
                     i.revokedAt !== null || i.expiresAt * 1000 <= Date.now();
                   return (
-                    <article key={i.id}>
-                      <div>
-                        <strong>{i.recipient}</strong>
-                        <small>
-                          {i.chapterCount}{" "}
-                          {i.chapterCount === 1 ? "chapter" : "chapters"} ·{" "}
+                    <article
+                      key={i.id}
+                      className="invitation-card"
+                      aria-label={`Invitation for ${i.recipient}`}
+                    >
+                      <header className="invitation-card-header">
+                        <span className="invitation-avatar" aria-hidden="true">
+                          {Array.from(
+                            i.recipient.trim(),
+                          )[0]?.toLocaleUpperCase()}
+                        </span>
+                        <div className="invitation-recipient">
+                          <strong>{i.recipient}</strong>
+                          <small>
+                            {i.chapterCount}{" "}
+                            {i.chapterCount === 1 ? "chapter" : "chapters"} ·{" "}
+                            {i.revokedAt
+                              ? "Access ended"
+                              : `${ended ? "Expired" : "Expires"} ${new Date(i.expiresAt * 1000).toLocaleDateString()}`}
+                          </small>
+                        </div>
+                        <span
+                          className={`invitation-status ${ended ? "is-ended" : "is-active"}`}
+                        >
                           {i.revokedAt
                             ? "Revoked"
-                            : i.expiresAt * 1000 <= Date.now()
+                            : ended
                               ? "Expired"
-                              : `Until ${new Date(i.expiresAt * 1000).toLocaleDateString()}`}
-                        </small>
-                      </div>
-                      <div className="sharing-invitation-actions">
-                        <button
-                          className="button quiet compact"
-                          disabled={busy}
-                          onClick={() => {
-                            if (feedbackId === i.id) {
-                              setFeedbackId("");
-                              return;
-                            }
-                            void run(async () => {
-                              const data = await request(
-                                `shares/${i.id}/comments`,
-                              );
-                              setComments(
-                                z.array(commentSchema).parse(data.comments),
-                              );
-                              setFeedbackId(i.id);
-                            });
-                          }}
-                        >
-                          Feedback
-                        </button>
-                        {!ended &&
-                          (revokeId === i.id ? (
-                            <>
-                              <button
-                                className="button quiet compact paragraph-delete"
-                                disabled={busy}
-                                onClick={() => {
-                                  void run(async () => {
-                                    await request(`shares/${i.id}/revoke`, {});
-                                    setRevokeId("");
-                                    if (linkId === i.id) setLink("");
-                                    await refresh();
-                                  });
-                                }}
-                              >
-                                Confirm revoke
-                              </button>
+                              : "Active"}
+                        </span>
+                      </header>
+                      <InvitationLink
+                        invitation={i}
+                        initialUrl={createdLinks[i.id]}
+                        onSignIn={() => setConnection("signin")}
+                      />
+                      <footer className="invitation-card-footer">
+                        <div className="sharing-invitation-actions">
+                          <button
+                            className="button quiet compact"
+                            disabled={busy}
+                            onClick={() => {
+                              if (feedbackId === i.id) {
+                                setFeedbackId("");
+                                return;
+                              }
+                              void run(async () => {
+                                const data = await request(
+                                  `shares/${i.id}/comments`,
+                                );
+                                setComments(
+                                  z.array(commentSchema).parse(data.comments),
+                                );
+                                setFeedbackId(i.id);
+                              });
+                            }}
+                          >
+                            <ChatCircleText size={17} />{" "}
+                            {feedbackId === i.id ? "Hide feedback" : "Feedback"}
+                          </button>
+                          {!ended &&
+                            (revokeId === i.id ? (
+                              <>
+                                <button
+                                  className="button quiet compact paragraph-delete"
+                                  disabled={busy}
+                                  onClick={() => {
+                                    void run(async () => {
+                                      await request(
+                                        `shares/${i.id}/revoke`,
+                                        {},
+                                      );
+                                      setRevokeId("");
+                                      await refresh();
+                                    });
+                                  }}
+                                >
+                                  Confirm revoke
+                                </button>
+                                <button
+                                  className="button quiet compact"
+                                  onClick={() => setRevokeId("")}
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
                               <button
                                 className="button quiet compact"
-                                onClick={() => setRevokeId("")}
+                                disabled={busy}
+                                onClick={() => setRevokeId(i.id)}
                               >
-                                Cancel
+                                <Prohibit size={17} /> Revoke
                               </button>
-                            </>
-                          ) : (
-                            <button
-                              className="button quiet compact"
-                              disabled={busy}
-                              onClick={() => setRevokeId(i.id)}
-                            >
-                              Revoke
-                            </button>
-                          ))}
-                      </div>
+                            ))}
+                        </div>
+                      </footer>
                       {feedbackId === i.id && (
                         <Comments key={i.id} comments={comments} />
                       )}
@@ -451,6 +474,10 @@ export default function Share({
                   );
                 }}
               />
+              <p className="sharing-access-note">
+                Anyone with a link can use that invitation until it expires or
+                you revoke it.
+              </p>
             </section>
           )}
         </>

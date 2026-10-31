@@ -32,7 +32,7 @@ Khosra is currently a **single-owner application**. Guest readers can read and c
 | Plan | Manuscript-wide Ideas with Idea/Planned/Used/Discarded status, optional chapter links, and immutable note versions |
 | Reference | Private Artifacts: images, maps, PDFs, links and source notes, with version history and archive/restore |
 | Recover | Immutable revision snapshots, deleted/cleared paragraph restoration, historical reading and full-history archives |
-| Read | Continuous, single-page and two-page layouts; physical page proportions; 8–16pt type with a 14pt default; paper, margins, gestures, progress and fullscreen preferences |
+| Read | Continuous, single-page and two-page layouts; physical page proportions with an A5 default; 8–16pt type (author default 14pt, guest default 12pt); paper, margins, gestures, progress and fullscreen preferences |
 | Collaborate | Authenticated MCP source/history retrieval, revision-linked proposals and evidence-linked chapter context |
 | Share | Expiring, revocable guest reading links for a whole manuscript or selected chapters, with passage/chapter feedback |
 | Export | Selected manuscript as Markdown text, or the entire local workspace and history as a validated archive |
@@ -152,7 +152,7 @@ The simplest installation uses **SQLite**. No database account, SQL import or se
 4. Open Khosra and sign in. The first correct owner sign-in initializes the SQLite tables.
 5. Bring an existing device draft online when prompted, or create a manuscript. Changes save automatically; then connect the chat client through OAuth.
 
-Requirements: PHP 8.2+ with **PDO SQLite**, HTTPS and Apache/LiteSpeed support for `.htaccess` and rewrites. The server automatically creates a private data directory outside the website folder. If hosting permissions prevent that, set `data_dir` in the same config to an existing writable directory outside **all** public website roots. There are no API paths to edit.
+Requirements: PHP 8.2+ with **PDO SQLite and OpenSSL**, HTTPS and Apache/LiteSpeed support for `.htaccess` and rewrites. The server automatically creates a private data directory outside the website folder. If hosting permissions prevent that, set `data_dir` in the same config to an existing writable directory outside **all** public website roots. There are no API paths to edit.
 
 Updates: back up first, then extract a newer upload-extract ZIP over the same installation. Release archives never contain your real `khosra.config.php` or SQLite data. Keep the same data location. Verify that HTTP requests to `/khosra.config.php` and `/khosra-server/lib.php` are denied, and check the MCP/OAuth routes before connecting a model.
 
@@ -170,7 +170,7 @@ Build locally and upload through your hosting provider's FTPS/SFTP tools. Produc
 
 You need:
 
-- HTTPS and PHP **8.2+**, with PDO MySQL enabled.
+- HTTPS and PHP **8.2+**, with PDO MySQL and OpenSSL enabled.
 - MySQL/MariaDB with InnoDB.
 - Apache/LiteSpeed-compatible rewrite, header and access-denial support.
 - A private directory outside **all** public document roots.

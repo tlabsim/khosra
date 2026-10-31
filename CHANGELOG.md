@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Prefer A5 for author and guest page formats while retaining saved format choices. Contain animated paper painting within its frame so page-turn overlays cannot expand document/fullscreen scroll extents or flash a scrollbar.
+
+- Reorganize Share around individual reader cards: each active invitation displays its own private link, copy feedback, expiry/status and separate feedback/revoke footer. Load links as cards become visible, keep legacy replacement within its card, collapse creation behind Invite reader when invitations exist, and keep the modal heading/manuscript visible while its contents scroll.
+
+- Add owner-only View link and Copy link actions for active reading invitations. Encrypt recoverable invitation codes bound to their grant, keep URLs out of lists/guest payloads, and add confirmed replacement for older unrecoverable links while preserving snapshots/feedback. Replacement invalidates old links/sessions and retries reuse the same code; no database schema change.
+
+- Default guest reading to sepia paper, grain texture and 12pt text; use two-page mode from 760px and continuous mode on smaller screens. Preserve saved guest choices and existing author defaults.
+
 - Add differential owner sync in both directions: changed record fields, source-relative paragraph deltas for revision/proposal/review snapshots, ordered hash manifests and unchanged cursors. Apply writes atomically with exact version/fingerprint, durable retries and unchanged history/cleanup/deletion guards. Maintain a checksummed CAS-protected local sync cache, preserve legacy pending requests and retain full endpoint compatibility without a SQL migration. Compress only actual request payloads strictly above 20 MiB.
 
 - Fix large workspace sync beyond the former 20 MiB request cap. Owner saves support 64 MiB decoded JSON and negotiated native gzip uploads; keep other API routes at 20 MiB, authenticate before bounded gzip expansion, and preserve operation identity across plain/compressed retries. Retain local drafts/pending saves on failure and show upload-size errors. No history is pruned or schema changed.

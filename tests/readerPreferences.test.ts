@@ -1,5 +1,8 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { readPreferences } from "../src/reader/preferences";
+import {
+  readGuestPreferences,
+  readPreferences,
+} from "../src/reader/preferences";
 function stored(value: unknown) {
   vi.stubGlobal("localStorage", { getItem: () => JSON.stringify(value) });
   return readPreferences();
@@ -19,7 +22,7 @@ it("clamps previously supported larger text sizes to 16pt", () => {
 it("ignores legacy line counts and validates paper format and margins", () => {
   expect(stored({ lines: 14, size: 14 })).toMatchObject({
     size: 14,
-    format: "paperback",
+    format: "a5",
     margins: "normal",
   });
   expect(stored({ format: "digest", margins: "relaxed" })).toMatchObject({
@@ -27,9 +30,23 @@ it("ignores legacy line counts and validates paper format and margins", () => {
     margins: "relaxed",
   });
   expect(stored({ format: "__proto__", margins: "invalid" })).toMatchObject({
-    format: "paperback",
+    format: "a5",
     margins: "normal",
   });
+});
+
+it("defaults author and guest paper to A5 while retaining explicit format choices", () => {
+  vi.stubGlobal("localStorage", { getItem: () => null });
+  expect(readPreferences().format).toBe("a5");
+  expect(readGuestPreferences(390).format).toBe("a5");
+  expect(readGuestPreferences(1440).format).toBe("a5");
+  for (const format of ["paperback", "digest", "a5"]) {
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify({ format }),
+    });
+    expect(readPreferences().format).toBe(format);
+    expect(readGuestPreferences(1440).format).toBe(format);
+  }
 });
 
 it("remembers independent fullscreen zoom and defaults to fitting the full page", () => {
@@ -37,4 +54,62 @@ it("remembers independent fullscreen zoom and defaults to fitting the full page"
   for (const fullscreenZoom of ["page", "width", "75", "100", "125", "150"])
     expect(stored({ fullscreenZoom }).fullscreenZoom).toBe(fullscreenZoom);
   expect(stored({ fullscreenZoom: "bad" }).fullscreenZoom).toBe("page");
+});
+
+it("uses responsive guest defaults without changing author preferences", () => {
+  vi.stubGlobal("localStorage", { getItem: () => null });
+  for (const width of [360, 759, 760, 1440]) {
+    expect(readGuestPreferences(width)).toMatchObject({
+      mode: width >= 760 ? "spread" : "continuous",
+      paper: "sepia",
+      texture: "grain",
+      size: 12,
+    });
+  }
+  expect(readPreferences()).toMatchObject({
+    mode: "pages",
+    paper: "ivory",
+    texture: "smooth",
+    size: 14,
+  });
+});
+
+it("retains saved guest choices and fills missing or invalid fields with guest defaults", () => {
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) =>
+      key === "khosra-guest-reader"
+        ? JSON.stringify({
+            mode: "pages",
+            paper: "white",
+            texture: "linen",
+            size: 16,
+          })
+        : null,
+  });
+  expect(readGuestPreferences(390)).toMatchObject({
+    mode: "pages",
+    paper: "white",
+    texture: "linen",
+    size: 16,
+  });
+  vi.stubGlobal("localStorage", {
+    getItem: () => JSON.stringify({ paper: "white", size: 99 }),
+  });
+  expect(readGuestPreferences(1440)).toMatchObject({
+    mode: "spread",
+    paper: "white",
+    texture: "grain",
+    size: 12,
+  });
+  vi.stubGlobal("localStorage", {
+    getItem: () => {
+      throw new Error("Storage unavailable");
+    },
+  });
+  expect(readGuestPreferences(390)).toMatchObject({
+    mode: "continuous",
+    paper: "sepia",
+    texture: "grain",
+    size: 12,
+  });
 });

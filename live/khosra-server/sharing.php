@@ -5,6 +5,25 @@ if(!defined('KHOSRA_DEPLOYMENT')){http_response_code(404);exit;}
 // Reading grants are separate from workspace history and never grant owner/MCP access.
 function shareReference(mixed $value):string{if(!idvalid($value))fail(422,'Invalid reading reference.');return $value;}
 function shareToken():string{return rtrim(strtr(base64_encode(random_bytes(32)),'+/','-_'),'=');}
+// Keep recoverable codes encrypted outside workspace exports; bind ciphertext to its grant.
+function shareLinkKey(array $config):string{
+ $secret=!empty($config['owner_password_hash'])?$config['owner_password_hash']:($config['owner_password']??'');
+ if(!is_string($secret)||strlen($secret)<16)fail(503,'Configure the owner password before creating reading links.');
+ return hash('sha256','khosra-reading-link-v1:'.$secret,true);
+}
+function shareSealLink(string $token,string $id,array $config):string{
+ $nonce=random_bytes(12);$tag='';$key=shareLinkKey($config);
+ $cipher=openssl_encrypt($token,'aes-256-gcm',$key,OPENSSL_RAW_DATA,$nonce,$tag,$id);
+ if($cipher===false)throw new RuntimeException('Unable to protect reading link.');
+ return base64_encode($nonce.$tag.$cipher);
+}
+function shareStoredToken(array $grant,array $config):?string{
+ $snapshot=json_decode($grant['snapshot'],true,128,JSON_THROW_ON_ERROR);$sealed=$snapshot['_ownerLink']??null;
+ if(!is_string($sealed))return null;$raw=base64_decode($sealed,true);if($raw===false||strlen($raw)!==71)return null;
+ $key=shareLinkKey($config);
+ $token=openssl_decrypt(substr($raw,28),'aes-256-gcm',$key,OPENSSL_RAW_DATA,substr($raw,0,12),substr($raw,12,16),$grant['id']);
+ return is_string($token)&&preg_match('/^[A-Za-z0-9_-]{43}$/D',$token)&&hash_equals($grant['token_hash'],hash('sha256',$token))?$token:null;
+}
 function sharePreview(string $text):string{preg_match('/^.{0,240}/us',$text,$m);return $m[0]??'';}
 function shareSnapshot(array $s,array $body):array{
  $book=record($s['books'],shareReference($body['bookId']??null));
@@ -28,8 +47,27 @@ function shareOwner(PDO $db,array $config,string $path,string $method,array $bod
  if($path==='shares'&&$method==='POST'){
   $name=trim(is_string($body['recipient']??null)?$body['recipient']:'');if($name===''||strlen($name)>400||preg_match_all('/./us',$name)>100)fail(422,'Enter a reader name of up to 100 characters.');
   $expires=$body['expiresAt']??null;if(!is_int($expires)||$expires<=time()+60||$expires>time()+90*86400)fail(422,'Choose an expiry between a minute and 90 days from now.');
-  beginWrite($db);try{$workspace=loadWorkspace($db);$snapshot=shareSnapshot($workspace['state'],$body);$token=shareToken();$id=uuid();$q=$db->prepare('INSERT INTO reading_grants(id,token_hash,recipient,book_id,book_title,chapter_count,snapshot,created_at,expires_at,revoked_at) VALUES(?,?,?,?,?,?,?,?,?,NULL)');$q->execute([$id,hash('sha256',$token),$name,$body['bookId'],$snapshot['title'],count($snapshot['chapters']),json_encode($snapshot,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),time(),$expires]);$db->commit();}catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
+  beginWrite($db);try{$workspace=loadWorkspace($db);$snapshot=shareSnapshot($workspace['state'],$body);$token=shareToken();$id=uuid();$snapshot['_ownerLink']=shareSealLink($token,$id,$config);$q=$db->prepare('INSERT INTO reading_grants(id,token_hash,recipient,book_id,book_title,chapter_count,snapshot,created_at,expires_at,revoked_at) VALUES(?,?,?,?,?,?,?,?,?,NULL)');$q->execute([$id,hash('sha256',$token),$name,$body['bookId'],$snapshot['title'],count($snapshot['chapters']),json_encode($snapshot,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),time(),$expires]);$db->commit();}catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
   respond(['id'=>$id,'url'=>$config['origin'].'/guest#token='.$token],201);
+ }
+ if(preg_match('#^shares/([0-9a-f-]{36})/(link|replace-link)$#',$path,$m)){
+  if($m[2]==='link'&&$method==='GET'){
+   $grant=shareActive($db,$m[1]);$token=shareStoredToken($grant,$config);
+   respond(['url'=>$token===null?null:$config['origin'].'/guest#token='.$token]);
+  }
+  if($m[2]==='replace-link'&&$method==='POST'){
+   beginWrite($db);try{
+    $grant=shareActive($db,$m[1],true);$token=shareStoredToken($grant,$config);
+    // Retries return the same replacement instead of invalidating it again.
+    if($token===null){
+     $token=shareToken();$snapshot=json_decode($grant['snapshot'],true,128,JSON_THROW_ON_ERROR);$snapshot['_ownerLink']=shareSealLink($token,$m[1],$config);
+     $db->prepare('UPDATE reading_grants SET token_hash=?,snapshot=? WHERE id=?')->execute([hash('sha256',$token),json_encode($snapshot,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),$m[1]]);
+     $db->prepare('DELETE FROM reading_sessions WHERE grant_id=?')->execute([$m[1]]);
+    }
+    $db->commit();
+   }catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
+   respond(['url'=>$config['origin'].'/guest#token='.$token]);
+  }
  }
  if(preg_match('#^shares/([0-9a-f-]{36})/(revoke|comments)$#',$path,$m)){
   $q=$db->prepare('SELECT id FROM reading_grants WHERE id=?');$q->execute([$m[1]]);if(!$q->fetch())fail(404,'Invitation not found.');
@@ -43,11 +81,16 @@ function guestRoute(PDO $db,array $config,string $path,string $method,array $bod
  $cookieName='khosra_guest';
  if($path==='guest/exchange'&&$method==='POST'){
   $token=$body['token']??null;if(!is_string($token)||!preg_match('/^[A-Za-z0-9_-]{43}$/D',$token))fail(410,'This reading invitation is unavailable or has expired.');
-  $q=$db->prepare('SELECT id FROM reading_grants WHERE token_hash=?');$q->execute([hash('sha256',$token)]);$id=$q->fetchColumn();if(!$id)fail(410,'This reading invitation is unavailable or has expired.');$grant=shareActive($db,$id);
-  $session=shareToken();$expires=min((int)$grant['expires_at'],time()+30*86400);
-  // Opportunistic expiry cleanup needs no cron on shared hosting.
-  $db->prepare('DELETE FROM reading_sessions WHERE expires_at<=?')->execute([time()]);
-  $q=$db->prepare('INSERT INTO reading_sessions(session_hash,grant_id,expires_at) VALUES(?,?,?)');$q->execute([hash('sha256',$session),$id,$expires]);
+  // Serialize exchange with replacement so an old code cannot create a session after invalidation.
+  beginWrite($db);try{
+   $q=$db->prepare('SELECT id FROM reading_grants WHERE token_hash=?');$q->execute([hash('sha256',$token)]);$id=$q->fetchColumn();$q->closeCursor();if(!$id)fail(410,'This reading invitation is unavailable or has expired.');$grant=shareActive($db,$id,true);
+   if(!hash_equals($grant['token_hash'],hash('sha256',$token)))fail(410,'This reading invitation is unavailable or has expired.');
+   $session=shareToken();$expires=min((int)$grant['expires_at'],time()+30*86400);
+   // Opportunistic expiry cleanup needs no cron on shared hosting.
+   $db->prepare('DELETE FROM reading_sessions WHERE expires_at<=?')->execute([time()]);
+   $q=$db->prepare('INSERT INTO reading_sessions(session_hash,grant_id,expires_at) VALUES(?,?,?)');$q->execute([hash('sha256',$session),$id,$expires]);
+   $db->commit();
+  }catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
   setcookie($cookieName,$session,['expires'=>$expires,'path'=>'/api/guest','httponly'=>true,'secure'=>parse_url($config['origin'],PHP_URL_SCHEME)==='https','samesite'=>'Strict']);
   respond(['ok'=>true,'invitationId'=>$id]);
  }

@@ -6,7 +6,7 @@ KHOSRA PORTABLE INSTALL
 4. Open Khosra and sign in. SQLite tables are created on the first correct owner sign-in. No SQL import or database account needed.
 5. Bring an existing device draft online when prompted, or create a manuscript. Changes save automatically. Connect your chat client through OAuth.
 
-Requires PHP 8.2+, PDO SQLite, HTTPS and Apache/LiteSpeed .htaccess/rewrite support. Backend/config HTTP requests must be denied. SQLite data is automatically placed outside the website directory; if hosting disallows that location, set data_dir to an existing writable directory outside ALL public roots. Config is a server secret. Future ZIPs never contain khosra.config.php or the database.
+Requires PHP 8.2+, PDO SQLite, OpenSSL, HTTPS and Apache/LiteSpeed .htaccess/rewrite support. Backend/config HTTP requests must be denied. SQLite data is automatically placed outside the website directory; if hosting disallows that location, set data_dir to an existing writable directory outside ALL public roots. Config is a server secret. Future ZIPs never contain khosra.config.php or the database.
 
 Existing MySQL: retain your prior private configuration credentials in khosra.config.php; do not switch an existing database silently. A workspace archive/upload moves manuscript/history, but not reading links, reader feedback or OAuth credentials. Back up those separately.
 

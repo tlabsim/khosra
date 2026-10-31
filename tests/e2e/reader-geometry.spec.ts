@@ -7,7 +7,7 @@ test("paper formats and margins reflow text within fixed trim proportions", asyn
       !localStorage.getItem("khosra-reader") &&
       localStorage.setItem(
         "khosra-reader",
-        JSON.stringify({ lines: 14, size: 11 }),
+        JSON.stringify({ lines: 14, size: 11, format: "paperback" }),
       ),
   );
   await page.goto("/");

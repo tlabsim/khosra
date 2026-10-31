@@ -14,7 +14,11 @@ import { lockScroll } from "../scrollLock";
 import ReaderSettings from "./ReaderSettings";
 import ReadingProgress from "./ReadingProgress";
 import { useMousePageTurn } from "./useMousePageTurn";
-import { readPreferences, type Preferences } from "./preferences";
+import {
+  readGuestPreferences,
+  readPreferences,
+  type Preferences,
+} from "./preferences";
 import type { Paragraph } from "../domain/model";
 import "./reader.css";
 import { pageGeometry, marginFactors, pageFormats } from "./pageGeometry";
@@ -44,7 +48,9 @@ export default function Reader({
   next?: () => void;
 }) {
   const [prefs, setPrefs] = useState(() => {
-    const p = readPreferences(guest ? "khosra-guest-reader" : "khosra-reader");
+    const p = guest
+      ? readGuestPreferences(window.innerWidth)
+      : readPreferences();
     return guest ? { ...p, showIds: false, selectable: true } : p;
   });
   const [width, setWidth] = useState(0);

@@ -85,6 +85,13 @@ test("guest reader stays separate, accepts anchored feedback and clears revoked 
   await page.goto("/guest#token=" + token);
   await expect(page.locator(".book-reader")).toBeVisible();
   await expect(page).toHaveURL(/\/guest$/);
+  await expect(page.locator(".book-reader")).toHaveClass(
+    /paper-sepia texture-grain/,
+  );
+  await expect(
+    page.getByRole("combobox", { name: "Reading layout" }),
+  ).toHaveValue(info.project.name === "desktop" ? "spread" : "continuous");
+  await expect(page.locator(".reading-sheet")).toHaveCSS("font-size", "16px");
   await expect(page.locator(".reading-text")).toContainText(
     chapter.paragraphs[0].text,
   );
@@ -160,8 +167,11 @@ test("guest content clears at expiry and remains unavailable offline", async ({
 test("share dialog creates, copies, reviews and revokes a named invitation", async ({
   page,
 }, info) => {
+  test.setTimeout(120_000);
   let connected = false;
   let created: Record<string, unknown> | null = null;
+  let recoverable = true;
+  let replacements = 0;
   const invitations: Record<string, unknown>[] = [];
   await page.route("**/api/**", async (route) => {
     const req = route.request(),
@@ -195,6 +205,22 @@ test("share dialog creates, copies, reviews and revokes a named invitation", asy
           id: invitationId,
           url: "http://127.0.0.1:5173/guest#token=" + token,
         },
+      });
+    } else if (url.pathname.endsWith("/link")) {
+      await route.fulfill({
+        json: {
+          url: recoverable
+            ? "http://127.0.0.1:5173/guest#token=" + token
+            : null,
+        },
+      });
+    } else if (url.pathname.endsWith("/replace-link")) {
+      expect(req.method()).toBe("POST");
+      expect(req.headers()["x-csrf-token"]).toBe("owner-csrf");
+      replacements++;
+      recoverable = true;
+      await route.fulfill({
+        json: { url: "http://127.0.0.1:5173/guest#token=" + token },
       });
     } else if (url.pathname.endsWith("/comments"))
       await route.fulfill({
@@ -254,15 +280,64 @@ test("share dialog creates, copies, reviews and revokes a named invitation", asy
   await page.getByLabel("Reader name").fill("Amina");
   await page.getByLabel("Expires in").selectOption("14");
   await page.getByRole("button", { name: "Create reading link" }).click();
-  await expect(page.getByLabel("Reading link", { exact: true })).toHaveValue(
+  const amina = dialog.getByRole("article", {
+    name: "Invitation for Amina",
+    exact: true,
+  });
+  await expect(
+    amina.getByLabel("Reading link for Amina", { exact: true }),
+  ).toHaveValue("http://127.0.0.1:5173/guest#token=" + token);
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await amina
+    .getByRole("button", { name: "Copy link for Amina", exact: true })
+    .click();
+  await expect(
+    amina.getByRole("button", { name: "Copy link for Amina", exact: true }),
+  ).toHaveText("Copied");
+  expect(created!.recipient).toBe("Amina");
+  async function reopen() {
+    await page.getByRole("button", { name: "Close sharing dialog" }).click();
+    if (info.project.name === "desktop") {
+      await page
+        .getByRole("button", { name: "Share manuscript", exact: true })
+        .click();
+    } else {
+      await page
+        .getByRole("button", { name: "Chapter actions", exact: true })
+        .click();
+      await page.getByRole("button", { name: "Share for reading" }).click();
+    }
+  }
+  await reopen();
+  await expect(
+    dialog.getByRole("button", { name: "Create reading link" }),
+  ).toHaveCount(0);
+  await expect(amina.getByLabel("Reading link for Amina")).toHaveValue(
     "http://127.0.0.1:5173/guest#token=" + token,
   );
-  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
-  await page.getByRole("button", { name: "Copy link", exact: true }).click();
+  await amina.getByRole("button", { name: "Copy link for Amina" }).click();
   await expect(
-    page.getByRole("button", { name: "Copied", exact: true }),
-  ).toBeVisible();
-  expect(created!.recipient).toBe("Amina");
+    amina.getByRole("button", { name: "Copy link for Amina" }),
+  ).toHaveText("Copied");
+  recoverable = false;
+  await reopen();
+  await amina
+    .getByRole("button", { name: "Replace link", exact: true })
+    .click();
+  await expect(amina).toContainText("This older link cannot be recovered.");
+  expect(replacements).toBe(0);
+  await amina.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect(replacements).toBe(0);
+  await amina
+    .getByRole("button", { name: "Replace link", exact: true })
+    .click();
+  await amina
+    .getByRole("button", { name: "Confirm replace link", exact: true })
+    .click();
+  expect(replacements).toBe(1);
+  await expect(amina.getByLabel("Reading link for Amina")).toHaveValue(
+    "http://127.0.0.1:5173/guest#token=" + token,
+  );
   await page.getByRole("button", { name: "Feedback", exact: true }).click();
   await expect(dialog).toContainText("Thoughtful feedback.");
   await page.screenshot({
@@ -271,6 +346,11 @@ test("share dialog creates, copies, reviews and revokes a named invitation", asy
   await page.getByRole("button", { name: "Revoke", exact: true }).click();
   await page.getByRole("button", { name: "Confirm revoke" }).click();
   await expect(dialog).toContainText("Revoked");
+
+  await expect(
+    dialog.getByRole("button", { name: "Copy link for Amina" }),
+  ).toHaveCount(0);
+  await expect(amina.getByLabel("Reading link for Amina")).toHaveCount(0);
   await page.getByRole("button", { name: "Close sharing dialog" }).click();
   await expect(
     page.getByRole("heading", { name: "This chapter is empty" }),
@@ -282,6 +362,137 @@ test("share dialog creates, copies, reviews and revokes a named invitation", asy
   await expect(
     page.getByRole("button", { name: "Upload local workspace" }),
   ).toBeEnabled();
+});
+
+test("each reader card owns its link, copy state and access actions", async ({
+  page,
+}, info) => {
+  test.setTimeout(120_000);
+  const otherId = "77777777-7777-4777-8777-777777777777";
+  const revokedId = "88888888-8888-4888-8888-888888888888";
+  const expiredId = "99999999-9999-4999-8999-999999999999";
+  const now = Math.floor(Date.now() / 1000);
+  const readers = [
+    {
+      id: invitationId,
+      recipient: "Amina",
+      revokedAt: null,
+      expiresAt: now + 86400,
+    },
+    {
+      id: otherId,
+      recipient: "Bashir",
+      revokedAt: null,
+      expiresAt: now + 172800,
+    },
+    {
+      id: revokedId,
+      recipient: "Former reader",
+      revokedAt: now - 60,
+      expiresAt: now + 86400,
+    },
+    {
+      id: expiredId,
+      recipient: "Expired reader",
+      revokedAt: null,
+      expiresAt: now - 60,
+    },
+  ].map((item) => ({
+    ...item,
+    bookId: "11111111-1111-4111-8111-111111111111",
+    title: "Shared book",
+    chapterCount: 1,
+    createdAt: now,
+  }));
+  const requests: string[] = [];
+  await page.route("**/api/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/session")
+      await route.fulfill({ json: { csrf: "owner-csrf" } });
+    else if (path === "/api/shares")
+      await route.fulfill({ json: { invitations: readers } });
+    else if (path.endsWith("/link")) {
+      const id = path.split("/")[3];
+      requests.push(id);
+      expect([invitationId, otherId]).toContain(id);
+      await route.fulfill({
+        json: {
+          url:
+            "http://127.0.0.1:5173/guest#token=" +
+            (id === invitationId ? "a" : "b").repeat(43),
+        },
+      });
+    } else throw new Error("Unexpected sharing endpoint: " + path);
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Begin a manuscript" }).click();
+  await page.getByLabel("Working title").fill("A manuscript for friends");
+  await page.getByRole("button", { name: "Create manuscript" }).click();
+  await page
+    .getByRole("button", { name: "Chapter actions", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Share for reading" }).click();
+  const dialog = page.getByRole("dialog", { name: "Share for reading" });
+  const amina = dialog.getByRole("article", {
+    name: "Invitation for Amina",
+    exact: true,
+  });
+  const bashir = dialog.getByRole("article", {
+    name: "Invitation for Bashir",
+    exact: true,
+  });
+  await expect(amina.getByLabel("Reading link for Amina")).toHaveValue(
+    "http://127.0.0.1:5173/guest#token=" + "a".repeat(43),
+  );
+  await bashir.scrollIntoViewIfNeeded();
+  await expect(bashir.getByLabel("Reading link for Bashir")).toHaveValue(
+    "http://127.0.0.1:5173/guest#token=" + "b".repeat(43),
+  );
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await amina.getByRole("button", { name: "Copy link for Amina" }).click();
+  await expect(
+    amina.getByRole("button", { name: "Copy link for Amina" }),
+  ).toHaveText("Copied");
+  await expect(
+    bashir.getByRole("button", { name: "Copy link for Bashir" }),
+  ).toHaveText("Copy link");
+  await bashir.getByRole("button", { name: "Copy link for Bashir" }).click();
+  await expect(
+    bashir.getByRole("button", { name: "Copy link for Bashir" }),
+  ).toHaveText("Copied");
+  await expect(
+    amina.getByRole("button", { name: "Copy link for Amina" }),
+  ).toHaveText("Copied");
+  for (const name of ["Former reader", "Expired reader"]) {
+    const card = dialog.getByRole("article", {
+      name: `Invitation for ${name}`,
+      exact: true,
+    });
+    await expect(card.getByRole("textbox")).toHaveCount(0);
+    await expect(
+      card.getByRole("button", { name: "Revoke", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      card.getByRole("button", { name: "Feedback", exact: true }),
+    ).toBeVisible();
+  }
+  await dialog
+    .getByRole("button", { name: "Invite reader", exact: true })
+    .click();
+  await expect(dialog.getByLabel("Reader name")).toBeVisible();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(dialog.getByLabel("Reader name")).toHaveCount(0);
+  expect(requests.sort()).toEqual([invitationId, otherId].sort());
+  expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+    true,
+  );
+  expect(await amina.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+    true,
+  );
+  await amina.scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: `test-results/${info.project.name}-invitation-cards.png`,
+  });
 });
 
 test("sharing setup and connection failures never masquerade as a password prompt", async ({

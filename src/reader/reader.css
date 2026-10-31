@@ -677,3 +677,16 @@
   letter-spacing: 0;
   font-size: 12px;
 }
+
+/* Scaled paper and animated copies must not enlarge the reader's scroll area. */
+.book-reader.is-paged .reading-paper-frame {
+  contain: paint;
+  overflow: clip;
+  overflow-clip-margin: 0;
+  outline: 1px solid #deded1;
+  box-shadow: 0 8px 30px -20px #36422a66;
+}
+.book-reader.is-paged .reading-sheet {
+  outline: none;
+  box-shadow: none;
+}

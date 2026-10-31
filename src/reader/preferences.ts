@@ -25,11 +25,11 @@ export type Preferences = {
   drag: boolean;
   progress: boolean;
 };
-const defaults: Preferences = {
+const authorDefaults: Preferences = {
   mode: "pages",
   fullscreenZoom: "page",
   size: 14,
-  format: "paperback",
+  format: "a5",
   margins: "normal",
   leading: 1.9,
   flip: true,
@@ -40,7 +40,11 @@ const defaults: Preferences = {
   drag: false,
   progress: false,
 };
-export function readPreferences(key = "khosra-reader"): Preferences {
+export function readPreferences(
+  key = "khosra-reader",
+  overrides: Partial<Preferences> = {},
+): Preferences {
+  const defaults = { ...authorDefaults, ...overrides };
   try {
     const p = JSON.parse(localStorage.getItem(key) || "null");
     return {
@@ -82,4 +86,13 @@ export function readPreferences(key = "khosra-reader"): Preferences {
   } catch {
     return defaults;
   }
+}
+
+export function readGuestPreferences(viewportWidth: number): Preferences {
+  return readPreferences("khosra-guest-reader", {
+    mode: viewportWidth >= 760 ? "spread" : "continuous",
+    paper: "sepia",
+    texture: "grain",
+    size: 12,
+  });
 }
