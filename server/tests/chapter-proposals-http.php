@@ -15,16 +15,18 @@ function chapterRpc(string $name,array $args=[],?string $token=null,string $meth
 }
 function rpcChapterValue(array $r):array{return json_decode($r['body']['result']['content'][0]['text']??'{}',true)??[];}
 try{
- foreach(['lib.php','oauth.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php','sharing.php'] as $file)copy(dirname(__DIR__).'/'.$file,$root.'/'.$file);
+ foreach(['lib.php','oauth.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php','diagnostics.php','sharing.php'] as $file)copy(dirname(__DIR__).'/'.$file,$root.'/'.$file);
  copy(dirname(__DIR__).'/public/api/index.php',$root.'/public/api/index.php');
  file_put_contents($root.'/router.php',"<?php require __DIR__.'/public/api/index.php';");
  $config=['dsn'=>'sqlite:'.$root.'/fixture.sqlite','origin'=>$origin,'owner_password'=>'isolated-chapter-test-password','tool_token_hash'=>''];file_put_contents($root.'/config.php','<?php return '.var_export($config,true).';');
  $db=openDatabase($config);$db->exec(file_get_contents(dirname(__DIR__).'/schema.sqlite.sql'));$state=blank();$bid=uuid();$state['books'][]=['id'=>$bid,'title'=>'Private HTTP mystery','premise'=>'Private premise','language'=>'bn','createdAt'=>stamp()];$q=$db->prepare('INSERT INTO workspace(id,version,payload) VALUES(1,0,?)');$q->execute([json_encode($state)]);$q=null;
  $read=issueTokens($db,uuid(),oauthResource($config),'manuscript.read')['access_token'];$proposeClient=uuid();$proposePair=issueTokens($db,$proposeClient,oauthResource($config),'manuscript.propose');$propose=$proposePair['access_token'];
- $pipes=[];$process=proc_open([PHP_BINARY,'-d','xdebug.mode=off','-d','session.save_path='.$root.'/sessions','-d','error_log='.$root.'/diagnostic.log','-S',$address,'-t',$root.'/public',$root.'/router.php'],[0=>['pipe','r'],1=>['file',$root.'/server.log','a'],2=>['file',$root.'/server.log','a']],$pipes);if(!is_resource($process))throw new RuntimeException('Cannot start isolated PHP server.');fclose($pipes[0]);
+ $pipes=[];$process=proc_open([PHP_BINARY,'-d','xdebug.mode=off','-d','opcache.enable=0','-d','opcache.enable_cli=0','-d','session.save_path='.$root.'/sessions','-d','error_log='.$root.'/diagnostic.log','-S',$address,'-t',$root.'/public',$root.'/router.php'],[0=>['pipe','r'],1=>['file',$root.'/server.log','a'],2=>['file',$root.'/server.log','a']],$pipes);if(!is_resource($process))throw new RuntimeException('Cannot start isolated PHP server.');fclose($pipes[0]);
  for($i=0;$i<100;$i++){$connection=@fsockopen('127.0.0.1',(int)substr(strrchr($address,':'),1),$errno,$error,0.1);if($connection){fclose($connection);break;}usleep(20000);}
  $refreshed=chapterHttp('/api/oauth/token','POST',['grant_type'=>'refresh_token','client_id'=>$proposeClient,'refresh_token'=>$proposePair['refresh_token']]);
  checkChapterHttp($refreshed['status']===200,'Proposal token refresh succeeds before submission');$propose=$refreshed['body']['access_token'];
+ $diagnostic=chapterHttp('/api/diagnostics/mcp');checkChapterHttp($diagnostic['status']===401,'Anonymous requests cannot read private diagnostics');
+ $diagnostic=chapterHttp('/api/diagnostics/mcp','GET',null,['Authorization: Bearer '.$read]);checkChapterHttp($diagnostic['status']===401,'OAuth read scope does not grant owner diagnostic access');
  $r=chapterRpc('',[],null,'tools/list');checkChapterHttp($r['status']===401,'Anonymous discovery denied');
  $r=chapterRpc('',[],$read,'tools/list');$tools=array_column($r['body']['result']['tools']??[],null,'name');checkChapterHttp(count($tools)===19&&isset($tools['save_chapter_proposal'],$tools['list_chapter_proposals'],$tools['read_chapter_proposal']),'Live tools/list exposes all 19 capabilities');
  checkChapterHttp(!isset($tools['accept_chapter_proposal'])&&$tools['save_chapter_proposal']['securitySchemes'][0]['scopes']===['manuscript.propose'],'Models have propose scope and no chapter approval tool');
@@ -78,6 +80,22 @@ try{
  $reference=$r['body']['result']['_meta']['khosra/requestId']??'';checkChapterHttp($r['status']===200&&str_contains($r['body']['result']['content'][0]['text']??'','Reference: '.$reference)&&preg_match('/^[a-f0-9]{16}$/D',$reference)===1,'HTTP tool rejections expose actionable content and correlation metadata');
  $diagnostics=file_get_contents($root.'/diagnostic.log');checkChapterHttp(str_contains($diagnostics,'event=result_ready')&&str_contains($diagnostics,'event=rejected')&&!str_contains($diagnostics,$propose)&&!str_contains($diagnostics,$bid),'Actual HTTP diagnostics record outcomes without token or manuscript IDs');
  checkChapterHttp(loadWorkspace($db)['state']['chapters'][0]['headId']===$newer['id']&&$snapshot['status']==='pending','Differential tools leave author manuscript and approval unchanged');
+ $beforeDiagnostics=loadWorkspace($db);
+ $report=chapterHttp('/api/diagnostics/mcp','GET',null,['Cookie: '.$cookie]);
+ checkChapterHttp($report['status']===200&&$report['body']['storage']['available']&&$report['body']['totalRequests']>0,'Owner can read the separate SQLite request log');
+ $recent=$report['body']['requests'][0];checkChapterHttp($recent['tool']==='save_proposal_edits'&&$recent['status']===422&&$recent['stage']==='response_generated','Report preserves tool rejection outcome across HTTP 200 response generation');
+ $stages=array_column($recent['events'],'stage');checkChapterHttp(!array_diff(['received','body_read','decoded','authenticated','started','rejected','response_generated'],$stages),'Actual HTTP trace includes pre-tool and response stages');
+ checkChapterHttp(!str_contains($report['raw'],$propose)&&!str_contains($report['raw'],'Sparse suggestion')&&!str_contains($report['raw'],$bid),'Private report excludes tokens, draft prose and manuscript IDs');
+ $r=chapterHttp('/api/diagnostics/mcp/purge','POST',['olderThanDays'=>null],['Cookie: '.$cookie]);checkChapterHttp($r['status']===403,'Diagnostic purge requires owner CSRF');
+ $r=chapterHttp('/api/diagnostics/mcp/purge','POST',['olderThanDays'=>null],$headers);checkChapterHttp($r['status']===200&&$r['body']['removed']>0,'Owner can purge the separate diagnostic database');
+ checkChapterHttp(chapterHttp('/api/diagnostics/mcp','GET',null,['Cookie: '.$cookie])['body']['totalEvents']===0&&loadWorkspace($db)===$beforeDiagnostics,'Purging logs preserves workspace version and every manuscript record');
+ // Existing owner sessions can inspect diagnostics even if the workspace DB is unavailable.
+ $offlineConfig=$config;$offlineConfig['dsn']='mysql:host=127.0.0.1;port=1;dbname=unavailable';$offlineConfig['diagnostics_dir']=$root;
+ file_put_contents($root.'/config.php','<?php return '.var_export($offlineConfig,true).';');
+ $r=chapterHttp('/api/diagnostics/mcp','GET',null,['Cookie: '.$cookie]);checkChapterHttp($r['status']===200&&$r['body']['storage']['available'],'Owner diagnostics remain readable without opening the main database');
+ $r=chapterRpc('get_khosra_guide',[],$read);checkChapterHttp($r['status']===500,'Unreachable main database fails before MCP tool execution (status '.$r['status'].')');
+ $report=chapterHttp('/api/diagnostics/mcp','GET',null,['Cookie: '.$cookie]);$failure=$report['body']['requests'][0];checkChapterHttp($failure['reason']==='database_failure'&&$failure['status']===500&&in_array('received',array_column($failure['events'],'stage'),true)&&!in_array('started',array_column($failure['events'],'stage'),true),'Independent SQLite trace captures pre-tool database failures while the owner can inspect them');
+ file_put_contents($root.'/config.php','<?php return '.var_export($config,true).';');
  echo "$count chapter HTTP checks passed.\n";
 }finally{
  if(is_resource($process)){proc_terminate($process);proc_close($process);}unset($q,$db);

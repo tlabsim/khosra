@@ -4,7 +4,8 @@ require_once __DIR__.'/guide.php';
 require_once __DIR__.'/materials.php';
 require_once __DIR__.'/proposal-edits.php';
 require_once __DIR__.'/workspace-sync.php';
-const KHOSRA_MCP_REVISION='2026-11-02c';
+require_once __DIR__.'/diagnostics.php';
+const KHOSRA_MCP_REVISION='2026-11-02d';
 final class ApiError extends RuntimeException { public function __construct(public int $status,string $message){parent::__construct($message);} }
 function fail(int $status,string $message):never {throw new ApiError($status,$message);}
 function uuid():string {$d=random_bytes(16);$d[6]=chr((ord($d[6])&15)|64);$d[8]=chr((ord($d[8])&63)|128);return vsprintf('%s%s-%s-%s-%s-%s%s%s',str_split(bin2hex($d),4));}
@@ -225,15 +226,16 @@ function saveRevisionTool(PDO $db,string $name,array $args):array {
 
 // Fixed metadata only: no arguments, credentials, operation IDs or manuscript text.
 function mcpDiagnostic(string $request,string $tool,string $event,int $status,float $started,?string $reason=null):void {
+ if(($GLOBALS['khosra_mcp_trace']['id']??null)===$request)diagnosticEvent($event,$status,$reason,$tool);
  error_log('[Khosra MCP '.KHOSRA_MCP_REVISION.'] request='.$request.' tool='.$tool.' event='.$event.' status='.$status.' elapsed_ms='.(int)((microtime(true)-$started)*1000).' peak_bytes='.memory_get_peak_usage(true).($reason===null?'':' reason='.$reason));
 }
 function mcpToolResult(PDO $db,array $rpc,array $scopes):array {
  $params=$rpc['params']??[];$name=is_string($params['name']??null)?$params['name']:'';
  $safeName=in_array($name,array_column(tools(),'name'),true)?$name:'unknown';$write=str_starts_with($safeName,'save_');
- $request=bin2hex(random_bytes(8));$started=microtime(true);$finished=false;$reserve=str_repeat('x',65536);
+ $request=$GLOBALS['khosra_mcp_trace']['id']??bin2hex(random_bytes(8));$started=$GLOBALS['khosra_mcp_trace']['started']??microtime(true);$finished=false;$reserve=str_repeat('x',65536);
  header('X-Khosra-Request-Id: '.$request);
- if($write)mcpDiagnostic($request,$safeName,'started',200,$started);
- register_shutdown_function(static function()use(&$reserve,&$finished,$request,$safeName,$started):void{
+ mcpDiagnostic($request,$safeName,'started',200,$started);
+ if(!isset($GLOBALS['khosra_mcp_trace']))register_shutdown_function(static function()use(&$reserve,&$finished,$request,$safeName,$started):void{
   if($finished)return;$last=error_get_last();if(!$last||!in_array($last['type'],[E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR],true))return;
   $reserve=null;$reason=str_contains($last['message'],'Allowed memory size')?'memory_exhausted':(str_contains($last['message'],'Maximum execution time')?'execution_timeout':'fatal_failure');
   mcpDiagnostic($request,$safeName,'fatal',500,$started,$reason);
@@ -244,13 +246,13 @@ function mcpToolResult(PDO $db,array $rpc,array $scopes):array {
   $required=str_starts_with($name,'save_')?'manuscript.propose':'manuscript.read';if(!in_array($required,$scopes,true))fail(403,'Token scope does not permit this tool.');
   $args=$params['arguments']??[];if(!is_array($args)||($args!==[]&&array_is_list($args)))fail(422,'Tool arguments must be an object.');
   $value=callTool($db,$name,$args);$response=['content'=>toolContent($value),'_meta'=>['khosra/requestId'=>$request]];
-  if($write)mcpDiagnostic($request,$safeName,'result_ready',200,$started);
+  mcpDiagnostic($request,$safeName,'result_ready',200,$started);
   return $response;
  }catch(ApiError $e){
-  mcpDiagnostic($request,$safeName,'rejected',$e->status,$started,'request_rejected');
+  mcpDiagnostic($request,$safeName,'rejected',$e->status,$started,diagnosticReason($e));
   return ['isError'=>true,'content'=>[['type'=>'text','text'=>$e->getMessage().' Reference: '.$request.'.']],'_meta'=>['khosra/requestId'=>$request]];
- }catch(Throwable){
-  mcpDiagnostic($request,$safeName,'failed',500,$started,'server_failure');
+ }catch(Throwable $e){
+  mcpDiagnostic($request,$safeName,'failed',500,$started,diagnosticReason($e));
   return ['isError'=>true,'content'=>[['type'=>'text','text'=>($write?'The server could not complete this tool call. Submission outcome is uncertain; retry the SAME operation_id and identical arguments before creating a different request.':'The server could not complete this read request. Retry the same read.').' Reference: '.$request.'.']],'_meta'=>['khosra/requestId'=>$request]];
  }finally{$finished=true;$reserve=null;}
 }

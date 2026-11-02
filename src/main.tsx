@@ -407,10 +407,10 @@ function App() {
       setError(e instanceof Error ? e.message : String(e));
     }
   }
-  async function copy(text: string) {
+  async function copy(text: string, message = "Reference copied") {
     try {
       await navigator.clipboard.writeText(text);
-      setNotice("Reference copied");
+      setNotice(message);
     } catch {
       setError("Clipboard unavailable. Copy this reference: " + text);
     }
@@ -1110,8 +1110,14 @@ function App() {
                 "text/markdown",
               )
             }
-            onCopy={(text) => void copy(text)}
+            onCopy={(text, message) => void copy(text, message)}
             onError={setError}
+            onDiagnostics={(page) =>
+              server.request(`diagnostics/mcp?page=${page}`)
+            }
+            onPurgeDiagnostics={(days) =>
+              server.request("diagnostics/mcp/purge", { olderThanDays: days })
+            }
           />
         ) : book &&
           view === "context" &&

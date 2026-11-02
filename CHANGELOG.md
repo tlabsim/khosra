@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add private internal MCP logging in a separate SQLite database, recording request stages, fixed error categories, safe payload counts and effective PHP limits without credentials or manuscript text. Capture failures before tool execution and provide owner-only reports even if the main database is unavailable.
+- Add Settings → ChatGPT → Connection diagnostics with paginated requests, stage timelines, report copying and confirmed age-based/all-log purges. Keep 30 days and at most 10,000 events; exclude diagnostic storage from workspace archives and release packages.
+
 - Reduce proposal/context save memory by decoding the workspace once inside the locked writer, preserving exact version/fingerprint, immutable history and idempotent operations. Fix a reproduced 28.8 MiB workspace failure under PHP’s 128 MiB limit.
 - Add safe MCP write diagnostics and request references, including fatal memory/timeout categories; return unexpected tool exceptions as actionable MCP errors. Update the guide to verify uncertain writes before switching submission methods.
 

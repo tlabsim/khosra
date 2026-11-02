@@ -1,0 +1,93 @@
+.mcp-diagnostics {
+  margin-top: 24px;
+}
+.diagnostic-actions,
+.diagnostic-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0;
+}
+.diagnostic-environment {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 20px 0;
+}
+.diagnostic-environment div {
+  min-width: 0;
+}
+.diagnostic-environment dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+.diagnostic-environment dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+.diagnostic-request {
+  min-width: 0;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+.diagnostic-request header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+.diagnostic-request header strong {
+  overflow-wrap: anywhere;
+}
+.diagnostic-request header span,
+.diagnostic-request p,
+.diagnostic-request summary {
+  font-size: 12px;
+}
+.diagnostic-request p {
+  margin: 8px 0;
+  color: var(--muted);
+}
+.diagnostic-request.has-error header span,
+.diagnostic-request .diagnostic-reason {
+  color: #a23f32;
+}
+.diagnostic-request summary {
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.diagnostic-request ol {
+  padding: 0;
+  list-style: none;
+}
+.diagnostic-request li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  padding: 4px 0;
+}
+.diagnostic-confirm-actions {
+  padding: 20px 30px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+@media (max-width: 600px) {
+  .diagnostic-actions .button {
+    flex: 1 1 130px;
+  }
+  .diagnostic-pagination {
+    justify-content: space-between;
+  }
+  .diagnostic-pagination span {
+    font-size: 12px;
+  }
+  .diagnostic-confirm-actions {
+    padding: 16px;
+  }
+}

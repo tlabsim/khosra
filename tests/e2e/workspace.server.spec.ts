@@ -1046,3 +1046,176 @@ test("exports use the active Unicode manuscript title and date/time", async ({
     /^khosra-workspace-নিখোঁজ-জাদুকর--The-missing---magician-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.json$/u,
   );
 });
+
+test("owner diagnostics show server limits, paginate, copy and confirm SQLite log purges", async ({
+  page,
+  context,
+}, info) => {
+  const server = serverFixture(fixture());
+  await server.attach(context);
+  let purged = false,
+    empty = false;
+  const removals: (number | null)[] = [];
+  const at = "2026-11-02T10:00:00+00:00";
+  const row = {
+    id: "abcdef1234567890",
+    at,
+    revision: "2026-11-02d",
+    method: "tools/call",
+    tool: "save_chapter_proposal",
+    stage: "fatal",
+    outcome: "fatal",
+    status: 500,
+    elapsedMs: 830,
+    peakBytes: 134217728,
+    inputBytes: 80000,
+    memoryLimit: "128M",
+    reason: "memory_exhausted",
+    events: [
+      {
+        at,
+        stage: "received",
+        status: 200,
+        elapsedMs: 0,
+        peakBytes: 2000000,
+        reason: null,
+      },
+      {
+        at,
+        stage: "started",
+        status: 200,
+        elapsedMs: 10,
+        peakBytes: 5000000,
+        reason: null,
+      },
+      {
+        at,
+        stage: "fatal",
+        status: 500,
+        elapsedMs: 830,
+        peakBytes: 134217728,
+        reason: "memory_exhausted",
+      },
+    ],
+  };
+  await page.route("**/api/diagnostics/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/purge")) {
+      expect(route.request().headers()["x-csrf-token"]).toBe("test-csrf");
+      const days = route.request().postDataJSON().olderThanDays;
+      removals.push(days);
+      purged = true;
+      empty = days === null;
+      await route.fulfill({ json: { removed: empty ? 1 : 25 } });
+      return;
+    }
+    const pageNumber = Number(url.searchParams.get("page") || 1);
+    await route.fulfill({
+      json: {
+        revision: "2026-11-02d",
+        serverTime: at,
+        environment: {
+          phpVersion: "8.3.36",
+          memoryLimit: "256M",
+          maxExecutionSeconds: 30,
+          postMaxSize: "64M",
+        },
+        storage: {
+          available: true,
+          issue: null,
+          retentionDays: 30,
+          maxEvents: 10000,
+          bytes: 131072,
+        },
+        requests: empty
+          ? []
+          : [{ ...row, id: pageNumber === 1 ? row.id : "1234567890abcdef" }],
+        page: pageNumber,
+        pageSize: 25,
+        totalRequests: empty ? 0 : purged ? 1 : 26,
+        totalEvents: empty ? 0 : purged ? 3 : 78,
+      },
+    });
+  });
+  await page.goto("/");
+  await signIn(page);
+  await page.getByRole("button", { name: "Settings & backups" }).click();
+  await page.getByText("Connection diagnostics", { exact: true }).click();
+  await page.getByRole("button", { name: "Load diagnostics" }).click();
+  const diagnostics = page.locator(".mcp-diagnostics");
+  await expect(diagnostics.getByText("256M", { exact: true })).toBeVisible();
+  await expect(
+    diagnostics.getByText("memory exhausted", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    diagnostics.getByText("fatal · 500", { exact: true }),
+  ).toBeVisible();
+  await diagnostics.getByText(`Request ${row.id}`, { exact: true }).click();
+  await expect(diagnostics.getByText("started", { exact: true })).toBeVisible();
+  await diagnostics.getByText(`Request ${row.id}`, { exact: true }).click();
+  await diagnostics.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(diagnostics.getByText("Page 2 of 2")).toBeVisible();
+  await diagnostics
+    .getByRole("button", { name: "Previous", exact: true })
+    .click();
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (value: string) => {
+          (window as unknown as { diagnosticCopy: string }).diagnosticCopy =
+            value;
+        },
+      },
+    });
+  });
+  await diagnostics.getByRole("button", { name: "Copy report" }).click();
+  expect(
+    await page.evaluate(
+      () =>
+        JSON.parse(
+          (window as unknown as { diagnosticCopy: string }).diagnosticCopy,
+        ).environment.memoryLimit,
+    ),
+  ).toBe("256M");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await diagnostics
+    .locator(".diagnostic-actions")
+    .evaluate((element) =>
+      window.scrollTo(
+        0,
+        window.scrollY + element.getBoundingClientRect().top - 100,
+      ),
+    );
+  await page.screenshot({
+    path: `test-results/${info.project.name}-internal-diagnostics.png`,
+  });
+  await diagnostics.getByRole("button", { name: "Purge logs" }).click();
+  let dialog = page.getByRole("dialog", { name: "Purge diagnostic logs?" });
+  await expect(dialog).toBeVisible();
+  expect(removals).toEqual([]);
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect(removals).toEqual([]);
+  await diagnostics.getByRole("button", { name: "Purge logs" }).click();
+  dialog = page.getByRole("dialog", { name: "Purge diagnostic logs?" });
+  await dialog.getByLabel("Purge range").selectOption("7");
+  await dialog.getByRole("button", { name: "Confirm purge" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(diagnostics.getByText(/1 request · 3 events/)).toBeVisible();
+  expect(removals).toEqual([7]);
+  await diagnostics.getByRole("button", { name: "Purge logs" }).click();
+  dialog = page.getByRole("dialog", { name: "Purge diagnostic logs?" });
+  await dialog.getByLabel("Purge range").selectOption("all");
+  await dialog.getByRole("button", { name: "Confirm purge" }).click();
+  await expect(
+    diagnostics.getByText(/No diagnostic requests recorded yet/),
+  ).toBeVisible();
+  await expect(
+    diagnostics.getByRole("button", { name: "Purge logs" }),
+  ).toBeDisabled();
+  expect(removals).toEqual([7, null]);
+});

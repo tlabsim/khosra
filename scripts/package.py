@@ -19,7 +19,7 @@ archive=out/'khosra-0.2.0-ftp.zip'
 with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED) as z:
  for p in sorted((root/'dist').rglob('*')):
   if p.is_file():z.write(p,'webroot/'+str(p.relative_to(root/'dist')))
- for name in ['lib.php','oauth.php','sharing.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php','config.example.php']:
+ for name in ['lib.php','oauth.php','sharing.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php','diagnostics.php','config.example.php']:
   z.write(root/'server'/name,'private/'+name)
  z.writestr('private/.htaccess','Require all denied\n')
  z.write(root/'server/schema.sql','database/schema.sql')
@@ -45,7 +45,7 @@ replacements={
  "require dirname(__DIR__,2).'/oauth.php';":"require dirname(__DIR__).'/khosra-server/oauth.php';",
  "require dirname(__DIR__,2).'/sharing.php';":"require dirname(__DIR__).'/khosra-server/sharing.php';",
  "$file=dirname(__DIR__,2).'/config.php';if(!is_file($file))respond(['error'=>'Private server is not configured. Local workspace remains available.','code'=>'server_not_configured'],503);$config=require $file;":"$file=dirname(__DIR__).'/khosra.config.php';$config=khosraDeploymentConfig($file);",
- " if(isset($_GET['discovery'])":" khosraPrepareDatabase($db,$config,$path,$method,$body);\n if(isset($_GET['discovery'])",
+ " if(isset($_GET['discovery'])":" if($db!==null)khosraPrepareDatabase($db,$config,$path,$method,$body);\n if(isset($_GET['discovery'])",
 }
 for old,new in replacements.items():
  assert api.count(old)==1, f'Portable API transformation drifted: {old}'
@@ -58,7 +58,7 @@ with zipfile.ZipFile(portable,'w',zipfile.ZIP_DEFLATED) as z:
  htaccess=(root/'server/public/.htaccess').read_text().replace('RewriteEngine On','RewriteEngine On\n# Portable backend/config must never be served directly.\nRewriteRule ^(?:khosra-server(?:/|$)|khosra\\.config(?:\\.[^/]*)?$) - [F,L,NC]')
  z.writestr('.htaccess',htaccess)
  z.writestr('khosra-server/.htaccess','Require all denied\n')
- for name in ['lib.php','oauth.php','sharing.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php']:
+ for name in ['lib.php','oauth.php','sharing.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php','diagnostics.php']:
   z.writestr('khosra-server/'+name,guarded((root/'server'/name).read_text()))
  z.writestr('khosra-server/bootstrap.php',guarded((root/'server/deployment/bootstrap.php').read_text()))
  for name in ['schema','schema.sqlite']:

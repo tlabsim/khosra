@@ -28,7 +28,7 @@ try{
  $check(($r['isError']??false)&&str_contains($r['content'][0]['text'],'SAME operation_id')&&!str_contains($r['content'][0]['text'],$secret),'Unexpected exceptions produce a safe retry instruction, not a raw stack trace');
  $check(!$db->inTransaction(),'Unexpected failure leaves no transaction open');
  $log=file_get_contents($root.'/diagnostic.log');
- foreach(['event=started','event=result_ready','event=rejected','event=failed','reason=server_failure','elapsed_ms=','peak_bytes='] as $marker)$check(str_contains($log,$marker),'Diagnostic log includes '.$marker);
+ foreach(['event=started','event=result_ready','event=rejected','event=failed','reason=invalid_json','elapsed_ms=','peak_bytes='] as $marker)$check(str_contains($log,$marker),'Diagnostic log includes '.$marker);
  foreach([$secret,$op,$bid,$cid,$rid,$pid] as $private)$check(!str_contains($log,$private),'Diagnostic log excludes private content or workspace identifiers');
 }finally{ini_set('error_log',$previous);unset($db,$q);foreach(glob($root.'/*') as $file)unlink($file);rmdir($root);}
 foreach($passed as $label)echo 'PASS: '.$label.PHP_EOL;
