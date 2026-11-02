@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Name manuscript text exports and workspace archives with the active manuscript title and local date/time; preserve Unicode titles, sanitize filesystem-unsafe characters and label full workspace backups explicitly.
+
+- Restore the last manuscript and chapter on refresh, remember a separate chapter for each manuscript, and fall back safely when a chapter is removed. Keep navigation browser-local and preserve the saved destination through sign-in/server hydration.
+
 - Harden ChatGPT OAuth compatibility: exact client origins on machine endpoints, CGI Bearer fallback, grant-bound audience inheritance and challenges only on authentication failures. Add credential-free error categories and a public auth revision marker; retain PKCE, owner CSRF, token expiry and refresh rotation. Document live host HTML 406 responses separately from application errors.
 - Refresh rounded favicon, installable-app icon and packaged ChatGPT icons; add accessible sign-in/workspace loading indicators with reduced-motion support.
 

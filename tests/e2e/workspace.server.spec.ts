@@ -917,3 +917,132 @@ test("sign-in and workspace loading show an accessible motion-aware indicator", 
     "/favicon.svg?v=4",
   );
 });
+
+test("refresh restores the last manuscript and chapter after delayed server hydration", async ({
+  page,
+  context,
+}) => {
+  let state = emptyState();
+  for (const title of ["First manuscript", "Second manuscript"]) {
+    const id = uid();
+    state.books.push({
+      id,
+      title,
+      premise: "",
+      language: "en",
+      createdAt: now(),
+    });
+    state = addChapter(state, id, `${title} opening`);
+    state = addChapter(state, id, `${title} ending`);
+  }
+  const server = serverFixture(state);
+  await server.attach(context);
+  await page.goto("/");
+  await signIn(page);
+  await expect(page.locator(".title-button h1")).toHaveText(
+    "First manuscript opening",
+  );
+  const openContents = async () => {
+    await page
+      .getByRole("button", { name: "Open navigation", exact: true })
+      .click();
+  };
+  await openContents();
+  await page
+    .locator('.chapter-list button[title="First manuscript ending"]')
+    .click();
+  await expect(page.locator(".title-button h1")).toHaveText(
+    "First manuscript ending",
+  );
+  await page.getByRole("link", { name: "Khosra library", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Open Second manuscript", exact: true })
+    .click();
+  await openContents();
+  await page
+    .locator('.chapter-list button[title="Second manuscript ending"]')
+    .click();
+  await expect(page.locator(".title-button h1")).toHaveText(
+    "Second manuscript ending",
+  );
+  await page.reload();
+  await expect(page.locator(".title-button h1")).toHaveText(
+    "Second manuscript ending",
+  );
+  await page.getByRole("link", { name: "Khosra library", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Open First manuscript", exact: true })
+    .click();
+  await expect(page.locator(".title-button h1")).toHaveText(
+    "First manuscript ending",
+  );
+
+  // Simulate a fresh device cache with the same browser navigation preference.
+  await page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open("khosra-studio-v2");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const transaction = database.transaction(
+      ["workspace", "meta"],
+      "readwrite",
+    );
+    transaction.objectStore("workspace").clear();
+    transaction.objectStore("meta").clear();
+    await new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+    database.close();
+  });
+  let release!: () => void;
+  const delayed = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/workspace", async (route) => {
+    await delayed;
+    await route.fallback();
+  });
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Opening your workspace" }),
+  ).toBeVisible();
+  release();
+  await expect(page.locator(".title-button h1")).toHaveText(
+    "First manuscript ending",
+  );
+  const removed = structuredClone(state);
+  removed.chapters[1].deletedAt = now();
+  server.remote(removed);
+  await page.reload();
+  await expect(page.locator(".title-button h1")).toHaveText(
+    "First manuscript opening",
+  );
+});
+
+test("exports use the active Unicode manuscript title and date/time", async ({
+  page,
+  context,
+}) => {
+  const state = fixture();
+  state.books[0].title = "নিখোঁজ জাদুকর: The missing / magician?";
+  const server = serverFixture(state);
+  await server.attach(context);
+  await page.goto("/");
+  await signIn(page);
+  await expect(page.locator(".title-button h1")).toHaveText("Opening");
+  await page.getByRole("button", { name: "Settings & backups" }).click();
+  const textDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export this book as text" }).click();
+  const text = await textDownload;
+  expect(text.suggestedFilename()).toMatch(
+    /^khosra-নিখোঁজ-জাদুকর--The-missing---magician-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.md$/u,
+  );
+  expect(text.suggestedFilename()).not.toMatch(/[<>:"/\\|?*]/);
+  const archiveDownload = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download full archive" }).click();
+  expect((await archiveDownload).suggestedFilename()).toMatch(
+    /^khosra-workspace-নিখোঁজ-জাদুকর--The-missing---magician-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.json$/u,
+  );
+});

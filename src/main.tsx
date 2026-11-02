@@ -105,6 +105,12 @@ import Materials, {
   ContextTabs,
   type ContextSection,
 } from "./components/Materials";
+import {
+  readNavigation,
+  rememberNavigation,
+  rememberedChapter,
+} from "./storage/navigation";
+import { exportName } from "./storage/exportName";
 import "./hosted.css";
 const hosted = import.meta.env.PROD;
 import "./style.css";
@@ -115,10 +121,13 @@ import "./appearance.css";
 type View =
   "manuscript" | "flags" | "review" | "history" | "context" | "settings";
 function App() {
+  const [navigation] = useState(readNavigation);
   const [state, setState] = useState<State>(emptyState),
     [loaded, setLoaded] = useState(false),
-    [chapterId, setChapterId] = useState(""),
-    [bookId, setBookId] = useState(""),
+    [chapterId, setChapterId] = useState(
+      navigation.chapters[navigation.bookId] || "",
+    ),
+    [bookId, setBookId] = useState(navigation.bookId),
     [view, setView] = useState<View>("manuscript"),
     [reading, setReading] = useState(false),
     [libraryOpen, setLibraryOpen] = useState(false),
@@ -175,8 +184,6 @@ function App() {
       .then((s) => {
         latest.current = s;
         setState(s);
-        setBookId(s.books[0]?.id || "");
-        setChapterId(s.chapters[0]?.id || "");
         setLoaded(true);
       })
       .catch((e) => {
@@ -299,6 +306,11 @@ function App() {
     (c) => c.bookId === book?.id && c.deletedAt,
   );
   const chapter = chapters.find((c) => c.id === chapterId) || chapters[0];
+  useEffect(() => {
+    // Do not replace a saved destination with an empty/stale sign-in cache.
+    if (!loaded || (hosted && hostedStatus.phase !== "ready")) return;
+    if (book?.id) rememberNavigation(book.id, chapter?.id);
+  }, [loaded, hostedStatus.phase, book?.id, chapter?.id]);
   const screen =
     libraryOpen || (!book && view !== "settings")
       ? "library"
@@ -414,10 +426,8 @@ function App() {
   function openBook(b: Book) {
     finishActiveParagraph();
     setBookId(b.id);
-    const first = latest.current.chapters
-      .filter((c) => c.bookId === b.id && !c.deletedAt)
-      .sort((a, b) => a.position - b.position)[0];
-    setChapterId(first?.id || "");
+    const destination = rememberedChapter(latest.current, b.id);
+    setChapterId(destination?.id || "");
     setLibraryOpen(false);
     setView("manuscript");
     setReading(false);
@@ -575,7 +585,7 @@ function App() {
     await writeQueue.current.catch(() => undefined);
     download(
       await exportBackup(latest.current),
-      "khosra-" + new Date().toISOString().slice(0, 10) + ".json",
+      exportName(book?.title, "workspace"),
     );
     setNotice("Full-history backup downloaded");
   }
@@ -1096,7 +1106,7 @@ function App() {
                         .join("\n\n")}`,
                   )
                   .join("\n\n"),
-                "manuscript.md",
+                exportName(book?.title, "manuscript"),
                 "text/markdown",
               )
             }

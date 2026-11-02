@@ -1,5 +1,5 @@
 // Only static app assets are cached. API and manuscript responses are never cached.
-const CACHE = "khosra-shell-bb7ba670dc49";
+const CACHE = "khosra-shell-aaf522624012";
 self.addEventListener("install", (event) =>
   event.waitUntil(
     (async () => {
