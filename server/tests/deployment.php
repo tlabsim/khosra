@@ -27,7 +27,7 @@ try{
  deploymentReject(fn()=>khosraPrepareDatabase($db,$config,'login','POST',['password'=>'wrong']),401,'Wrong first-login password cannot initialize schema');
  checkDeployment((int)$db->query("SELECT COUNT(*) FROM sqlite_master WHERE type='table'")->fetchColumn()===0,'Unauthenticated setup creates no tables');
  khosraPrepareDatabase($db,$config,'login','POST',['password'=>'a-unique-test-password']);
- checkDeployment((int)$db->query("SELECT COUNT(*) FROM sqlite_master WHERE type='table'")->fetchColumn()===9,'Correct owner sign-in initializes all nine tables');
+ checkDeployment((int)$db->query("SELECT COUNT(*) FROM sqlite_master WHERE type='table'")->fetchColumn()===10,'Correct owner sign-in initializes all ten tables');
  $s=blank();$bid=uuid();$cid=uuid();$rid=uuid();$pid=uuid();$s['books'][]=['id'=>$bid,'title'=>'Portable manuscript','language'=>'bn','premise'=>'','createdAt'=>stamp()];$s['chapters'][]=['id'=>$cid,'bookId'=>$bid,'code'=>1,'position'=>0,'title'=>'Portable chapter','headId'=>$rid,'approvedId'=>null,'synopsis'=>''];$s['revisions'][]=['id'=>$rid,'chapterId'=>$cid,'parentId'=>null,'createdAt'=>stamp(),'source'=>'author','edition'=>1,'message'=>'Original','paragraphs'=>[['id'=>$pid,'label'=>1,'section'=>'','text'=>'বাংলা অক্ষর।']]];
  $op=uuid();checkDeployment(writeWorkspace($db,$s,0,$op,'first')===1,'SQLite author upload commits');
  checkDeployment(writeWorkspace($db,$s,0,$op,'first')===1,'SQLite retry is idempotent');

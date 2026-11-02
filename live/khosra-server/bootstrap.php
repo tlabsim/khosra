@@ -50,7 +50,7 @@ function khosraPrepareDatabase(PDO $db,array $config,string $path,string $method
     // No public installer or unauthenticated DDL. Existing logins retain normal throttling.
     if($path!=='login'||$method!=='POST')return;
     $sqlite=$db->getAttribute(PDO::ATTR_DRIVER_NAME)==='sqlite';
-    $required=['workspace','operations','auth_attempts','oauth_clients','oauth_codes','oauth_tokens','reading_grants','reading_sessions','reader_comments'];
+    $required=['workspace','operations','auth_attempts','oauth_clients','oauth_codes','oauth_tokens','oauth_refresh_rotations','reading_grants','reading_sessions','reader_comments'];
     $tables=$db->query($sqlite?"SELECT name FROM sqlite_master WHERE type='table'":'SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()')->fetchAll(PDO::FETCH_COLUMN);
     $missing=array_diff($required,$tables);
     $rowMissing=!in_array('workspace',$tables,true)||$db->query('SELECT id FROM workspace WHERE id=1')->fetchColumn()===false;

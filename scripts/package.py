@@ -24,6 +24,7 @@ with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED) as z:
  z.writestr('private/.htaccess','Require all denied\n')
  z.write(root/'server/schema.sql','database/schema.sql')
  z.write(root/'server/sharing-schema.sql','database/sharing-upgrade.sql')
+ z.write(root/'server/oauth-refresh-schema.sql','database/oauth-refresh-upgrade.sql')
  for name in ['DEPLOYMENT.md','CHATGPT-CONNECTION.md','SHARING.md','LIMITATIONS.md','VERIFICATION.md','COLLABORATION-AUDIT.md']:
   p=root/'docs'/name
   if p.exists():z.write(p,'instructions/'+name)

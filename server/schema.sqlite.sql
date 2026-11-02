@@ -10,3 +10,6 @@ CREATE INDEX IF NOT EXISTS reading_session_grant ON reading_sessions(grant_id);
 CREATE INDEX IF NOT EXISTS reading_session_expiry ON reading_sessions(expires_at);
 CREATE TABLE IF NOT EXISTS reader_comments (id TEXT PRIMARY KEY NOT NULL, grant_id TEXT NOT NULL, chapter_id TEXT NOT NULL, revision_id TEXT NOT NULL, paragraph_id TEXT NULL, chapter_title TEXT NOT NULL, paragraph_label INTEGER NULL, quote TEXT NOT NULL, comment_text TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS reader_comment_grant ON reader_comments(grant_id);
+
+CREATE TABLE IF NOT EXISTS oauth_refresh_rotations (parent_access_hash CHAR(64) PRIMARY KEY, successor_access_hash CHAR(64) UNIQUE NOT NULL, family_hash CHAR(64) NOT NULL, nonce CHAR(64) NOT NULL, rotated_at BIGINT NOT NULL);
+CREATE INDEX IF NOT EXISTS oauth_refresh_family ON oauth_refresh_rotations(family_hash);

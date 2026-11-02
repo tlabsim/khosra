@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix OAuth refresh races: preserve parent access until its original expiry, return identical replacement credentials for bounded 120-second refresh retries, inherit only the grant-bound audience when resource is omitted, and enforce client/scope/expiry checks. Add hash-only rotation lineage with nonce-derived replacements, family-wide atomic revocation, explicit invalid_token MCP challenges and authenticated additive initialization for SQLite/MySQL. Keep one-hour access and rolling 30-day refresh lifetimes.
+
 - Default guest reader line spacing to Close (1.6), retaining saved guest spacing and the author’s existing default.
 
 - Default guest reading to text selection off and mouse page dragging on. Allow guests to adjust selection and drag controls; preserve saved guest choices and existing author defaults. Drag applies to paged layouts; continuous scrolling and touch swipes retain their behavior.

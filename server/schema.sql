@@ -64,3 +64,5 @@ CREATE TABLE IF NOT EXISTS reader_comments (
  created_at BIGINT NOT NULL,
  INDEX reader_comment_grant (grant_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS oauth_refresh_rotations (parent_access_hash CHAR(64) PRIMARY KEY, successor_access_hash CHAR(64) UNIQUE NOT NULL, family_hash CHAR(64) NOT NULL, nonce CHAR(64) NOT NULL, rotated_at BIGINT NOT NULL, INDEX oauth_refresh_family (family_hash)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
