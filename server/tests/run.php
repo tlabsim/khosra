@@ -22,8 +22,8 @@ if(in_array('sqlite',PDO::getAvailableDrivers(),true)){
  $memory=new PDO('sqlite::memory:');$memory->setAttribute(PDO::ATTR_ERRMODE,PDO::ERRMODE_EXCEPTION);$memory->exec('CREATE TABLE workspace(id INTEGER,version INTEGER,payload TEXT)');$memory->exec('CREATE TABLE operations(operation_id TEXT,payload_hash TEXT,result_version INTEGER)');$q=$memory->prepare('INSERT INTO workspace VALUES(1,1,?)');$q->execute([json_encode($deleted)]);
  check(callTool($memory,'list_books',[])['chapters']===[],'Tool list excludes chapters in Trash');
  check(callTool($memory,'read_chapter',['chapter_id'=>$cid])['chapter']['deletedAt']===$deleted['chapters'][0]['deletedAt'],'Explicit source reads retain deletion metadata');
- rejects(fn()=>callTool($memory,'save_proposal',['chapter_id'=>$cid]),409,'Tool cannot propose changes to a trashed chapter');
- rejects(fn()=>callTool($memory,'save_context',['chapter_id'=>$cid]),409,'Tool cannot index a trashed chapter');
+ rejects(fn()=>callTool($memory,'save_proposal',['chapter_id'=>$cid,'operation_id'=>uuid()]),409,'Tool cannot propose changes to a trashed chapter');
+ rejects(fn()=>callTool($memory,'save_context',['chapter_id'=>$cid,'operation_id'=>uuid()]),409,'Tool cannot index a trashed chapter');
  $retryArgs=['chapter_id'=>$cid,'operation_id'=>uuid()];$q=$memory->prepare('INSERT INTO operations VALUES(?,?,?)');$q->execute([$retryArgs['operation_id'],hash('sha256',json_encode(['save_proposal',$retryArgs],JSON_THROW_ON_ERROR)),1]);check(callTool($memory,'save_proposal',$retryArgs)['duplicate']===true,'Completed tool operation remains idempotent after chapter deletion');
 }
 $guideTool=array_values(array_filter(tools(),fn($t)=>$t['name']==='get_khosra_guide'))[0];

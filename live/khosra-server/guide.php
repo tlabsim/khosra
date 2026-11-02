@@ -87,6 +87,8 @@ function khosraGuide(): array {
   ],
   'retriesAndFailures'=>[
    'For an uncertain write result, retry with the SAME operation_id and identical arguments. Keep that ID until the result is known. A new or changed request needs a new operation_id; reusing an ID with different content fails.',
+   'A generic tool failed internally message is not proof that nothing was saved. Retry the identical operation before switching from differential to full submission or creating a new operation. For save_proposal_edits, operation_id is also the proposal ID: read_proposal can verify that exact ID. Do not claim success without a saved receipt or exact read confirmation.',
+   'Updated servers attach a safe Reference ID to tool errors and khosra/requestId response metadata. Report this reference and attempt time for diagnosis; never share tokens, passwords, request bodies or manuscript text. A missing response can also be a host timeout or memory failure.',
    'HTTP/tool authorization failures require reconnection or the appropriate scope. manuscript.read covers discovery, source, history, flags, context, proposals and this guide; manuscript.propose is additionally required for save_proposal_edits, save_proposal, save_context and other save_ tools.',
    'Trashed chapters are excluded from list_books. Exact source/history reads by known UUID can still inspect them, but saving proposals/context is blocked until the author restores the chapter through Contents → Deleted chapters.',
   ],

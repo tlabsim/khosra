@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Reduce proposal/context save memory by decoding the workspace once inside the locked writer, preserving exact version/fingerprint, immutable history and idempotent operations. Fix a reproduced 28.8 MiB workspace failure under PHP’s 128 MiB limit.
+- Add safe MCP write diagnostics and request references, including fatal memory/timeout categories; return unexpected tool exceptions as actionable MCP errors. Update the guide to verify uncertain writes before switching submission methods.
+
 - Name manuscript text exports and workspace archives with the active manuscript title and local date/time; preserve Unicode titles, sanitize filesystem-unsafe characters and label full workspace backups explicitly.
 
 - Restore the last manuscript and chapter on refresh, remember a separate chapter for each manuscript, and fall back safely when a chapter is removed. Keep navigation browser-local and preserve the saved destination through sign-in/server hydration.

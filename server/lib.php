@@ -4,6 +4,7 @@ require_once __DIR__.'/guide.php';
 require_once __DIR__.'/materials.php';
 require_once __DIR__.'/proposal-edits.php';
 require_once __DIR__.'/workspace-sync.php';
+const KHOSRA_MCP_REVISION='2026-11-02c';
 final class ApiError extends RuntimeException { public function __construct(public int $status,string $message){parent::__construct($message);} }
 function fail(int $status,string $message):never {throw new ApiError($status,$message);}
 function uuid():string {$d=random_bytes(16);$d[6]=chr((ord($d[6])&15)|64);$d[8]=chr((ord($d[8])&63)|128);return vsprintf('%s%s-%s-%s-%s-%s%s%s',str_split(bin2hex($d),4));}
@@ -178,6 +179,7 @@ function proposalSource(array $state,array $head,mixed $baseId):array {
 }
 function callTool(PDO $db,string $name,array $args):array {
  if($name==='get_khosra_guide'){if($args!==[])fail(422,'get_khosra_guide takes no arguments.');return khosraGuide();}
+ if(in_array($name,['save_proposal','save_proposal_edits','save_context'],true))return saveRevisionTool($db,$name,$args);
  $loaded=loadWorkspace($db);$s=$loaded['state'];if($name==='list_books')return ['books'=>$s['books'],'chapters'=>array_values(array_filter($s['chapters'],fn($c)=>empty($c['deletedAt']))),'workspaceVersion'=>$loaded['version']];
  if($name==='resolve_reference'){if(!preg_match('/^(?:R(\d+):)?C(\d+)(?:-P(\d+))?$/i',(string)($args['reference']??''),$m))fail(422,'Use R2:C3-P17 or C3-P17.');record($s['books'],(string)($args['book_id']??''));$cs=array_values(array_filter($s['chapters'],fn($c)=>$c['bookId']===$args['book_id']&&$c['code']===(int)$m[2]));if(!$cs)fail(404,'Chapter address not found.');$c=$cs[0];$r=record($s['revisions'],$c['headId']);if(($m[1]??'')!==''||isset($args['revision_id'])){$matches=array_values(array_filter($s['revisions'],fn($r)=>$r['chapterId']===$c['id']&&(($m[1]??'')===''||$r['edition']===(int)$m[1])&&(!isset($m[3])||in_array((int)$m[3],array_column($r['paragraphs'],'label'),true))));if(isset($args['revision_id']))$matches=array_values(array_filter($matches,fn($x)=>$x['id']===$args['revision_id']));if(!$matches)fail(404,'Historical reference not found.');if(isset($m[3])&&!isset($args['revision_id'])){$ids=[];foreach($matches as $x)foreach($x['paragraphs'] as $p)if($p['label']===(int)$m[3])$ids[$p['id']]=true;if(count($ids)>1)fail(409,'Address appears on divergent branches. Supply revision_id from history.');}$r=end($matches);}if(isset($m[3])){$r['paragraphs']=array_values(array_filter($r['paragraphs'],fn($p)=>$p['label']===(int)$m[3]));if(!$r['paragraphs'])fail(404,'Passage absent from current edition; specify original R edition or read history.');}return ['chapter'=>$c,'revision'=>$r,'isLatest'=>$r['id']===$c['headId']];}
  if(in_array($name,['save_chapter_proposal','list_chapter_proposals','read_chapter_proposal'],true))return chapterProposalTool($db,$name,$args,$loaded);
@@ -189,11 +191,68 @@ function callTool(PDO $db,string $name,array $args):array {
  if($name==='list_proposals')return ['proposals'=>array_map(fn($p)=>array_diff_key($p,['paragraphs'=>true,'review'=>true]),array_values(array_filter($s['proposals'],fn($p)=>$p['chapterId']===$c['id'])))];
  if($name==='read_proposal'){$p=record($s['proposals'],(string)($args['proposal_id']??''));if($p['chapterId']!==$c['id'])fail(422,'Proposal belongs to another chapter.');return ['proposal'=>$p,'currentRevisionId'=>$r['id'],'stale'=>$p['baseRevisionId']!==$r['id']];}
  if($name==='list_history')return ['revisions'=>array_map(fn($x)=>array_diff_key($x,['paragraphs'=>true]),array_values(array_filter($s['revisions'],fn($x)=>$x['chapterId']===$c['id'])))];
- if(!in_array($name,['save_proposal','save_proposal_edits','save_context'],true))fail(404,'Unknown tool.');
- $op=(string)($args['operation_id']??'');$hash=hash('sha256',json_encode([$name,$args],JSON_THROW_ON_ERROR));$q=$db->prepare('SELECT payload_hash,result_version FROM operations WHERE operation_id=?');$q->execute([$op]);if($known=$q->fetch(PDO::FETCH_ASSOC)){if(!hash_equals($known['payload_hash'],$hash))fail(409,'Operation ID reused.');return array_merge(['saved'=>true,'workspaceVersion'=>(int)$known['result_version'],'duplicate'=>true],$name==='save_proposal_edits'?['id'=>$op]:[]);}
- if(!empty($c['deletedAt']))fail(409,'Chapter is in Trash. The author must restore it before adding proposals or context.');
- if(in_array($name,['save_proposal','save_proposal_edits'],true)){$base=proposalSource($s,$r,$args['base_revision_id']??null);$item=['id'=>$name==='save_proposal_edits'?$op:uuid(),'chapterId'=>$c['id'],'baseRevisionId'=>$base['id'],'title'=>$args['title']??null,'rationale'=>$args['rationale']??null,'paragraphs'=>$name==='save_proposal_edits'?proposalEditParagraphs($s,$base,$args):($args['paragraphs']??null),'status'=>'pending','createdAt'=>stamp()];$s['proposals'][]=$item;}else{if(($args['revision_id']??null)!==$r['id'])fail(409,'Chapter changed. Reindex latest source.');$item=['id'=>uuid(),'chapterId'=>$c['id'],'revisionId'=>$r['id'],'summary'=>$args['summary']??null,'facts'=>$args['facts']??null,'createdAt'=>stamp()];$s['contexts'][]=$item;}
- $v=writeWorkspace($db,$s,$loaded['version'],$op,$hash);$result=['saved'=>true,'id'=>$item['id'],'workspaceVersion'=>$v,'message'=>$name!=='save_context'?'Proposal saved for author review. Current manuscript unchanged.':'Context saved.'];if($name!=='save_context'){$result['baseRevisionId']=$base['id'];$result['currentRevisionId']=$r['id'];$result['stale']=$base['id']!==$r['id'];if($result['stale'])$result['message']='Proposal saved against the exact source you read. The chapter has newer edits; author review must reconcile overlapping changes. Current manuscript unchanged.';}return $result;
+ fail(404,'Unknown tool.');
+}
+
+// Decode once inside the locked writer. Holding a preloaded workspace and decoding
+// it again for history checks can exhaust shared-host PHP memory on larger books.
+function saveRevisionTool(PDO $db,string $name,array $args):array {
+ $op=(string)($args['operation_id']??'');if(!idvalid($op))fail(422,'A durable operation UUID is required.');
+ $hash=hash('sha256',json_encode([$name,$args],JSON_THROW_ON_ERROR));
+ $duplicate=function(int $version)use($name,$op):array{return array_merge(['saved'=>true,'workspaceVersion'=>$version,'duplicate'=>true],$name==='save_proposal_edits'?['id'=>$op]:[]);};
+ $q=$db->prepare('SELECT payload_hash,result_version FROM operations WHERE operation_id=?');$q->execute([$op]);$known=$q->fetch(PDO::FETCH_ASSOC);$q->closeCursor();
+ if($known){if(!hash_equals($known['payload_hash'],$hash))fail(409,'Operation ID reused.');return $duplicate((int)$known['result_version']);}
+ // Metadata carries the exact version/fingerprint without retaining decoded prose.
+ $loaded=loadWorkspace($db,false,false);$result=null;
+ $version=writeWorkspace($db,function(array $s)use($name,$args,$op,&$result):array{
+  $c=record($s['chapters'],(string)($args['chapter_id']??''));$r=record($s['revisions'],$c['headId']);
+  if(!empty($c['deletedAt']))fail(409,'Chapter is in Trash. The author must restore it before adding proposals or context.');
+  if($name!=='save_context'){
+   $base=proposalSource($s,$r,$args['base_revision_id']??null);
+   $item=['id'=>$name==='save_proposal_edits'?$op:uuid(),'chapterId'=>$c['id'],'baseRevisionId'=>$base['id'],'title'=>$args['title']??null,'rationale'=>$args['rationale']??null,'paragraphs'=>$name==='save_proposal_edits'?proposalEditParagraphs($s,$base,$args):($args['paragraphs']??null),'status'=>'pending','createdAt'=>stamp()];
+   $s['proposals'][]=$item;
+  }else{
+   if(($args['revision_id']??null)!==$r['id'])fail(409,'Chapter changed. Reindex latest source.');
+   $item=['id'=>uuid(),'chapterId'=>$c['id'],'revisionId'=>$r['id'],'summary'=>$args['summary']??null,'facts'=>$args['facts']??null,'createdAt'=>stamp()];$s['contexts'][]=$item;
+  }
+  $result=['saved'=>true,'id'=>$item['id'],'message'=>$name!=='save_context'?'Proposal saved for author review. Current manuscript unchanged.':'Context saved.'];
+  if($name!=='save_context'){$result['baseRevisionId']=$base['id'];$result['currentRevisionId']=$r['id'];$result['stale']=$base['id']!==$r['id'];if($result['stale'])$result['message']='Proposal saved against the exact source you read. The chapter has newer edits; author review must reconcile overlapping changes. Current manuscript unchanged.';}
+  return $s;
+ },$loaded['version'],$op,$hash,$loaded['fingerprint']);
+ // Another identical request may have committed between lookup and writer lock.
+ return $result===null?$duplicate($version):array_merge($result,['workspaceVersion'=>$version]);
+}
+
+// Fixed metadata only: no arguments, credentials, operation IDs or manuscript text.
+function mcpDiagnostic(string $request,string $tool,string $event,int $status,float $started,?string $reason=null):void {
+ error_log('[Khosra MCP '.KHOSRA_MCP_REVISION.'] request='.$request.' tool='.$tool.' event='.$event.' status='.$status.' elapsed_ms='.(int)((microtime(true)-$started)*1000).' peak_bytes='.memory_get_peak_usage(true).($reason===null?'':' reason='.$reason));
+}
+function mcpToolResult(PDO $db,array $rpc,array $scopes):array {
+ $params=$rpc['params']??[];$name=is_string($params['name']??null)?$params['name']:'';
+ $safeName=in_array($name,array_column(tools(),'name'),true)?$name:'unknown';$write=str_starts_with($safeName,'save_');
+ $request=bin2hex(random_bytes(8));$started=microtime(true);$finished=false;$reserve=str_repeat('x',65536);
+ header('X-Khosra-Request-Id: '.$request);
+ if($write)mcpDiagnostic($request,$safeName,'started',200,$started);
+ register_shutdown_function(static function()use(&$reserve,&$finished,$request,$safeName,$started):void{
+  if($finished)return;$last=error_get_last();if(!$last||!in_array($last['type'],[E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR],true))return;
+  $reserve=null;$reason=str_contains($last['message'],'Allowed memory size')?'memory_exhausted':(str_contains($last['message'],'Maximum execution time')?'execution_timeout':'fatal_failure');
+  mcpDiagnostic($request,$safeName,'fatal',500,$started,$reason);
+ });
+ try{
+  if(!is_array($params)||($params!==[]&&array_is_list($params)))fail(422,'Tool parameters must be an object.');
+  if($name==='')fail(422,'A tool name is required.');
+  $required=str_starts_with($name,'save_')?'manuscript.propose':'manuscript.read';if(!in_array($required,$scopes,true))fail(403,'Token scope does not permit this tool.');
+  $args=$params['arguments']??[];if(!is_array($args)||($args!==[]&&array_is_list($args)))fail(422,'Tool arguments must be an object.');
+  $value=callTool($db,$name,$args);$response=['content'=>toolContent($value),'_meta'=>['khosra/requestId'=>$request]];
+  if($write)mcpDiagnostic($request,$safeName,'result_ready',200,$started);
+  return $response;
+ }catch(ApiError $e){
+  mcpDiagnostic($request,$safeName,'rejected',$e->status,$started,'request_rejected');
+  return ['isError'=>true,'content'=>[['type'=>'text','text'=>$e->getMessage().' Reference: '.$request.'.']],'_meta'=>['khosra/requestId'=>$request]];
+ }catch(Throwable){
+  mcpDiagnostic($request,$safeName,'failed',500,$started,'server_failure');
+  return ['isError'=>true,'content'=>[['type'=>'text','text'=>($write?'The server could not complete this tool call. Submission outcome is uncertain; retry the SAME operation_id and identical arguments before creating a different request.':'The server could not complete this read request. Retry the same read.').' Reference: '.$request.'.']],'_meta'=>['khosra/requestId'=>$request]];
+ }finally{$finished=true;$reserve=null;}
 }
 
 // New chapters remain separate from manuscript chapters until owner confirmation.

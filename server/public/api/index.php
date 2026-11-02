@@ -3,7 +3,7 @@ declare(strict_types=1);
 require dirname(__DIR__,2).'/lib.php';
 require dirname(__DIR__,2).'/oauth.php';
 require dirname(__DIR__,2).'/sharing.php';
-header('X-Khosra-Auth-Revision: '.KHOSRA_AUTH_REVISION);header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');header('X-Content-Type-Options: nosniff');header('X-Robots-Tag: noindex, nofollow');header('Referrer-Policy: no-referrer');
+header('X-Khosra-MCP-Revision: '.KHOSRA_MCP_REVISION);header('X-Khosra-Auth-Revision: '.KHOSRA_AUTH_REVISION);header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');header('X-Content-Type-Options: nosniff');header('X-Robots-Tag: noindex, nofollow');header('Referrer-Policy: no-referrer');
 function respond(mixed $value,int $status=200):never{http_response_code($status);echo json_encode($value,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);exit;}
 const KHOSRA_WORKSPACE_BYTES=64*1024*1024;
 function workspaceTransportInfo():array{return ['gzip'=>function_exists('gzdecode'),'maxDecodedBytes'=>KHOSRA_WORKSPACE_BYTES,'differential'=>1];}
@@ -33,7 +33,7 @@ try{
    'initialize'=>['protocolVersion'=>'2025-03-26','capabilities'=>['tools'=>new stdClass()],'serverInfo'=>['name'=>'khosra','version'=>'0.2.0'],'instructions'=>khosraInstructions()],
    'ping'=>new stdClass(),
    'tools/list'=>['tools'=>tools()],
-   'tools/call'=>(function()use($db,$rpc,$scopes){try{$params=$rpc['params']??[];$required=str_starts_with($params['name']??'','save_')?'manuscript.propose':'manuscript.read';if(!in_array($required,$scopes,true))fail(403,'Token scope does not permit this tool.');$value=callTool($db,(string)($params['name']??''),$params['arguments']??[]);return ['content'=>toolContent($value)];}catch(ApiError $e){return ['isError'=>true,'content'=>[['type'=>'text','text'=>$e->getMessage()]]];}})(),
+   'tools/call'=>mcpToolResult($db,$rpc,$scopes),
    default=>null
   };if($result===null)respond(['jsonrpc'=>'2.0','id'=>$id,'error'=>['code'=>-32601,'message'=>'Method not found']]);respond(['jsonrpc'=>'2.0','id'=>$id,'result'=>$result]);
  }
