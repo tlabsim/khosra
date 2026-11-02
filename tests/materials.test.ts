@@ -184,6 +184,23 @@ describe("private manuscript materials", () => {
       expect(() => validateState(s)).toThrow();
     }
   });
+  it("keeps attachment capacity independent between manuscripts", () => {
+    const s = fixture();
+    const book = { ...s.books[0], id: uid(), title: "Another manuscript" };
+    s.books.push(book);
+    const raw = "%PDF-" + "a".repeat(FILE_LIMIT - 5);
+    const f = {
+      ...attachment(s.books[0].id),
+      size: raw.length,
+      data: btoa(raw),
+    };
+    s.files = Array.from({ length: 6 }, (_, i) => ({
+      ...f,
+      id: uid(),
+      bookId: i < 3 ? s.books[0].id : book.id,
+    }));
+    expect(() => validateState(s)).not.toThrow();
+  });
   it("retains archived files in capacity calculations and enforces the total limit", () => {
     const s = fixture();
     const raw = "%PDF-" + "a".repeat(FILE_LIMIT - 5);

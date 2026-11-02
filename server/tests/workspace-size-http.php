@@ -15,7 +15,7 @@ function chapterRpc(string $name,array $args=[],?string $token=null,string $meth
 }
 function rpcChapterValue(array $r):array{return json_decode($r['body']['result']['content'][0]['text']??'{}',true)??[];}
 try{
- foreach(['lib.php','oauth.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php','diagnostics.php','sharing.php'] as $file)copy(dirname(__DIR__).'/'.$file,$root.'/'.$file);
+ foreach(['lib.php','oauth.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php','diagnostics.php','manuscript-store.php','sharing.php'] as $file)copy(dirname(__DIR__).'/'.$file,$root.'/'.$file);
  copy(dirname(__DIR__).'/public/api/index.php',$root.'/public/api/index.php');
  file_put_contents($root.'/router.php',"<?php require __DIR__.'/public/api/index.php';");
  $config=['dsn'=>'sqlite:'.$root.'/fixture.sqlite','origin'=>$origin,'owner_password'=>'isolated-chapter-test-password','tool_token_hash'=>''];file_put_contents($root.'/config.php','<?php return '.var_export($config,true).';');
@@ -29,7 +29,7 @@ try{
   $response=file_get_contents($origin.'/api/workspace',false,stream_context_create($options));preg_match('/\s(\d{3})\s/',$http_response_header[0]??'',$m);return ['status'=>(int)($m[1]??0),'body'=>json_decode($response?:'',true)];
  }
  $r=chapterHttp('/api/login','POST',['password'=>$config['owner_password']]);checkChapterHttp($r['status']===200,'Owner signs in');$csrf=$r['body']['csrf'];$cookie='';foreach($r['headers'] as $h)if(str_starts_with(strtolower($h),'set-cookie:'))$cookie=explode(';',trim(substr($h,11)))[0];
- checkChapterHttp($r['body']['workspaceTransport']===['gzip'=>true,'maxDecodedBytes'=>64*1024*1024,'differential'=>1],'Login advertises gzip and 64 MiB decoded workspace limit');
+ checkChapterHttp($r['body']['workspaceTransport']===['gzip'=>true,'maxDecodedBytes'=>64*1024*1024,'differential'=>1,'manuscriptUnits'=>1],'Login advertises gzip and 64 MiB decoded workspace limit');
  $headers=['Cookie: '.$cookie,'X-CSRF-Token: '.$csrf,'Origin: '.$origin];
  $r=chapterHttp('/api/session','GET',null,['Cookie: '.$cookie]);checkChapterHttp($r['body']['workspaceTransport']['gzip'],'Existing sessions discover upload capability');
  $cid=uuid();$rid=uuid();$state['chapters'][]=['id'=>$cid,'bookId'=>$bid,'code'=>1,'title'=>'Large Bengali chapter','position'=>0,'headId'=>$rid,'approvedId'=>null,'synopsis'=>''];

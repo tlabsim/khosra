@@ -1,3 +1,4 @@
+import { manuscriptBatches, type RecordIds } from "./batches";
 import { validateState, type State, uid } from "../domain/model";
 import { db, digest } from "../storage/db";
 import {
@@ -142,18 +143,47 @@ export async function pull() {
         if (changed.length) ids[key] = changed;
       }
       try {
-        const result = Object.keys(ids).length
-          ? await request("workspace/sync", {
-              action: "pull",
-              version: info.version,
-              fingerprint: info.fingerprint,
-              ids,
-            })
-          : {
-              records: {},
-              version: info.version,
-              fingerprint: info.fingerprint,
-            };
+        const batches =
+          workspaceTransport?.manuscriptUnits === 1
+            ? manuscriptBatches(manifest, ids)
+            : Object.keys(ids).length
+              ? [ids]
+              : [];
+        const result = {
+          records: {} as Partial<
+            Record<(typeof collections)[number], { id: string }[]>
+          >,
+          version: info.version,
+          fingerprint: info.fingerprint,
+        };
+        for (const batch of batches) {
+          const chunk = await request("workspace/sync", {
+            action: "pull",
+            version: info.version,
+            fingerprint: info.fingerprint,
+            ids: batch as RecordIds,
+          });
+          if (
+            chunk.version !== info.version ||
+            chunk.fingerprint !== info.fingerprint
+          )
+            throw new SyncConflict("Workspace changed during download.");
+          for (const key of collections) {
+            const received = chunk.records?.[key] ?? [],
+              requested = batch[key] ?? [];
+            if (
+              !Array.isArray(received) ||
+              received.length !== requested.length ||
+              received.some((r: { id: string }) => !requested.includes(r.id))
+            )
+              throw new ServerRequestError(
+                "Incomplete differential download.",
+                502,
+                "invalid_response",
+              );
+            if (received.length) (result.records[key] ??= []).push(...received);
+          }
+        }
         if (
           result.version !== info.version ||
           result.fingerprint !== info.fingerprint

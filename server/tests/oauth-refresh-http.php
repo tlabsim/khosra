@@ -16,7 +16,7 @@ function refreshMcp(string $token,?string $origin=null,string $scheme="Bearer"):
  $raw=file_get_contents($config['origin'].'/api/mcp',false,stream_context_create(['http'=>['method'=>'POST','ignore_errors'=>true,'timeout'=>10,'header'=>"Content-Type: application/json".($token!==""?"\r\nAuthorization: ".$scheme." ".$token:"").($origin!==null?"\r\nOrigin: ".$origin:""),'content'=>$payload]]));preg_match('/\s(\d{3})\s/',$http_response_header[0]??'',$m);return ['status'=>(int)($m[1]??0),'json'=>json_decode($raw?:'',true),'headers'=>strtolower(implode(' ',$http_response_header??[]))];
 }
 try{
- foreach(['lib.php','oauth.php','sharing.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php','diagnostics.php'] as $file)copy(dirname(__DIR__).'/'.$file,$root.'/'.$file);
+ foreach(['lib.php','oauth.php','sharing.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php','diagnostics.php','manuscript-store.php'] as $file)copy(dirname(__DIR__).'/'.$file,$root.'/'.$file);
  copy(dirname(__DIR__).'/public/api/index.php',$root.'/public/api/index.php');copy(dirname(__DIR__).'/public/oauth-consent.js',$root.'/public/oauth-consent.js');
  file_put_contents($root.'/config.php','<?php return '.var_export($config,true).';');chmod($root.'/config.php',0600);
  file_put_contents($root.'/router.php',"<?php \$path=parse_url(\$_SERVER['REQUEST_URI'],PHP_URL_PATH);if(\$path==='/oauth-consent.js')return false;if(str_starts_with(\$path,'/.well-known/'))\$_GET['discovery']=basename(\$path);require __DIR__.'/public/api/index.php';");

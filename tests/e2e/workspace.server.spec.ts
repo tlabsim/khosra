@@ -1055,6 +1055,8 @@ test("owner diagnostics show server limits, paginate, copy and confirm SQLite lo
   await server.attach(context);
   let purged = false,
     empty = false;
+  let recording = true;
+  const queries: URLSearchParams[] = [];
   const removals: (number | null)[] = [];
   const at = "2026-11-02T10:00:00+00:00";
   const row = {
@@ -1100,6 +1102,12 @@ test("owner diagnostics show server limits, paginate, copy and confirm SQLite lo
   };
   await page.route("**/api/diagnostics/**", async (route) => {
     const url = new URL(route.request().url());
+    if (url.pathname.endsWith("/settings")) {
+      expect(route.request().headers()["x-csrf-token"]).toBe("test-csrf");
+      recording = route.request().postDataJSON().enabled;
+      await route.fulfill({ json: { enabled: recording } });
+      return;
+    }
     if (url.pathname.endsWith("/purge")) {
       expect(route.request().headers()["x-csrf-token"]).toBe("test-csrf");
       const days = route.request().postDataJSON().olderThanDays;
@@ -1109,11 +1117,14 @@ test("owner diagnostics show server limits, paginate, copy and confirm SQLite lo
       await route.fulfill({ json: { removed: empty ? 1 : 25 } });
       return;
     }
+    queries.push(url.searchParams);
     const pageNumber = Number(url.searchParams.get("page") || 1);
+    const noMatches = url.searchParams.get("search") === "no-match";
     await route.fulfill({
       json: {
         revision: "2026-11-02d",
         serverTime: at,
+        recordingEnabled: recording,
         environment: {
           phpVersion: "8.3.36",
           memoryLimit: "256M",
@@ -1127,12 +1138,15 @@ test("owner diagnostics show server limits, paginate, copy and confirm SQLite lo
           maxEvents: 10000,
           bytes: 131072,
         },
-        requests: empty
-          ? []
-          : [{ ...row, id: pageNumber === 1 ? row.id : "1234567890abcdef" }],
+        tools: ["save_chapter_proposal", "read_chapter"],
+        totalRecordedRequests: empty ? 0 : purged ? 1 : 26,
+        requests:
+          empty || noMatches
+            ? []
+            : [{ ...row, id: pageNumber === 1 ? row.id : "1234567890abcdef" }],
         page: pageNumber,
         pageSize: 25,
-        totalRequests: empty ? 0 : purged ? 1 : 26,
+        totalRequests: empty || noMatches ? 0 : purged ? 1 : 26,
         totalEvents: empty ? 0 : purged ? 3 : 78,
       },
     });
@@ -1140,9 +1154,19 @@ test("owner diagnostics show server limits, paginate, copy and confirm SQLite lo
   await page.goto("/");
   await signIn(page);
   await page.getByRole("button", { name: "Settings & backups" }).click();
-  await page.getByText("Connection diagnostics", { exact: true }).click();
-  await page.getByRole("button", { name: "Load diagnostics" }).click();
+  await expect(page.locator(".mcp-diagnostics")).toHaveCount(0);
+  await page.getByRole("button", { name: "Open connection logs" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Connection logs", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Read", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.locator(".chapter-header")).toHaveCount(0);
   const diagnostics = page.locator(".mcp-diagnostics");
+  await diagnostics
+    .getByText("Server & storage details", { exact: true })
+    .click();
   await expect(diagnostics.getByText("256M", { exact: true })).toBeVisible();
   await expect(
     diagnostics.getByText("memory exhausted", { exact: true }),
@@ -1158,6 +1182,27 @@ test("owner diagnostics show server limits, paginate, copy and confirm SQLite lo
   await diagnostics
     .getByRole("button", { name: "Previous", exact: true })
     .click();
+  await diagnostics
+    .getByRole("combobox", { name: "Outcome", exact: true })
+    .selectOption("errors");
+  await expect.poll(() => queries.at(-1)?.get("outcome")).toBe("errors");
+  expect(queries.at(-1)?.get("page")).toBe("1");
+  await diagnostics
+    .getByRole("combobox", { name: "Tool", exact: true })
+    .selectOption("save_chapter_proposal");
+  await expect
+    .poll(() => queries.at(-1)?.get("tool"))
+    .toBe("save_chapter_proposal");
+  await diagnostics.getByLabel("Search requests").fill("no-match");
+  await diagnostics
+    .getByRole("button", { name: "Search", exact: true })
+    .click();
+  await expect(
+    diagnostics.getByRole("heading", { name: "No matching requests" }),
+  ).toBeVisible();
+  await diagnostics.getByRole("button", { name: "Clear filters" }).click();
+  await expect.poll(() => queries.at(-1)?.get("outcome")).toBe("all");
+  await expect(diagnostics.locator(".diagnostic-request")).toHaveCount(1);
   await page.evaluate(() => {
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -1183,17 +1228,27 @@ test("owner diagnostics show server limits, paginate, copy and confirm SQLite lo
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
-  await diagnostics
-    .locator(".diagnostic-actions")
-    .evaluate((element) =>
-      window.scrollTo(
-        0,
-        window.scrollY + element.getBoundingClientRect().top - 100,
-      ),
-    );
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
     path: `test-results/${info.project.name}-internal-diagnostics.png`,
+    fullPage: true,
   });
+  await expect(
+    diagnostics.getByRole("switch", { name: "Record MCP diagnostics" }),
+  ).toBeChecked();
+  await diagnostics
+    .getByRole("switch", { name: "Record MCP diagnostics" })
+    .uncheck();
+  await expect(
+    diagnostics.getByRole("switch", { name: "Record MCP diagnostics" }),
+  ).not.toBeChecked();
+  await expect(diagnostics.locator(".diagnostic-request")).toHaveCount(1);
+  await diagnostics
+    .getByRole("switch", { name: "Record MCP diagnostics" })
+    .check();
+  await expect(
+    diagnostics.getByRole("switch", { name: "Record MCP diagnostics" }),
+  ).toBeChecked();
   await diagnostics.getByRole("button", { name: "Purge logs" }).click();
   let dialog = page.getByRole("dialog", { name: "Purge diagnostic logs?" });
   await expect(dialog).toBeVisible();
@@ -1218,4 +1273,86 @@ test("owner diagnostics show server limits, paginate, copy and confirm SQLite lo
     diagnostics.getByRole("button", { name: "Purge logs" }),
   ).toBeDisabled();
   expect(removals).toEqual([7, null]);
+  await diagnostics.getByRole("button", { name: "Back to settings" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Settings & connections" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Back to workspace" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Opening", exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Connection logs", exact: true }),
+  ).toHaveCount(0);
+});
+
+test("connection logs work without manuscripts and recover from load and storage failures", async ({
+  page,
+  context,
+}) => {
+  await serverFixture().attach(context);
+  let attempt = 0;
+  await page.route("**/api/diagnostics/mcp?**", async (route) => {
+    attempt++;
+    if (attempt === 1) {
+      await route.fulfill({
+        status: 503,
+        json: { error: "Temporary diagnostic failure." },
+      });
+      return;
+    }
+    await route.fulfill({
+      json: {
+        revision: "2026-11-02e",
+        recordingEnabled: true,
+        serverTime: new Date().toISOString(),
+        environment: {
+          phpVersion: "8.3",
+          memoryLimit: "368M",
+          maxExecutionSeconds: 30,
+          postMaxSize: "64M",
+        },
+        storage: {
+          available: attempt > 2,
+          issue: attempt === 2 ? "directory_unwritable" : null,
+          retentionDays: 30,
+          maxEvents: 10000,
+          bytes: 0,
+        },
+        requests: [],
+        page: 1,
+        pageSize: 25,
+        totalRequests: 0,
+        totalRecordedRequests: 0,
+        totalEvents: 0,
+        tools: [],
+      },
+    });
+  });
+  await page.goto("/");
+  await signIn(page);
+  await page.getByRole("button", { name: "Settings & backups" }).click();
+  await page.getByRole("button", { name: "Open connection logs" }).click();
+  const logs = page.locator(".mcp-diagnostics");
+  await expect(
+    logs.getByRole("heading", { name: "Connection logs", exact: true }),
+  ).toBeVisible();
+  await expect(logs.getByRole("alert")).toContainText(
+    "Temporary diagnostic failure",
+  );
+  await logs.getByRole("button", { name: "Load logs", exact: true }).click();
+  await expect(logs.getByRole("alert")).toContainText("directory_unwritable");
+  await expect(
+    logs.getByRole("button", { name: "Purge logs", exact: true }),
+  ).toBeDisabled();
+  await logs.getByRole("button", { name: "Refresh logs", exact: true }).click();
+  await expect(
+    logs.getByRole("heading", { name: "No diagnostic requests recorded yet" }),
+  ).toBeVisible();
+  await expect(logs.getByRole("alert")).toHaveCount(0);
+  await logs.getByRole("button", { name: "Back to settings" }).click();
+  await page.getByRole("button", { name: "Back to library" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Connection logs", exact: true }),
+  ).toHaveCount(0);
 });

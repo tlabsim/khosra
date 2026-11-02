@@ -105,10 +105,12 @@ function workspaceSyncRoute(PDO $db,string $method,array $body):never {
  if($method==='GET'){
   $current=loadWorkspace($db,false,false);
   if((string)($_GET['version']??'')===(string)$current['version']&&($_GET['fingerprint']??'')===$current['fingerprint'])respond(['mode'=>'unchanged']+$current);
+  if(manuscriptStorage($db))respond(['mode'=>'manifest']+$current+['manifest'=>manuscriptManifest($db)]);
   $current=loadWorkspace($db);respond(['mode'=>'manifest','version'=>$current['version'],'fingerprint'=>$current['fingerprint'],'manifest'=>syncManifest($current['state'])]);
  }
  if($method!=='POST')fail(405,'GET or POST required.');
  if(($body['action']??null)==='pull'){
+  if(manuscriptStorage($db))respond(manuscriptPull($db,$body));
   syncFields($body,['action','version','fingerprint','ids']);$current=loadWorkspace($db);
   if($body['version']!==$current['version']||$body['fingerprint']!==$current['fingerprint'])fail(409,'Workspace changed during differential download. Retry from the latest manifest.');
   if(!is_array($body['ids'])||array_diff(array_keys($body['ids']),SYNC_COLLECTIONS))fail(422,'Invalid requested collections.');
@@ -121,6 +123,7 @@ function workspaceSyncRoute(PDO $db,string $method,array $body):never {
  if(($body['action']??null)!=='push')fail(422,'Differential sync action required.');
  syncFields($body,['action','baseVersion','baseFingerprint','operationId','delta']);
  if(!is_int($body['baseVersion'])||!is_string($body['baseFingerprint'])||!preg_match('/^[a-f0-9]{64}$/D',$body['baseFingerprint'])||!is_array($body['delta']))fail(422,'Invalid differential save precondition.');
+ if(manuscriptStorage($db))respond(manuscriptPush($db,$body));
  $saved=null;$version=writeWorkspace($db,function($old)use($body,&$saved){return $saved=syncApply($old,$body['delta']);},$body['baseVersion'],(string)$body['operationId'],hash('sha256',json_encode($body,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR)),$body['baseFingerprint']);
  // A duplicate may be acknowledged after newer commits; never attach their fingerprint.
  if($saved===null)respond(['version'=>$version,'duplicate'=>true]);

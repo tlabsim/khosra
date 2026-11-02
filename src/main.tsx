@@ -1,3 +1,4 @@
+import McpDiagnostics from "./components/McpDiagnostics";
 import ContentsDrawer from "./components/ContentsDrawer";
 import ChapterCleanup from "./components/ChapterCleanup";
 import { usePageTransition } from "./usePageTransition";
@@ -119,7 +120,13 @@ import "./settings.css";
 import "./chapter-actions.css";
 import "./appearance.css";
 type View =
-  "manuscript" | "flags" | "review" | "history" | "context" | "settings";
+  | "manuscript"
+  | "flags"
+  | "review"
+  | "history"
+  | "context"
+  | "settings"
+  | "diagnostics";
 function App() {
   const [navigation] = useState(readNavigation);
   const [state, setState] = useState<State>(emptyState),
@@ -311,8 +318,9 @@ function App() {
     if (!loaded || (hosted && hostedStatus.phase !== "ready")) return;
     if (book?.id) rememberNavigation(book.id, chapter?.id);
   }, [loaded, hostedStatus.phase, book?.id, chapter?.id]);
+  const utilityView = view === "settings" || view === "diagnostics";
   const screen =
-    libraryOpen || (!book && view !== "settings")
+    libraryOpen || (!book && !utilityView)
       ? "library"
       : reading
         ? "reader"
@@ -320,8 +328,8 @@ function App() {
   const transitionRoot = usePageTransition(
     JSON.stringify([
       screen,
-      screen === "library" || screen === "settings" ? null : book?.id,
-      screen === "library" || screen === "settings" ? null : chapter?.id,
+      screen === "library" || utilityView ? null : book?.id,
+      screen === "library" || utilityView ? null : chapter?.id,
       screen === "context" ? contextSection : null,
     ]),
     loaded && !reading && (!hosted || hostedStatus.phase === "ready"),
@@ -676,7 +684,7 @@ function App() {
   function changeView(v: View) {
     finishActiveParagraph();
     if (v === "settings") {
-      if (view === "settings" && !libraryOpen && !reading) {
+      if (utilityView && !libraryOpen && !reading) {
         leaveSettings();
         return;
       }
@@ -845,12 +853,10 @@ function App() {
             <button
               className={
                 "library-link " +
-                (libraryOpen || (!book && view !== "settings") ? "active" : "")
+                (libraryOpen || (!book && !utilityView) ? "active" : "")
               }
               aria-current={
-                libraryOpen || (!book && view !== "settings")
-                  ? "page"
-                  : undefined
+                libraryOpen || (!book && !utilityView) ? "page" : undefined
               }
               onClick={() => {
                 finishActiveParagraph();
@@ -862,7 +868,7 @@ function App() {
               <Books size={20} weight="regular" />
               <span>Library</span>
             </button>
-            {book && !libraryOpen && view !== "settings" && !reading && (
+            {book && !libraryOpen && !utilityView && !reading && (
               <CaretRight
                 className="workspace-hierarchy"
                 size={18}
@@ -871,7 +877,7 @@ function App() {
               />
             )}
           </div>
-          {book && !libraryOpen && view !== "settings" && !reading && (
+          {book && !libraryOpen && !utilityView && !reading && (
             <button
               className="contents-toggle"
               aria-label="Open navigation"
@@ -945,7 +951,7 @@ function App() {
             <button
               className="icon"
               aria-label="Settings & backups"
-              aria-pressed={view === "settings" && !libraryOpen}
+              aria-pressed={utilityView && !libraryOpen}
               title="Settings & backups"
               onClick={() => changeView("settings")}
             >
@@ -960,7 +966,7 @@ function App() {
                 <DownloadSimple size={20} weight="regular" />
               </button>
             )}
-            {chapter && !libraryOpen && view !== "settings" && (
+            {chapter && !libraryOpen && !utilityView && (
               <button
                 className={reading ? "button workspace-return" : "button quiet"}
                 aria-label={reading ? "Back to workspace" : "Read"}
@@ -981,42 +987,48 @@ function App() {
             )}
           </div>
         </header>
-        {!reading && book && !libraryOpen && view !== "settings" && (
-          <WorkspaceNav
-            onShare={() => void openSharing()}
-            onAddChapter={() => setModal("chapter")}
-            chapterNavigation={
-              chapter
-                ? {
-                    previous:
-                      chapters.indexOf(chapter) > 0
-                        ? () => choose(chapters[chapters.indexOf(chapter) - 1])
-                        : undefined,
-                    next:
-                      chapters.indexOf(chapter) < chapters.length - 1
-                        ? () => choose(chapters[chapters.indexOf(chapter) + 1])
-                        : undefined,
-                  }
-                : undefined
-            }
-            current={view}
-            onChange={(id) => changeView(id as View)}
-            items={tabs.map(([id, label, icon]) => ({
-              id,
-              label,
-              icon,
-              count:
-                id === "review"
-                  ? pending.length +
-                    state.chapterProposals.filter(
-                      (p) => p.bookId === book.id && p.status === "pending",
-                    ).length
-                  : id === "flags"
-                    ? flags.filter((f) => f.status === "open").length
-                    : 0,
-            }))}
-          />
-        )}
+        {!reading &&
+          book &&
+          !libraryOpen &&
+          view !== "settings" &&
+          view !== "diagnostics" && (
+            <WorkspaceNav
+              onShare={() => void openSharing()}
+              onAddChapter={() => setModal("chapter")}
+              chapterNavigation={
+                chapter
+                  ? {
+                      previous:
+                        chapters.indexOf(chapter) > 0
+                          ? () =>
+                              choose(chapters[chapters.indexOf(chapter) - 1])
+                          : undefined,
+                      next:
+                        chapters.indexOf(chapter) < chapters.length - 1
+                          ? () =>
+                              choose(chapters[chapters.indexOf(chapter) + 1])
+                          : undefined,
+                    }
+                  : undefined
+              }
+              current={view}
+              onChange={(id) => changeView(id as View)}
+              items={tabs.map(([id, label, icon]) => ({
+                id,
+                label,
+                icon,
+                count:
+                  id === "review"
+                    ? pending.length +
+                      state.chapterProposals.filter(
+                        (p) => p.bookId === book.id && p.status === "pending",
+                      ).length
+                    : id === "flags"
+                      ? flags.filter((f) => f.status === "open").length
+                      : 0,
+              }))}
+            />
+          )}
         {error && (
           <div className="error" role="alert">
             <WarningCircle size={22} />
@@ -1036,12 +1048,29 @@ function App() {
             {notice}
           </div>
         )}
-        {libraryOpen || (!book && view !== "settings") ? (
+        {libraryOpen || (!book && !utilityView) ? (
           <Library
             state={state}
             onOpen={openBook}
             onCreate={() => setModal("book")}
             onRestore={() => importRef.current?.click()}
+          />
+        ) : view === "diagnostics" && !reading ? (
+          <McpDiagnostics
+            enabled={serverReady}
+            setRecording={(enabled) =>
+              server.request("diagnostics/mcp/settings", { enabled })
+            }
+            onBack={() => setView("settings")}
+            load={(page, filters) =>
+              server.request(
+                `diagnostics/mcp?${new URLSearchParams({ page: String(page), ...filters })}`,
+              )
+            }
+            purge={(days) =>
+              server.request("diagnostics/mcp/purge", { olderThanDays: days })
+            }
+            onCopy={(text) => void copy(text, "Diagnostic report copied")}
           />
         ) : view === "settings" && !reading ? (
           <Settings
@@ -1112,12 +1141,7 @@ function App() {
             }
             onCopy={(text, message) => void copy(text, message)}
             onError={setError}
-            onDiagnostics={(page) =>
-              server.request(`diagnostics/mcp?page=${page}`)
-            }
-            onPurgeDiagnostics={(days) =>
-              server.request("diagnostics/mcp/purge", { olderThanDays: days })
-            }
+            onOpenDiagnostics={() => changeView("diagnostics")}
           />
         ) : book &&
           view === "context" &&

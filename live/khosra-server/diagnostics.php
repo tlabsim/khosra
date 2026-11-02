@@ -24,10 +24,15 @@ function diagnosticStore(array $config):array {
   $file=$resolved.'/khosra-mcp-diagnostics.sqlite';
   if(is_link($file)||is_dir($file)||($normalize(substr($dsn,7))===$normalize($file)))return ['issue'=>'unsafe_file'];
   $mask=umask(0077);try{$db=new PDO('sqlite:'.$file,null,null,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);}finally{umask($mask);}
-  @chmod($file,0600);$db->exec('PRAGMA busy_timeout=150');$db->exec('PRAGMA auto_vacuum=FULL');
+  @chmod($file,0600);$db->exec('PRAGMA busy_timeout=150');
+  // Existing stores need a single control read; paused requests do not perform DDL.
+  try{$enabled=$db->query("SELECT enabled FROM diagnostic_controls WHERE id=1 AND EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='events')")->fetchColumn();if($enabled!==false)return ['db'=>$db,'file'=>$file,'enabled'=>(bool)$enabled];}catch(PDOException){}
+  $db->exec('PRAGMA auto_vacuum=FULL');
   $db->exec('CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at INTEGER NOT NULL, request_id TEXT NOT NULL, revision TEXT NOT NULL, rpc_method TEXT NOT NULL, tool TEXT NOT NULL, stage TEXT NOT NULL, status INTEGER NOT NULL, elapsed_ms INTEGER NOT NULL, peak_bytes INTEGER NOT NULL, input_bytes INTEGER NOT NULL, memory_limit TEXT NOT NULL DEFAULT \'\', execution_limit INTEGER NOT NULL DEFAULT 0, paragraph_count INTEGER NULL, replacement_count INTEGER NULL, insertion_count INTEGER NULL, reason TEXT NULL)');
   $db->exec('CREATE INDEX IF NOT EXISTS diagnostic_request ON events(request_id,id)');$db->exec('CREATE INDEX IF NOT EXISTS diagnostic_time ON events(created_at)');
-  return ['db'=>$db,'file'=>$file];
+  $db->exec('CREATE TABLE IF NOT EXISTS diagnostic_controls (id INTEGER PRIMARY KEY, enabled INTEGER NOT NULL)');
+  $enabled=$db->query('SELECT enabled FROM diagnostic_controls WHERE id=1')->fetchColumn();if($enabled===false){$db->exec('INSERT OR IGNORE INTO diagnostic_controls(id,enabled) VALUES(1,1)');$enabled=$db->query('SELECT enabled FROM diagnostic_controls WHERE id=1')->fetchColumn();}
+  return ['db'=>$db,'file'=>$file,'enabled'=>(bool)$enabled];
  }catch(Throwable){return ['issue'=>'storage_unavailable'];}
 }
 function diagnosticReason(Throwable $e):string {
@@ -58,7 +63,10 @@ function diagnosticEvent(string $stage,int $status=200,?string $reason=null,?str
  }catch(Throwable){/* Diagnostics must never break a manuscript operation. */}
 }
 function diagnosticStart(array $config):void {
- $GLOBALS['khosra_mcp_trace']=['id'=>bin2hex(random_bytes(8)),'started'=>microtime(true),'store'=>diagnosticStore($config),'method'=>'unknown','tool'=>'unknown','bytes'=>max(0,min(1073741824,(int)($_SERVER['CONTENT_LENGTH']??0))),'paragraphs'=>null,'replacements'=>null,'insertions'=>null,'done'=>false,'reserve'=>str_repeat('x',262144)];
+ unset($GLOBALS['khosra_mcp_trace']);
+ $store=diagnosticStore($config);$GLOBALS['khosra_mcp_diagnostics_enabled']=$store['enabled']??false;
+ if($GLOBALS['khosra_mcp_diagnostics_enabled']===false)return;
+ $GLOBALS['khosra_mcp_trace']=['id'=>bin2hex(random_bytes(8)),'started'=>microtime(true),'store'=>$store,'method'=>'unknown','tool'=>'unknown','bytes'=>max(0,min(1073741824,(int)($_SERVER['CONTENT_LENGTH']??0))),'paragraphs'=>null,'replacements'=>null,'insertions'=>null,'done'=>false,'reserve'=>str_repeat('x',262144)];
  $trace=&$GLOBALS['khosra_mcp_trace'];header('X-Khosra-Request-Id: '.$trace['id']);
  try{if(isset($trace['store']['db'])){$q=$trace['store']['db']->prepare('DELETE FROM events WHERE created_at < ?');$q->execute([time()-KHOSRA_DIAGNOSTIC_DAYS*86400]);}}catch(Throwable){}
  diagnosticEvent('received');
@@ -81,12 +89,26 @@ function diagnosticFinish(int $status):void {
  if(!isset($GLOBALS['khosra_mcp_trace']))return;
  diagnosticEvent('response_generated',$status);$GLOBALS['khosra_mcp_trace']['done']=true;$GLOBALS['khosra_mcp_trace']['reserve']=null;
 }
-function diagnosticReport(array $config,int $page=1):array {
+function diagnosticReport(array $config,int $page=1,array $filters=[]):array {
+ $outcome=$filters['outcome']??'all';$tool=$filters['tool']??'';$search=$filters['search']??'';
+ if(!is_string($outcome)||!in_array($outcome,['all','errors','completed','in_progress'],true)||!is_string($tool)||strlen($tool)>100||($tool!==''&&!preg_match('/^[a-zA-Z0-9_]+$/D',$tool))||!is_string($search)||strlen($search)>80)fail(422,'Invalid diagnostic filters.');
+ $search=trim($search);
  if($page<1||$page>1000)fail(422,'Invalid diagnostic page.');
- $store=diagnosticStore($config);$out=['revision'=>KHOSRA_MCP_REVISION,'serverTime'=>gmdate('c'),'environment'=>['phpVersion'=>PHP_VERSION,'memoryLimit'=>ini_get('memory_limit'),'maxExecutionSeconds'=>(int)ini_get('max_execution_time'),'postMaxSize'=>ini_get('post_max_size')],'storage'=>['available'=>isset($store['db']),'issue'=>$store['issue']??null,'retentionDays'=>KHOSRA_DIAGNOSTIC_DAYS,'maxEvents'=>KHOSRA_DIAGNOSTIC_LIMIT,'bytes'=>isset($store['file'])?(int)@filesize($store['file']):0],'requests'=>[],'page'=>$page,'pageSize'=>25,'totalRequests'=>0,'totalEvents'=>0];
+ $store=diagnosticStore($config);$out=['revision'=>KHOSRA_MCP_REVISION,'serverTime'=>gmdate('c'),'recordingEnabled'=>$store['enabled']??null,'environment'=>['phpVersion'=>PHP_VERSION,'memoryLimit'=>ini_get('memory_limit'),'maxExecutionSeconds'=>(int)ini_get('max_execution_time'),'postMaxSize'=>ini_get('post_max_size')],'storage'=>['available'=>isset($store['db']),'issue'=>$store['issue']??null,'retentionDays'=>KHOSRA_DIAGNOSTIC_DAYS,'maxEvents'=>KHOSRA_DIAGNOSTIC_LIMIT,'bytes'=>isset($store['file'])?(int)@filesize($store['file']):0],'requests'=>[],'page'=>$page,'pageSize'=>25,'totalRequests'=>0,'totalRecordedRequests'=>0,'totalEvents'=>0,'tools'=>[],'filters'=>['outcome'=>$outcome,'tool'=>$tool,'search'=>$search]];
  if(!isset($store['db']))return $out;
- $db=$store['db'];$expired=$db->prepare('DELETE FROM events WHERE created_at < ?');$expired->execute([time()-KHOSRA_DIAGNOSTIC_DAYS*86400]);$out['totalEvents']=(int)$db->query('SELECT COUNT(*) FROM events')->fetchColumn();$out['totalRequests']=(int)$db->query('SELECT COUNT(DISTINCT request_id) FROM events')->fetchColumn();
- $ids=$db->query('SELECT request_id FROM events GROUP BY request_id ORDER BY MAX(id) DESC LIMIT 25 OFFSET '.(($page-1)*25))->fetchAll(PDO::FETCH_COLUMN);
+ $db=$store['db'];$expired=$db->prepare('DELETE FROM events WHERE created_at < ?');$expired->execute([time()-KHOSRA_DIAGNOSTIC_DAYS*86400]);$out['totalEvents']=(int)$db->query('SELECT COUNT(*) FROM events')->fetchColumn();$out['totalRecordedRequests']=(int)$db->query('SELECT COUNT(DISTINCT request_id) FROM events')->fetchColumn();
+ $out['tools']=$db->query("SELECT DISTINCT tool FROM events WHERE tool <> 'unknown' ORDER BY tool")->fetchAll(PDO::FETCH_COLUMN);
+ // Filter whole requests by their logical outcome, including tool errors returned in HTTP 200.
+ $from=" FROM (SELECT request_id,MAX(id) last_id,MAX(CASE WHEN stage IN ('rejected','failed','fatal','interrupted') THEN id END) error_id FROM events GROUP BY request_id) grouped JOIN events latest ON latest.id=grouped.last_id JOIN events outcome ON outcome.id=COALESCE(grouped.error_id,grouped.last_id)";
+ $where=[];$params=[];
+ if($outcome==='errors')$where[]="(grouped.error_id IS NOT NULL OR outcome.status>=400)";
+ if($outcome==='completed')$where[]="(grouped.error_id IS NULL AND outcome.status<400 AND latest.stage='response_generated')";
+ if($outcome==='in_progress')$where[]="(grouped.error_id IS NULL AND outcome.status<400 AND latest.stage<>'response_generated')";
+ if($tool!==''){$where[]='latest.tool=?';$params[]=$tool;}
+ if($search!==''){$where[]="instr(lower(latest.request_id || ' ' || latest.tool || ' ' || latest.rpc_method || ' ' || COALESCE(outcome.reason,'')),lower(?))>0";$params[]=$search;}
+ $where=$where?' WHERE '.implode(' AND ',$where):'';
+ $count=$db->prepare('SELECT COUNT(*)'.$from.$where);$count->execute($params);$out['totalRequests']=(int)$count->fetchColumn();
+ $q=$db->prepare('SELECT latest.request_id'.$from.$where.' ORDER BY latest.id DESC LIMIT 25 OFFSET '.(($page-1)*25));$q->execute($params);$ids=$q->fetchAll(PDO::FETCH_COLUMN);
  foreach($ids as $id){
   $q=$db->prepare('SELECT * FROM events WHERE request_id=? ORDER BY id LIMIT 100');$q->execute([$id]);$rows=$q->fetchAll(PDO::FETCH_ASSOC);$events=[];
   foreach($rows as $row)$events[]=['at'=>gmdate('c',(int)$row['created_at']),'stage'=>$row['stage'],'status'=>(int)$row['status'],'elapsedMs'=>(int)$row['elapsed_ms'],'peakBytes'=>(int)$row['peak_bytes'],'reason'=>$row['reason'],'inputBytes'=>(int)$row['input_bytes']];
@@ -100,4 +122,11 @@ function diagnosticPurge(array $config,array $body):array {
  $store=diagnosticStore($config);if(!isset($store['db']))fail(503,'Private diagnostic storage is unavailable.');
  $q=$store['db']->prepare('DELETE FROM events'.($body['olderThanDays']===null?'':' WHERE created_at < ?'));$q->execute($body['olderThanDays']===null?[]:[time()-$body['olderThanDays']*86400]);
  return ['removed'=>$q->rowCount()];
+}
+
+function diagnosticSetEnabled(array $config,array $body):array {
+ if(array_keys($body)!==['enabled']||!is_bool($body['enabled']))fail(422,'Choose whether MCP diagnostics are enabled.');
+ $store=diagnosticStore($config);if(!isset($store['db']))fail(503,'Private diagnostic storage is unavailable.');
+ $store['db']->prepare('UPDATE diagnostic_controls SET enabled=? WHERE id=1')->execute([$body['enabled']?1:0]);
+ return ['enabled'=>$body['enabled']];
 }

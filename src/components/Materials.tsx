@@ -12,7 +12,7 @@ import { now, uid, validateState, type State } from "../domain/model";
 import {
   FILE_LIMIT,
   FileSchema,
-  WORKSPACE_FILE_LIMIT,
+  MANUSCRIPT_FILE_LIMIT,
   fileBytes,
   materialHeads,
   type Material,
@@ -134,7 +134,9 @@ export default function Materials({
       (a, b) =>
         b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id),
     );
-  const used = state.files.reduce((n, f) => n + f.size, 0);
+  const used = state.files
+    .filter((f) => f.bookId === bookId)
+    .reduce((n, f) => n + f.size, 0);
   function open(m?: Material) {
     const id = uid();
     setForm(
@@ -281,9 +283,9 @@ export default function Materials({
       {kind === "artifact" && (heads.length > 0 || form) && (
         <p className="caption">
           PNG, JPEG, WebP or PDF · 2 MiB per file ·{" "}
-          {(used / 1048576).toFixed(1)} of {WORKSPACE_FILE_LIMIT / 1048576} MiB
-          used, including history. Included in full workspace backups; excluded
-          from reader shares.
+          {(used / 1048576).toFixed(1)} of {MANUSCRIPT_FILE_LIMIT / 1048576} MiB
+          used in this manuscript, including history. Included in full workspace
+          backups; excluded from reader shares.
         </p>
       )}
       {form && (

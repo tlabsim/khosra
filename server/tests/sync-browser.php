@@ -2,7 +2,7 @@
 declare(strict_types=1);
 require dirname(__DIR__).'/lib.php';
 $root=sys_get_temp_dir().'/khosra-sync-browser-'.bin2hex(random_bytes(5));mkdir($root.'/public/api',0700,true);mkdir($root.'/sessions',0700);$origin='http://127.0.0.1:18084';
- foreach(['lib.php','oauth.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php','diagnostics.php','sharing.php'] as $file)copy(dirname(__DIR__).'/'.$file,$root.'/'.$file);
+ foreach(['lib.php','oauth.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php','diagnostics.php','manuscript-store.php','sharing.php'] as $file)copy(dirname(__DIR__).'/'.$file,$root.'/'.$file);
  copy(dirname(__DIR__).'/public/api/index.php',$root.'/public/api/index.php');
  file_put_contents($root.'/router.php',"<?php require __DIR__.'/public/api/index.php';");
  $config=['dsn'=>'sqlite:'.$root.'/fixture.sqlite','origin'=>$origin,'owner_password'=>'isolated-browser-sync-password','tool_token_hash'=>''];file_put_contents($root.'/config.php','<?php return '.var_export($config,true).';');

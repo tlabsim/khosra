@@ -35,11 +35,17 @@ if (form instanceof HTMLFormElement) {
     decision.value = event.submitter?.value === "deny" ? "deny" : "allow";
     form.append(decision);
     form.setAttribute("aria-busy", "true");
+    form.dataset.decision = decision.value;
     for (const button of form.querySelectorAll('button[name="decision"]')) {
       button.disabled = true;
     }
-    if (event.submitter instanceof HTMLButtonElement) {
-      event.submitter.textContent =
+    const submitter =
+      event.submitter ||
+      form.querySelector(`button[value="${decision.value}"]`);
+    if (submitter instanceof HTMLButtonElement) {
+      const label =
+        submitter.querySelector("[data-decision-label]") || submitter;
+      label.textContent =
         decision.value === "deny" ? "Cancelling…" : "Connecting…";
     }
     const status = document.getElementById("connection-status");

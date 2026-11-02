@@ -1,6 +1,6 @@
 import { z } from "zod";
 export const FILE_LIMIT = 2 * 1024 * 1024;
-export const WORKSPACE_FILE_LIMIT = 8 * 1024 * 1024;
+export const MANUSCRIPT_FILE_LIMIT = 8 * 1024 * 1024;
 export const MaterialDeletionSchema = z.object({
   id: z.string().uuid(),
   itemId: z.string().uuid(),
@@ -108,17 +108,18 @@ export function validateMaterials(s: {
   if (s.materials.some((m) => deleted.has(m.itemId)))
     throw Error("Deleted materials cannot be restored by an older workspace.");
   const files = new Map(s.files.map((f) => [f.id, f]));
-  let total = 0;
+  const totals = new Map<string, number>();
   for (const f of s.files) {
     if (!s.books.some((b) => b.id === f.bookId))
       throw Error("Attachment manuscript is missing.");
     decodedFile(f);
-    total += f.size;
+    const total = (totals.get(f.bookId) || 0) + f.size;
+    if (total > MANUSCRIPT_FILE_LIMIT)
+      throw Error(
+        "Attachments exceed the 8 MiB manuscript limit (including history).",
+      );
+    totals.set(f.bookId, total);
   }
-  if (total > WORKSPACE_FILE_LIMIT)
-    throw Error(
-      "Attachments exceed the 8 MiB workspace limit (including history).",
-    );
   const versions = new Map(s.materials.map((m) => [m.id, m]));
   for (const m of s.materials) {
     if (

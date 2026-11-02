@@ -2,8 +2,14 @@
 
 ## Unreleased
 
+- Store and process manuscripts independently: stream migration with a private recovery copy, manuscript-scoped MCP reads/writes and versions, atomic record-level owner saves, metadata-only library discovery and bounded initial downloads. Retain full-library offline caches, backups and compatible legacy snapshot uploads.
+- Add an owner-only global MCP diagnostics switch; preserve it through purges and isolate logging failures from manuscript operations. Skip request logging when paused or diagnostic storage is unavailable.
+- Apply the 8 MiB historical attachment quota per manuscript consistently in the client, server, UI and MCP guide.
+
+- Clean up the OAuth consent page with scoped permission descriptions, responsive layout, accessible password reveal and connection progress.
+- Reduce memory use in new-chapter proposal, idea and artifact saves by building them inside the locked writer with one decoded workspace; check retries before loading prose. Preserve history, validation and idempotency.
 - Add private internal MCP logging in a separate SQLite database, recording request stages, fixed error categories, safe payload counts and effective PHP limits without credentials or manuscript text. Capture failures before tool execution and provide owner-only reports even if the main database is unavailable.
-- Add Settings → ChatGPT → Connection diagnostics with paginated requests, stage timelines, report copying and confirmed age-based/all-log purges. Keep 30 days and at most 10,000 events; exclude diagnostic storage from workspace archives and release packages.
+- Add a dedicated Connection logs view, opened from Settings → ChatGPT, with server-side outcome/tool/search filters, paginated requests, stage timelines, report copying and confirmed age-based/all-log purges. Keep 30 days and at most 10,000 events; exclude diagnostic storage from workspace archives and release packages.
 
 - Reduce proposal/context save memory by decoding the workspace once inside the locked writer, preserving exact version/fingerprint, immutable history and idempotent operations. Fix a reproduced 28.8 MiB workspace failure under PHP’s 128 MiB limit.
 - Add safe MCP write diagnostics and request references, including fatal memory/timeout categories; return unexpected tool exceptions as actionable MCP errors. Update the guide to verify uncertain writes before switching submission methods.

@@ -15,7 +15,7 @@ function chapterRpc(string $name,array $args=[],?string $token=null,string $meth
 }
 function rpcChapterValue(array $r):array{return json_decode($r['body']['result']['content'][0]['text']??'{}',true)??[];}
 try{
- foreach(['lib.php','oauth.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php','diagnostics.php','sharing.php'] as $file)copy(dirname(__DIR__).'/'.$file,$root.'/'.$file);
+ foreach(['lib.php','oauth.php','guide.php','materials.php','proposal-edits.php','workspace-sync.php','diagnostics.php','manuscript-store.php','sharing.php'] as $file)copy(dirname(__DIR__).'/'.$file,$root.'/'.$file);
  copy(dirname(__DIR__).'/public/api/index.php',$root.'/public/api/index.php');
  file_put_contents($root.'/router.php',"<?php require __DIR__.'/public/api/index.php';");
  $config=['dsn'=>'sqlite:'.$root.'/fixture.sqlite','origin'=>$origin,'owner_password'=>'isolated-chapter-test-password','tool_token_hash'=>''];file_put_contents($root.'/config.php','<?php return '.var_export($config,true).';');
@@ -30,7 +30,7 @@ try{
  $r=chapterRpc('',[],null,'tools/list');checkChapterHttp($r['status']===401,'Anonymous discovery denied');
  $r=chapterRpc('',[],$read,'tools/list');$tools=array_column($r['body']['result']['tools']??[],null,'name');checkChapterHttp(count($tools)===19&&isset($tools['save_chapter_proposal'],$tools['list_chapter_proposals'],$tools['read_chapter_proposal']),'Live tools/list exposes all 19 capabilities');
  checkChapterHttp(!isset($tools['accept_chapter_proposal'])&&$tools['save_chapter_proposal']['securitySchemes'][0]['scopes']===['manuscript.propose'],'Models have propose scope and no chapter approval tool');
- $r=chapterRpc('get_khosra_guide',[],$read);$guide=rpcChapterValue($r);checkChapterHttp(($guide['guideVersion']??0)===11&&isset($guide['newChapterProposals']),'Authenticated guide describes the real new-chapter workflow');
+ $r=chapterRpc('get_khosra_guide',[],$read);$guide=rpcChapterValue($r);checkChapterHttp(($guide['guideVersion']??0)===12&&isset($guide['newChapterProposals']),'Authenticated guide describes the real new-chapter workflow');
  $args=['operation_id'=>uuid(),'book_id'=>$bid,'title'=>'New arrival','synopsis'=>'An arrival','rationale'=>'A new opening','after_chapter_id'=>null,'paragraphs'=>[['id'=>uuid(),'label'=>1,'text'=>'স্টেশনে কেউ ছিল না।','section'=>'']]];
  $r=chapterRpc('save_chapter_proposal',$args,$read);checkChapterHttp(($r['body']['result']['isError']??false)&&str_contains($r['raw'],'Token scope'),'Read-only token cannot propose a chapter');
  $r=chapterRpc('save_chapter_proposal',$args,$propose);$saved=rpcChapterValue($r);checkChapterHttp(($saved['saved']??false)&&$saved['id']===$args['operation_id'],'Propose token stores a chapter suggestion over HTTP');
@@ -83,9 +83,17 @@ try{
  $beforeDiagnostics=loadWorkspace($db);
  $report=chapterHttp('/api/diagnostics/mcp','GET',null,['Cookie: '.$cookie]);
  checkChapterHttp($report['status']===200&&$report['body']['storage']['available']&&$report['body']['totalRequests']>0,'Owner can read the separate SQLite request log');
+ $filtered=chapterHttp('/api/diagnostics/mcp?outcome=errors&tool=save_proposal_edits','GET',null,['Cookie: '.$cookie]);
+ checkChapterHttp($filtered['status']===200&&$filtered['body']['totalRequests']>0&&count(array_filter($filtered['body']['requests'],fn($row)=>$row['tool']!=='save_proposal_edits'||$row['status']<400))===0,'Owner filters whole request outcomes and tools over HTTP');
+ checkChapterHttp(chapterHttp('/api/diagnostics/mcp?outcome=invalid','GET',null,['Cookie: '.$cookie])['status']===422&&chapterHttp('/api/diagnostics/mcp?search[]=bad','GET',null,['Cookie: '.$cookie])['status']===422,'Diagnostic router rejects malformed filters');
  $recent=$report['body']['requests'][0];checkChapterHttp($recent['tool']==='save_proposal_edits'&&$recent['status']===422&&$recent['stage']==='response_generated','Report preserves tool rejection outcome across HTTP 200 response generation');
  $stages=array_column($recent['events'],'stage');checkChapterHttp(!array_diff(['received','body_read','decoded','authenticated','started','rejected','response_generated'],$stages),'Actual HTTP trace includes pre-tool and response stages');
  checkChapterHttp(!str_contains($report['raw'],$propose)&&!str_contains($report['raw'],'Sparse suggestion')&&!str_contains($report['raw'],$bid),'Private report excludes tokens, draft prose and manuscript IDs');
+ checkChapterHttp(chapterHttp('/api/diagnostics/mcp/settings','POST',['enabled'=>false],['Cookie: '.$cookie])['status']===403,'Global diagnostic switch requires CSRF');
+ $r=chapterHttp('/api/diagnostics/mcp/settings','POST',['enabled'=>false],$headers);$paused=chapterHttp('/api/diagnostics/mcp','GET',null,['Cookie: '.$cookie])['body'];$beforeEvents=$paused['totalEvents'];
+ $r=chapterRpc('get_khosra_guide',[],$read);checkChapterHttp($r['status']===200&&$paused['recordingEnabled']===false&&chapterHttp('/api/diagnostics/mcp','GET',null,['Cookie: '.$cookie])['body']['totalEvents']===$beforeEvents,'Paused diagnostics preserve MCP behavior without recording new stages');
+ checkChapterHttp(chapterHttp('/api/diagnostics/mcp/settings','POST',['enabled'=>'yes'],$headers)['status']===422,'Global switch validates boolean input');
+ chapterHttp('/api/diagnostics/mcp/settings','POST',['enabled'=>true],$headers);
  $r=chapterHttp('/api/diagnostics/mcp/purge','POST',['olderThanDays'=>null],['Cookie: '.$cookie]);checkChapterHttp($r['status']===403,'Diagnostic purge requires owner CSRF');
  $r=chapterHttp('/api/diagnostics/mcp/purge','POST',['olderThanDays'=>null],$headers);checkChapterHttp($r['status']===200&&$r['body']['removed']>0,'Owner can purge the separate diagnostic database');
  checkChapterHttp(chapterHttp('/api/diagnostics/mcp','GET',null,['Cookie: '.$cookie])['body']['totalEvents']===0&&loadWorkspace($db)===$beforeDiagnostics,'Purging logs preserves workspace version and every manuscript record');

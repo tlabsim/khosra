@@ -11,7 +11,7 @@ import { Archive } from "@phosphor-icons/react/dist/csr/Archive";
 import { Copy } from "@phosphor-icons/react/dist/csr/Copy";
 import { FileText } from "@phosphor-icons/react/dist/csr/FileText";
 import { SignOut } from "@phosphor-icons/react/dist/csr/SignOut";
-import McpDiagnostics, { type DiagnosticReport } from "./McpDiagnostics";
+import { Pulse } from "@phosphor-icons/react/dist/csr/Pulse";
 import PasswordInput from "./PasswordInput";
 
 export default function Settings({
@@ -30,8 +30,7 @@ export default function Settings({
   onExport,
   onCopy,
   onError,
-  onDiagnostics,
-  onPurgeDiagnostics,
+  onOpenDiagnostics,
 }: {
   backLabel: string;
   onBack: () => void;
@@ -48,8 +47,7 @@ export default function Settings({
   onExport: () => void;
   onCopy: (text: string, message?: string) => void;
   onError: (message: string) => void;
-  onDiagnostics: (page: number) => Promise<DiagnosticReport>;
-  onPurgeDiagnostics: (days: number | null) => Promise<unknown>;
+  onOpenDiagnostics: () => void;
 }) {
   const endpoint = new URL("/api/mcp", window.location.origin).href;
   const [connecting, setConnecting] = useState(false);
@@ -211,12 +209,13 @@ export default function Settings({
           <p className="settings-note">
             Uses your ChatGPT subscription. Khosra makes no model API calls.
           </p>
-          <McpDiagnostics
-            enabled={serverReady}
-            load={onDiagnostics}
-            purge={onPurgeDiagnostics}
-            onCopy={(text) => onCopy(text, "Diagnostic report copied")}
-          />
+          <button
+            className="button settings-instructions"
+            disabled={!serverReady}
+            onClick={onOpenDiagnostics}
+          >
+            <Pulse size={18} /> Open connection logs
+          </button>
         </section>
         <section
           className="settings-panel settings-appearance"

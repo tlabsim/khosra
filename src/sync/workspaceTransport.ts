@@ -2,6 +2,7 @@ export type WorkspaceTransport = {
   gzip: boolean;
   maxDecodedBytes: number;
   differential?: 1;
+  manuscriptUnits?: 1;
 };
 export class WorkspaceSizeError extends Error {}
 

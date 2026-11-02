@@ -1,6 +1,12 @@
 import { fileURLToPath } from "node:url";
 import { chromium, devices } from "@playwright/test";
+import { execFileSync } from "node:child_process";
 import assert from "node:assert/strict";
+const html = execFileSync(
+  "php",
+  ["-d", "xdebug.mode=off", "server/tests/consent-render.php"],
+  { encoding: "utf8" },
+);
 const browser = await chromium.launch();
 try {
   for (const profile of [
@@ -10,21 +16,48 @@ try {
     const context = await browser.newContext(profile);
     const page = await context.newPage();
     for (const decision of ["allow", "deny", "enter"]) {
-      await page.goto("about:blank");
-      await page.setContent(
-        `<form action="/api/oauth/authorize" method="post"><input id="consent-password" type="password" name="password" required><button id="reveal-password" type="button" hidden>Show</button><button name="decision" value="allow">Allow connection</button><button name="decision" value="deny" formnovalidate>Cancel</button><p id="connection-status" role="status" hidden></p></form>`,
-      );
-      await page.addScriptTag({
-        path: fileURLToPath(
-          new URL("../server/public/oauth-consent.js", import.meta.url),
-        ),
+      await page.route("https://consent.example/**", async (route) => {
+        if (route.request().url().endsWith("favicon.svg")) {
+          await route.fulfill({
+            path: fileURLToPath(
+              new URL("../public/favicon.svg", import.meta.url),
+            ),
+            contentType: "image/svg+xml",
+          });
+        } else if (route.request().url().includes("oauth-consent.js")) {
+          await route.fulfill({
+            path: fileURLToPath(
+              new URL("../server/public/oauth-consent.js", import.meta.url),
+            ),
+            contentType: "text/javascript",
+          });
+        } else await route.fulfill({ body: html, contentType: "text/html" });
       });
-      await page.locator("input").fill("fixture-password");
-      await page.locator("#reveal-password").click();
-      assert.equal(await page.locator("input").getAttribute("type"), "text");
+      await page.goto("https://consent.example/");
+      assert.equal(
+        await page.getByRole("heading", { name: "Connect to Khosra" }).count(),
+        1,
+      );
+      assert.equal(await page.locator(".permissions li").count(), 2);
+      assert(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      );
+      if (decision === "allow")
+        await page.screenshot({
+          path: `test-results/consent-${profile.viewport.width}.png`,
+          fullPage: true,
+        });
+      await page.locator("#consent-password").fill("fixture-password");
       await page.locator("#reveal-password").click();
       assert.equal(
-        await page.locator("input").getAttribute("type"),
+        await page.locator("#consent-password").getAttribute("type"),
+        "text",
+      );
+      await page.locator("#reveal-password").click();
+      assert.equal(
+        await page.locator("#consent-password").getAttribute("type"),
         "password",
       );
       const result = await page.evaluate((decision) => {

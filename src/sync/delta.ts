@@ -22,7 +22,10 @@ export type Collection = (typeof collections)[number];
 type Row = Record<string, unknown> & { id: string };
 export type Manifest = {
   schemaVersion: 1;
-  collections: Record<Collection, { id: string; hash: string }[]>;
+  collections: Record<
+    Collection,
+    { id: string; hash: string; bookId?: string; bytes?: number }[]
+  >;
 };
 export type RecordPatch = {
   id: string;
@@ -61,12 +64,18 @@ export function parseManifest(value: unknown): Manifest {
     throw Error("Unsupported differential sync manifest.");
   for (const key of collections) {
     const list = input[key];
-    if (!Array.isArray(list) || list.length > 100000)
-      throw Error("Invalid manifest collection.");
+    if (!Array.isArray(list)) throw Error("Invalid manifest collection.");
     const seen = new Set<string>();
     for (const item of list) {
       const row = object(item);
-      if (!uuid(row.id) || !fingerprint(row.hash) || seen.has(row.id))
+      if (
+        !uuid(row.id) ||
+        !fingerprint(row.hash) ||
+        seen.has(row.id) ||
+        (row.bookId !== undefined && !uuid(row.bookId)) ||
+        (row.bytes !== undefined &&
+          (!Number.isSafeInteger(row.bytes) || (row.bytes as number) < 0))
+      )
         throw Error("Invalid manifest identity or hash.");
       seen.add(row.id);
     }
