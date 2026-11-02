@@ -6,12 +6,7 @@ export function changedParagraphIds(before: Paragraph[], after: Paragraph[]) {
   const changed = new Set<string>();
   for (const p of after) {
     const previous = old.get(p.id);
-    if (
-      !previous ||
-      previous.text !== p.text ||
-      previous.section !== p.section ||
-      previous.label !== p.label
-    )
+    if (!previous || previous.text !== p.text || previous.section !== p.section)
       changed.add(p.id);
   }
   for (const p of before) if (!next.has(p.id)) changed.add(p.id);

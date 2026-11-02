@@ -360,7 +360,7 @@ export function validateState(value: unknown): State {
         (index.identities.has(p.id) && index.identities.get(p.id) !== p.label)
       )
         throw Error(
-          "Paragraph references cannot be reassigned within an edition. Renumber explicitly.",
+          "Historical paragraph references cannot be reassigned within an edition. Preserve source UUIDs and numbers; current numbering is automatic.",
         );
       index.addresses.set(p.label, p.id);
       index.identities.set(p.id, p.label);
@@ -393,6 +393,21 @@ export function head(s: State, c: Chapter) {
 export function reference(c: Chapter, r: Revision, p?: Paragraph) {
   return `R${r.edition}:C${c.code}${p ? `-P${p.label}` : ""}`;
 }
+/** Numbers describe order; UUIDs describe identity. Never rewrite old snapshots. */
+export function orderedParagraphs(paragraphs: Paragraph[]): Paragraph[] {
+  return paragraphs.map((p, i) => ({ ...p, label: i + 1 }));
+}
+function nextReferenceEdition(s: State, chapterId: string) {
+  return (
+    1 +
+    Math.max(
+      0,
+      ...s.revisions
+        .filter((r) => r.chapterId === chapterId)
+        .map((r) => r.edition),
+    )
+  );
+}
 export function commit(
   s: State,
   chapterId: string,
@@ -407,12 +422,37 @@ export function commit(
       "This chapter changed. Review the latest revision before applying your changes.",
     );
   const base = head(s, c);
+  const ordered = orderedParagraphs(paragraphs);
+  // Reserve earlier addresses in this edition, including deleted paragraphs.
+  // Reusing one for a different UUID requires a fresh historical namespace.
+  const addresses = new Map<number, string>();
+  const identities = new Map<string, number>();
+  const sameOrder =
+    base.paragraphs.length === ordered.length &&
+    base.paragraphs.every(
+      (p, i) => p.id === ordered[i].id && p.label === ordered[i].label,
+    );
+  for (const revision of sameOrder ? [] : s.revisions) {
+    if (revision.chapterId !== chapterId || revision.edition !== base.edition)
+      continue;
+    for (const p of revision.paragraphs) {
+      addresses.set(p.label, p.id);
+      identities.set(p.id, p.label);
+    }
+  }
+  const numberingChanged = ordered.some(
+    (p) =>
+      (addresses.has(p.label) && addresses.get(p.label) !== p.id) ||
+      (identities.has(p.id) && identities.get(p.id) !== p.label),
+  );
   const r: Revision = {
     id: uid(),
     chapterId,
     parentId: baseId,
-    paragraphs: structuredClone(paragraphs),
-    edition: base.edition,
+    paragraphs: structuredClone(ordered),
+    edition: numberingChanged
+      ? nextReferenceEdition(s, chapterId)
+      : base.edition,
     createdAt: now(),
     source,
     message,
@@ -615,8 +655,8 @@ export function renumber(s: State, c: Chapter): State {
     createdAt: now(),
     source: "reindex",
     message: "References renumbered",
-    edition: base.edition + 1,
-    paragraphs: base.paragraphs.map((p, i) => ({ ...p, label: i + 1 })),
+    edition: nextReferenceEdition(s, c.id),
+    paragraphs: orderedParagraphs(base.paragraphs),
   };
   return validateState({
     ...s,
@@ -624,6 +664,37 @@ export function renumber(s: State, c: Chapter): State {
       x.id === c.id ? { ...x, headId: r.id } : x,
     ),
     revisions: [...s.revisions, r],
+  });
+}
+/** Upgrade working heads only; approvals, proposals and historical addresses stay immutable. */
+export function orderCurrentParagraphNumbers(s: State): State {
+  const revisions: Revision[] = [];
+  const heads = new Map<string, string>();
+  for (const chapter of s.chapters) {
+    if (chapter.deletedAt) continue;
+    const current = head(s, chapter);
+    if (current.paragraphs.every((p, i) => p.label === i + 1)) continue;
+    const id = uid();
+    heads.set(chapter.id, id);
+    revisions.push({
+      ...current,
+      id,
+      parentId: current.id,
+      createdAt: now(),
+      source: "reindex",
+      edition: nextReferenceEdition(s, chapter.id),
+      paragraphs: orderedParagraphs(current.paragraphs),
+      message: "Paragraph numbers ordered automatically",
+    });
+  }
+  if (!revisions.length) return s;
+  // A large existing book may need many heads upgraded. Validate the batch once.
+  return validateState({
+    ...s,
+    chapters: s.chapters.map((c) =>
+      heads.has(c.id) ? { ...c, headId: heads.get(c.id)! } : c,
+    ),
+    revisions: [...s.revisions, ...revisions],
   });
 }
 export function wordCount(text: string) {

@@ -79,7 +79,7 @@ import {
   reference,
   commit,
   addChapter,
-  renumber,
+  orderCurrentParagraphNumbers,
   nextParagraphLabel,
   chapterReplacement,
   reincorporate,
@@ -368,6 +368,26 @@ function App() {
       setError(String(e));
     }
   }
+  useEffect(() => {
+    if (
+      !loaded ||
+      (hosted && hostedStatus.phase !== "ready") ||
+      syncBlocked.current
+    )
+      return;
+    const source = latest.current;
+    const ordered = orderCurrentParagraphNumbers(source);
+    if (ordered !== source) update(ordered);
+  }, [
+    loaded,
+    hostedStatus.phase,
+    state,
+    editing,
+    modal,
+    shareOpen,
+    materialEditing,
+    proposalEditing,
+  ]);
   function act(fn: () => void) {
     try {
       fn();
@@ -2371,29 +2391,6 @@ function App() {
                       Share for reading
                       <small>
                         Private invitations, expiry and reader feedback.
-                      </small>
-                    </span>
-                    <ArrowRight className="action-chevron" />
-                  </button>
-                  <button
-                    className="chapter-action"
-                    aria-label="Renumber paragraph references"
-                    onClick={() =>
-                      act(() => {
-                        update(renumber(state, chapter!));
-                        setModal("");
-                        setNotice(
-                          "References renumbered in a new edition. Earlier references preserved.",
-                        );
-                      })
-                    }
-                  >
-                    <ArrowsClockwise />
-                    <span>
-                      Renumber paragraph references
-                      <small>
-                        Create a new reference edition; keep earlier addresses
-                        in history.
                       </small>
                     </span>
                     <ArrowRight className="action-chevron" />

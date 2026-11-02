@@ -115,7 +115,7 @@ test("paragraph editing supports continuous writing, joins and recoverable delet
       }),
     ),
   );
-  const next = page.getByRole("textbox", { name: "Edit paragraph P5" });
+  const next = page.getByRole("textbox", { name: "Edit paragraph P2" });
   await expect(next).toBeFocused();
   await next.fill("আরেকটি অনুচ্ছেদ।");
   await page.screenshot({
@@ -159,19 +159,19 @@ test("empty paragraphs, clear, confirmed delete and individual history recovery"
   await page.locator(".paragraph-content > p").dblclick();
   await first.press("ControlOrMeta+End");
   await first.press("Enter");
-  const third = page.getByRole("textbox", { name: "Edit paragraph P3" });
+  const third = page.getByRole("textbox", { name: "Edit paragraph P2" });
   await third.fill("মাঝের অনুচ্ছেদ।");
   await third.press("ControlOrMeta+End");
   await third.press("Enter");
-  const fourth = page.getByRole("textbox", { name: "Edit paragraph P4" });
+  const fourth = page.getByRole("textbox", { name: "Edit paragraph P3" });
   await fourth.fill("শেষ অনুচ্ছেদ।");
   await fourth.press("Escape");
   const middle = page
     .locator(".paragraph-row")
-    .filter({ has: page.getByRole("button", { name: "P3", exact: true }) });
+    .filter({ has: page.getByRole("button", { name: "P2", exact: true }) });
   await middle.locator("p").dblclick();
   await third.fill("Latest unsaved middle — বাংলা।");
-  await page.getByRole("button", { name: "Clear text in P3" }).click();
+  await page.getByRole("button", { name: "Clear text in P2" }).click();
   await expect(third).toHaveValue("");
   await expect(page.locator(".paragraph-row")).toHaveCount(3);
   await third.press("Escape");
@@ -187,20 +187,20 @@ test("empty paragraphs, clear, confirmed delete and individual history recovery"
   ).toBeDisabled();
   await page.getByRole("button", { name: "Manuscript", exact: true }).click();
   await middle.locator("p").dblclick();
-  await page.getByRole("button", { name: "Delete paragraph P3" }).click();
+  await page.getByRole("button", { name: "Delete paragraph P2" }).click();
   await expect(third).toHaveValue("Latest unsaved middle — বাংলা।");
   await expect(
     page.getByRole("button", { name: "Done", exact: true }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Clear text in P3" }),
+    page.getByRole("button", { name: "Clear text in P2" }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Cancel delete" }).click();
   await expect(third).toBeFocused();
-  await page.getByRole("button", { name: "Delete paragraph P3" }).click();
+  await page.getByRole("button", { name: "Delete paragraph P2" }).click();
   await page.keyboard.press("Escape");
   await expect(third).toBeFocused();
-  await page.getByRole("button", { name: "Delete paragraph P3" }).click();
+  await page.getByRole("button", { name: "Delete paragraph P2" }).click();
   const alignment = await page.locator(".confirming-delete").evaluate((el) => {
     const last = el.querySelector("button:last-child")!;
     return (
@@ -211,7 +211,7 @@ test("empty paragraphs, clear, confirmed delete and individual history recovery"
   await page.screenshot({
     path: `test-results/${info.project.name}-delete-confirm.png`,
   });
-  await page.getByRole("button", { name: "Confirm delete P3" }).click();
+  await page.getByRole("button", { name: "Confirm delete P2" }).click();
   await expect(page.locator(".paragraph-row")).toHaveCount(2);
   await expect(page.locator(".paragraph-edit-controls")).toHaveCount(0);
   await page.getByRole("button", { name: "History", exact: true }).click();

@@ -1,5 +1,6 @@
 import {
   now,
+  orderedParagraphs,
   validateState,
   type ChapterProposal,
   type State,
@@ -70,7 +71,7 @@ export function acceptChapterProposal(
         source: "proposal",
         edition: 1,
         message: "New chapter accepted: " + p.title,
-        paragraphs: structuredClone(draft.paragraphs),
+        paragraphs: structuredClone(orderedParagraphs(draft.paragraphs)),
       },
     ],
     chapterProposals: s.chapterProposals.map((x) =>

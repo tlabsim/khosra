@@ -13,6 +13,7 @@ import {
   addChapter,
   commit,
   head,
+  orderCurrentParagraphNumbers,
   type State,
 } from "../src/domain/model";
 import { reconcile } from "../src/sync/reconcile";
@@ -388,4 +389,27 @@ it("an unexpectedly empty reset server cannot erase the device recovery copy", a
   await t.actor.adopt();
   expect(t.remote().state).toEqual(base);
   expect(t.actor.status.phase).toBe("ready");
+});
+
+it("syncs automatic legacy numbering as a new revision while acknowledging the exact old baseline", async () => {
+  const source = fixture();
+  const c = source.chapters[0],
+    old = head(source, c);
+  old.paragraphs[0].label = 8;
+  source.chapters[0].approvedId = old.id;
+  const t = setup(emptyState(), { state: source, version: "1" });
+  await t.actor.start();
+  expect(t.baseline()).toBe(JSON.stringify(source));
+  const ordered = orderCurrentParagraphNumbers(t.local());
+  t.setLocal(ordered);
+  await t.actor.sync();
+  expect(t.adapter.conflict).not.toHaveBeenCalled();
+  expect(t.remote().version).toBe("2");
+  expect(t.remote().state).toEqual(ordered);
+  expect(t.baseline()).toBe(JSON.stringify(ordered));
+  expect(t.remote().state.revisions.find((r) => r.id === old.id)).toEqual(old);
+  expect(t.remote().state.chapters[0].approvedId).toBe(old.id);
+  expect(
+    head(t.remote().state, t.remote().state.chapters[0]).paragraphs[0].label,
+  ).toBe(1);
 });

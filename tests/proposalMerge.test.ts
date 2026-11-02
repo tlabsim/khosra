@@ -163,7 +163,7 @@ describe("three-way proposal acceptance", () => {
       "Original 4",
     ]);
   });
-  it("keeps both independent insertions and allocates new labels without stealing current or reserved ones", () => {
+  it("keeps independent insertions and numbers their merged reading order in a new edition", () => {
     const { s, p, base } = fixture();
     const author = {
         id: uid(),
@@ -184,12 +184,12 @@ describe("three-way proposal acceptance", () => {
     changed.proposals = [proposal];
     const next = acceptProposal(changed, proposal),
       rows = head(next, next.chapters[0]).paragraphs;
-    expect(rows.find((x) => x.id === author.id)?.label).toBe(6);
-    expect(rows.find((x) => x.id === model.id)?.label).toBe(7);
+    expect(rows.find((x) => x.id === author.id)?.label).toBe(7);
+    expect(rows.find((x) => x.id === model.id)?.label).toBe(2);
     expect(new Set(rows.map((x) => x.id)).size).toBe(7);
     expect(next.revisions.find((x) => x.id === base.id)).toEqual(base);
   });
-  it("does not reuse addresses reserved by a paragraph deleted after proposal creation", () => {
+  it("uses a new edition when a proposed insertion occupies a deleted position", () => {
     const { s, p } = fixture();
     const occupied = { id: uid(), label: 6, text: "Temporary", section: "" };
     let changed = edit(s, (rows) => [...rows, occupied]);
@@ -203,7 +203,10 @@ describe("three-way proposal acceptance", () => {
     };
     changed.proposals = [proposal];
     const next = acceptProposal(changed, proposal);
-    expect(head(next, next.chapters[0]).paragraphs.at(-1)?.label).toBe(7);
+    expect(head(next, next.chapters[0]).paragraphs.at(-1)?.label).toBe(6);
+    expect(head(next, next.chapters[0]).edition).toBeGreaterThan(
+      head(changed, changed.chapters[0]).edition,
+    );
   });
   it("handles multiple inserted label collisions without creating duplicate addresses", () => {
     const { s, p } = fixture();

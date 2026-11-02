@@ -53,13 +53,19 @@ function fixture() {
   return s;
 }
 describe("manuscript integrity", () => {
-  it("keeps paragraph identity and labels on insertion before it", () => {
+  it("keeps paragraph identity and orders numbers on insertion before it", () => {
     const s = fixture(),
       c = s.chapters[0],
       r = head(s, c),
       p = { id: uid(), label: 3, text: "নতুন অনুচ্ছেদ।", section: "" };
     const next = commit(s, c.id, r.id, [p, ...r.paragraphs], "Insert");
-    expect(head(next, next.chapters[0]).paragraphs[1]).toEqual(r.paragraphs[0]);
+    expect(head(next, next.chapters[0]).paragraphs[1]).toEqual({
+      ...r.paragraphs[0],
+      label: 2,
+    });
+    expect(head(next, next.chapters[0]).paragraphs.map((p) => p.label)).toEqual(
+      [1, 2, 3],
+    );
     expect(next.revisions.find((x) => x.id === r.id)).toEqual(r);
   });
   it("renumbers a new edition while retaining original references", () => {
@@ -202,19 +208,19 @@ it("never recycles a deleted paragraph address within an edition", () => {
   s = commit(s, c.id, r.id, r.paragraphs.slice(0, 1), "Delete highest label");
   expect(nextParagraphLabel(s, s.chapters[0])).toBe(3);
 });
-it("rejects reassignment of a historical address to another paragraph", () => {
+it("records a new edition when a replacement reuses a historical number", () => {
   const s = fixture(),
     c = s.chapters[0],
     r = head(s, c);
-  expect(() =>
-    commit(
-      s,
-      c.id,
-      r.id,
-      [{ ...r.paragraphs[0], id: uid() }],
-      "Invalid reassignment",
-    ),
-  ).toThrow("cannot be reassigned");
+  const next = commit(
+    s,
+    c.id,
+    r.id,
+    [{ ...r.paragraphs[0], id: uid() }],
+    "Replace",
+  );
+  expect(head(next, next.chapters[0]).edition).toBe(r.edition + 1);
+  expect(next.revisions.find((x) => x.id === r.id)).toEqual(r);
 });
 it("reincorporates earlier text into current address edition", () => {
   let s = fixture();

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Keep working manuscript paragraph numbers sequential automatically after insertion, deletion, moving, recovery and proposal acceptance. Preserve paragraph UUIDs, approved snapshots and historical references through automatic reference editions; remove the manual renumber action. Normalize legacy working heads once when the workspace is ready.
+- Let MCP proposals retain their exact ancestor source across automatic numbering editions, and resolve bare paragraph references against an explicit revision when supplied. Update guide version 11 and source-reading tool descriptions to distinguish permanent UUIDs from snapshot paragraph numbers.
+
 - Fix OAuth refresh races: preserve parent access until its original expiry, return identical replacement credentials for bounded 120-second refresh retries, inherit only the grant-bound audience when resource is omitted, and enforce client/scope/expiry checks. Add hash-only rotation lineage with nonce-derived replacements, family-wide atomic revocation, explicit invalid_token MCP challenges and authenticated additive initialization for SQLite/MySQL. Keep one-hour access and rolling 30-day refresh lifetimes.
 
 - Default guest reader line spacing to Close (1.6), retaining saved guest spacing and the author’s existing default.
