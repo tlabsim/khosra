@@ -3,18 +3,18 @@ declare(strict_types=1);
 require dirname(__DIR__,2).'/lib.php';
 require dirname(__DIR__,2).'/oauth.php';
 require dirname(__DIR__,2).'/sharing.php';
-header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');header('X-Content-Type-Options: nosniff');header('X-Robots-Tag: noindex, nofollow');header('Referrer-Policy: no-referrer');
+header('X-Khosra-Auth-Revision: '.KHOSRA_AUTH_REVISION);header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');header('X-Content-Type-Options: nosniff');header('X-Robots-Tag: noindex, nofollow');header('Referrer-Policy: no-referrer');
 function respond(mixed $value,int $status=200):never{http_response_code($status);echo json_encode($value,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);exit;}
 const KHOSRA_WORKSPACE_BYTES=64*1024*1024;
 function workspaceTransportInfo():array{return ['gzip'=>function_exists('gzdecode'),'maxDecodedBytes'=>KHOSRA_WORKSPACE_BYTES,'differential'=>1];}
 $rpc=null;
 try{
  $file=dirname(__DIR__,2).'/config.php';if(!is_file($file))respond(['error'=>'Private server is not configured. Local workspace remains available.','code'=>'server_not_configured'],503);$config=require $file;
- $db=openDatabase($config);
  $method=$_SERVER['REQUEST_METHOD']??'GET';$path=trim(substr(parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH),strlen('/api/')),'/');
+ $db=openDatabase($config);
  // OAuth authorization is entered by navigation from the external client.
- // Consent POSTs and all other API requests retain the same-origin check.
- if(isset($_SERVER['HTTP_ORIGIN'])&&$_SERVER['HTTP_ORIGIN']!==$config['origin']&&!($path==='oauth/authorize'&&$method==='GET'))fail(403,'Origin is not allowed.');
+ // Consent POSTs and owner APIs retain same-origin checks; machine routes use exact client origins.
+ if(!oauthOriginAllowed($config,$path,$method,$_SERVER['HTTP_ORIGIN']??null,isset($_GET['discovery'])))fail(403,'Origin is not allowed.');
  $workspacePost=in_array($path,['workspace','workspace/sync'],true)&&$method==='POST';
  $encoding=strtolower(trim($_SERVER['HTTP_CONTENT_ENCODING']??''));$gzip=$encoding==='gzip';
  if($encoding!==''&&$encoding!=='identity'&&!($workspacePost&&$gzip))fail(415,'This content encoding is not supported for this endpoint.');
@@ -27,7 +27,7 @@ try{
  if(str_starts_with($path,'guest/'))guestRoute($db,$config,$path,$method,$body);
  if(str_starts_with($path,'oauth/'))oauthRoute($db,$config,$path,$method,$body);
  if($path==='mcp'){
-  $auth=$_SERVER['HTTP_AUTHORIZATION']??$_SERVER['REDIRECT_HTTP_AUTHORIZATION']??'';$scopes=['manuscript.read','manuscript.propose'];header('WWW-Authenticate: '.oauthChallenge($config));if(!preg_match('/^Bearer (.+)$/',$auth,$m))fail(401,'Tool authentication required.');if(empty($config['tool_token_hash'])||!hash_equals($config['tool_token_hash'],hash('sha256',$m[1])))$scopes=oauthAccess($db,$config,$m[1]);
+  $token=oauthBearer($_SERVER);$scopes=['manuscript.read','manuscript.propose'];if($token===null)fail(401,'Tool authentication required.');if(empty($config['tool_token_hash'])||!hash_equals($config['tool_token_hash'],hash('sha256',$token)))$scopes=oauthAccess($db,$config,$token);
   if($method==='GET'){http_response_code(405);header('Allow: POST');exit;}if($method!=='POST')fail(405,'POST required.');$rpc=$body;$id=$rpc['id']??null;if(($rpc['jsonrpc']??'')!=='2.0')fail(422,'JSON-RPC 2.0 required.');if(str_starts_with($rpc['method']??'','notifications/')){http_response_code(202);exit;}
   $result=match($rpc['method']??''){
    'initialize'=>['protocolVersion'=>'2025-03-26','capabilities'=>['tools'=>new stdClass()],'serverInfo'=>['name'=>'khosra','version'=>'0.2.0'],'instructions'=>khosraInstructions()],
@@ -61,4 +61,4 @@ try{
  if($path==='workspace'&&$method==='GET')respond(loadWorkspace($db));
  if($path==='workspace'&&$method==='POST'){if(!is_array($body['state']??null)||!is_int($body['baseVersion']??null))fail(422,'Workspace and baseVersion required.');$version=writeWorkspace($db,$body['state'],$body['baseVersion'],(string)($body['operationId']??''),hash('sha256',$raw));respond(['version'=>$version]);}
  fail(404,'Endpoint not found.');
-}catch(ApiError $e){if(($path??'')==='mcp'&&$e->status===401)header('WWW-Authenticate: '.oauthChallenge($config,true));if(str_starts_with($path??'','oauth/'))respond(['error'=>$e->status===429?'temporarily_unavailable':(($path??'')==='oauth/token'?'invalid_grant':'invalid_request'),'error_description'=>$e->getMessage()],$e->status);respond(['error'=>$e->getMessage()],$e->status);}catch(JsonException){respond(['error'=>'Invalid JSON.'],400);}catch(Throwable){respond(['error'=>'Server operation failed. No manuscript content was logged.'],500);}
+}catch(ApiError $e){$authFailureId=null;if(str_starts_with($path??'','oauth/')||(($path??'')==='mcp'&&(isset($token)||$e->status===403))){$authFailureId=oauthFailureDiagnostic($path,$e->status,$e->getMessage());header('X-Khosra-Request-Id: '.$authFailureId);}if(($path??'')==='mcp'&&$e->status===401)header('WWW-Authenticate: '.oauthChallenge($config,isset($token)&&$token!==null));if(str_starts_with($path??'','oauth/'))respond(['error'=>$e->status===429?'temporarily_unavailable':(($path??'')==='oauth/token'?'invalid_grant':'invalid_request'),'error_description'=>$e->getMessage()],$e->status);respond(['error'=>$e->getMessage()],$e->status);}catch(JsonException){respond(['error'=>'Invalid JSON.'],400);}catch(Throwable){if(($path??'')==='mcp'||str_starts_with($path??'','oauth/')){$failureId=oauthFailureDiagnostic($path,500,'Server operation failed.');header('X-Khosra-Request-Id: '.$failureId);}respond(['error'=>'Server operation failed. No manuscript content was logged.'],500);}

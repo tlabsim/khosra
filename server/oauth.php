@@ -1,12 +1,52 @@
 <?php
 declare(strict_types=1);
+const KHOSRA_AUTH_REVISION='2026-11-02b';
+function oauthOriginAllowed(array $config,string $path,string $method,?string $origin,bool $discovery=false):bool{
+ if($origin===null||$origin===$config['origin'])return true;
+ if($path==='oauth/authorize'&&$method==='GET')return true;
+ $machine=$path==='mcp'||in_array($path,['oauth/register','oauth/token','oauth/revoke'],true)||($discovery&&$method==='GET');
+ $allowed=$config['oauth_client_origins']??['https://chatgpt.com','https://chat.openai.com'];
+ return $machine&&is_array($allowed)&&in_array($origin,$allowed,true);
+}
+function oauthBearer(array $server):?string{
+ foreach(['HTTP_AUTHORIZATION','REDIRECT_HTTP_AUTHORIZATION','REDIRECT_REDIRECT_HTTP_AUTHORIZATION'] as $key){
+  $value=$server[$key]??'';if(!is_string($value)||trim($value)==='')continue;
+  return strlen($value)<=4096&&preg_match('/^[ \t]*Bearer[ \t]+([A-Za-z0-9._~+\/-]+=*)[ \t]*$/iD',$value,$m)?$m[1]:null;
+ }
+ return null;
+}
+/** Logs contain only fixed categories and a random correlation ID, never request values. */
+function oauthFailureDiagnostic(string $path,int $status,string $message):string{
+ $message=strtolower($message);
+ $reason=match(true){
+  $message==='origin is not allowed.'=>'origin_not_allowed',
+  str_contains($message,'already used')=>'refresh_already_used',
+  str_contains($message,'retry parameters')=>'refresh_retry_changed',
+  str_contains($message,'replacement')=>'refresh_replacement_unavailable',
+  str_contains($message,'revoked')=>'connection_revoked',
+  str_contains($message,'refresh')&&str_contains($message,'expired')=>'refresh_expired',
+  str_contains($message,'refresh')&&str_contains($message,'client')=>'refresh_client_mismatch',
+  str_contains($message,'resource')=>'audience_mismatch',
+  str_contains($message,'scope')=>'scope_not_granted',
+  str_contains($message,'refresh')=>'invalid_refresh_grant',
+  str_contains($message,'expired')=>'access_expired',
+  str_contains($message,'unknown')=>'access_unknown',
+  $status===429=>'rate_limited',
+  $status>=500=>'server_failure',
+  default=>'invalid_auth_request',
+ };
+ $id=bin2hex(random_bytes(8));
+ $endpoint=in_array($path,['mcp','oauth/token','oauth/authorize','oauth/register','oauth/revoke'],true)?$path:'discovery';
+ error_log('[Khosra auth '.KHOSRA_AUTH_REVISION.'] request='.$id.' endpoint='.$endpoint.' status='.$status.' reason='.$reason);
+ return $id;
+}
 function oauthResource(array $config):string{return rtrim($config['origin'],'/').'/api/mcp';}
 function oauthChallenge(array $config,bool $invalid=false):string{return 'Bearer resource_metadata="'.rtrim($config['origin'],'/').'/.well-known/oauth-protected-resource", scope="manuscript.read manuscript.propose"'.($invalid?', error="invalid_token", error_description="The access token is expired or invalid."':'');}
 function throttle(PDO $db,string $bucket,int $limit):void{throttleIdentity($db,hash('sha256',$bucket.':'.($_SERVER['REMOTE_ADDR']??'unknown')),$limit,'Too many attempts. Try again in 15 minutes.');}
-function oauthMetadata(array $config,string $kind):array{$origin=rtrim($config['origin'],'/');if($kind==='oauth-protected-resource')return ['resource'=>oauthResource($config),'authorization_servers'=>[$origin],'scopes_supported'=>['manuscript.read','manuscript.propose'],'bearer_methods_supported'=>['header']];return ['issuer'=>$origin,'authorization_endpoint'=>$origin.'/api/oauth/authorize','token_endpoint'=>$origin.'/api/oauth/token','registration_endpoint'=>$origin.'/api/oauth/register','revocation_endpoint'=>$origin.'/api/oauth/revoke','response_types_supported'=>['code'],'grant_types_supported'=>['authorization_code','refresh_token'],'token_endpoint_auth_methods_supported'=>['none'],'code_challenge_methods_supported'=>['S256'],'scopes_supported'=>['manuscript.read','manuscript.propose'],'authorization_response_iss_parameter_supported'=>true];}
+function oauthMetadata(array $config,string $kind):array{$origin=rtrim($config['origin'],'/');if($kind==='oauth-protected-resource')return ['resource'=>oauthResource($config),'authorization_servers'=>[$origin],'scopes_supported'=>['manuscript.read','manuscript.propose'],'bearer_methods_supported'=>['header']];return ['khosra_auth_revision'=>KHOSRA_AUTH_REVISION,'issuer'=>$origin,'authorization_endpoint'=>$origin.'/api/oauth/authorize','token_endpoint'=>$origin.'/api/oauth/token','registration_endpoint'=>$origin.'/api/oauth/register','revocation_endpoint'=>$origin.'/api/oauth/revoke','response_types_supported'=>['code'],'grant_types_supported'=>['authorization_code','refresh_token'],'token_endpoint_auth_methods_supported'=>['none'],'code_challenge_methods_supported'=>['S256'],'scopes_supported'=>['manuscript.read','manuscript.propose'],'authorization_response_iss_parameter_supported'=>true];}
 function allowedRedirect(array $config,string $uri):bool{return in_array($uri,$config['oauth_redirect_allowlist']??['https://chatgpt.com/connector_platform_oauth_redirect'],true);}
 function issueTokens(PDO $db,string $client,string $resource,string $scope):array{$access=bin2hex(random_bytes(32));$refresh=bin2hex(random_bytes(32));$q=$db->prepare('INSERT INTO oauth_tokens(access_hash,refresh_hash,client_id,resource,scope,expires_at,refresh_expires_at,revoked) VALUES(?,?,?,?,?,?,?,0)');$q->execute([hash('sha256',$access),hash('sha256',$refresh),$client,$resource,$scope,time()+3600,time()+30*86400]);return ['access_token'=>$access,'token_type'=>'Bearer','expires_in'=>3600,'refresh_token'=>$refresh,'scope'=>$scope,'resource'=>$resource];}
-function oauthAccess(PDO $db,array $config,string $token):array{$q=$db->prepare('SELECT * FROM oauth_tokens WHERE access_hash=?');$q->execute([hash('sha256',$token)]);$row=$q->fetch(PDO::FETCH_ASSOC);if(!$row||(int)$row['revoked']!==0||(int)$row['expires_at']<=time()||$row['resource']!==oauthResource($config))fail(401,'OAuth token expired or invalid. Reconnect Khosra.');return explode(' ',$row['scope']);}
+function oauthAccess(PDO $db,array $config,string $token):array{$q=$db->prepare('SELECT * FROM oauth_tokens WHERE access_hash=?');$q->execute([hash('sha256',$token)]);$row=$q->fetch(PDO::FETCH_ASSOC);if(!$row)fail(401,'OAuth access token is unknown.');if((int)$row['revoked']!==0)fail(401,'OAuth connection was revoked.');if((int)$row['expires_at']<=time())fail(401,'OAuth access token expired.');if($row['resource']!==oauthResource($config))fail(401,'OAuth access token has the wrong resource audience.');return explode(' ',$row['scope']);}
 // Rotation records contain hashes and a nonce, never plaintext credentials.
 const KHOSRA_REFRESH_RETRY_SECONDS=120;
 function oauthRotationSchema(PDO $db):string{
@@ -29,7 +69,10 @@ function oauthTokenByRefresh(PDO $db,string $refresh):array{
  $q=$db->prepare('SELECT * FROM oauth_tokens WHERE refresh_hash=?');$q->execute([hash('sha256',$refresh)]);$row=$q->fetch(PDO::FETCH_ASSOC);$q->closeCursor();if(!$row)fail(400,'Invalid refresh token.');return $row;
 }
 function oauthValidateRefresh(array $row,array $config,array $body):string{
- if((int)$row['revoked']!==0||(int)$row['refresh_expires_at']<=time()||!is_string($body['client_id']??null)||$row['client_id']!==$body['client_id']||$row['resource']!==oauthResource($config)||(array_key_exists('resource',$body)&&$body['resource']!==$row['resource']))fail(400,'Invalid refresh token or resource audience.');
+ if((int)$row['revoked']!==0)fail(400,'OAuth connection was revoked.');
+ if((int)$row['refresh_expires_at']<=time())fail(400,'Refresh token expired.');
+ if(!is_string($body['client_id']??null)||$row['client_id']!==$body['client_id'])fail(400,'Refresh client does not match.');
+ if($row['resource']!==oauthResource($config)||(array_key_exists('resource',$body)&&$body['resource']!==$row['resource']))fail(400,'Invalid refresh resource audience.');
  $scope=$body['scope']??$row['scope'];if(!is_string($scope))fail(400,'Invalid refresh scope.');
  $scopes=array_values(array_unique(preg_split('/\s+/',trim($scope))));
  if(in_array('',$scopes,true)||array_diff($scopes,explode(' ',$row['scope'])))fail(400,'Refresh scope exceeds the original grant.');sort($scopes);return implode(' ',$scopes);
@@ -107,8 +150,8 @@ function oauthRoute(PDO $db,array $config,string $path,string $method,array $bod
  if($path==='oauth/token'&&$method==='POST'){
   throttle($db,'token',120);
   if(($body['grant_type']??'')==='refresh_token')respond(oauthRefresh($db,$config,$body));
-  if(($body['resource']??'')!==oauthResource($config))fail(400,'Invalid resource audience.');beginWrite($db);try{
-   if(($body['grant_type']??'')==='authorization_code'){$q=$db->prepare('SELECT * FROM oauth_codes WHERE code_hash=?'.databaseLock($db));$q->execute([hash('sha256',(string)($body['code']??''))]);$row=$q->fetch(PDO::FETCH_ASSOC);$verifier=(string)($body['code_verifier']??'');if(!preg_match('/^[A-Za-z0-9._~-]{43,128}$/',$verifier)||!$row||(int)$row['expires_at']<=time()||$row['client_id']!==($body['client_id']??'')||$row['redirect_uri']!==($body['redirect_uri']??'')||$row['resource']!==$body['resource']||!hash_equals($row['challenge'],rtrim(strtr(base64_encode(hash('sha256',$verifier,true)),'+/','-_'),'=')))fail(400,'Invalid authorization grant or PKCE verifier.');$q=$db->prepare('DELETE FROM oauth_codes WHERE code_hash=?');$q->execute([$row['code_hash']]);
+  if(array_key_exists('resource',$body)&&$body['resource']!==oauthResource($config))fail(400,'Invalid resource audience.');beginWrite($db);try{
+   if(($body['grant_type']??'')==='authorization_code'){$q=$db->prepare('SELECT * FROM oauth_codes WHERE code_hash=?'.databaseLock($db));$q->execute([hash('sha256',(string)($body['code']??''))]);$row=$q->fetch(PDO::FETCH_ASSOC);$verifier=(string)($body['code_verifier']??'');if(!preg_match('/^[A-Za-z0-9._~-]{43,128}$/',$verifier)||!$row||(int)$row['expires_at']<=time()||$row['client_id']!==($body['client_id']??'')||$row['redirect_uri']!==($body['redirect_uri']??'')||$row['resource']!==($body['resource']??oauthResource($config))||!hash_equals($row['challenge'],rtrim(strtr(base64_encode(hash('sha256',$verifier,true)),'+/','-_'),'=')))fail(400,'Invalid authorization grant or PKCE verifier.');$q=$db->prepare('DELETE FROM oauth_codes WHERE code_hash=?');$q->execute([$row['code_hash']]);
    }else fail(400,'Unsupported grant type.');$result=issueTokens($db,$row['client_id'],$row['resource'],$row['scope']);$db->commit();respond($result);
   }catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
  }

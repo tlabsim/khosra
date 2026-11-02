@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { ArrowRight } from "@phosphor-icons/react/dist/csr/ArrowRight";
 import AppLogo from "./AppLogo";
 import PasswordInput from "./PasswordInput";
+import LoadingIndicator from "./LoadingIndicator";
 import type { HostedStatus } from "../sync/hosted";
 
 export default function WorkspaceAccess({
@@ -41,7 +42,11 @@ export default function WorkspaceAccess({
           window.location.hostname,
         ) && <span className="access-host">Running locally</span>}
       </header>
-      <section className="access-layout" aria-labelledby="access-heading">
+      <section
+        className="access-layout"
+        aria-labelledby="access-heading"
+        aria-busy={status.phase === "checking" || busy}
+      >
         <div className="access-intro">
           <h1 id="access-heading">
             {status.phase === "login"
@@ -52,16 +57,21 @@ export default function WorkspaceAccess({
                   ? "Opening your workspace"
                   : "Workspace unavailable"}
           </h1>
-          <p role="status">
-            {status.phase === "login" &&
-            status.message.startsWith("Sign in to open your server workspace.")
-              ? "Continue to your manuscripts."
-              : status.message}
-          </p>
+          <div className="access-status">
+            {status.phase === "checking" && <LoadingIndicator />}
+            <p role="status">
+              {status.phase === "login" &&
+              status.message.startsWith(
+                "Sign in to open your server workspace.",
+              )
+                ? "Continue to your manuscripts."
+                : status.message}
+            </p>
+          </div>
         </div>
         <div className="access-controls">
           {status.phase === "login" && (
-            <form onSubmit={(event) => void login(event)}>
+            <form onSubmit={(event) => void login(event)} aria-busy={busy}>
               <label htmlFor="workspace-password">Owner password</label>
               <PasswordInput
                 id="workspace-password"
@@ -73,7 +83,11 @@ export default function WorkspaceAccess({
               />
               <button className="button primary" disabled={busy}>
                 {busy ? "Signing in…" : "Sign in"}
-                <ArrowRight size={18} aria-hidden="true" />
+                {busy ? (
+                  <LoadingIndicator />
+                ) : (
+                  <ArrowRight size={18} aria-hidden="true" />
+                )}
               </button>
               <p className="caption">
                 Your manuscripts stay in sync across your signed-in devices.

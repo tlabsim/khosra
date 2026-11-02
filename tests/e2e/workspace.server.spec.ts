@@ -848,3 +848,72 @@ test("chapter cleanup waits for server save and backup acknowledgment, then sync
   ).toHaveCount(0);
   await expect(page.locator(".server-sync")).toContainText("Saved to server");
 });
+
+test("sign-in and workspace loading show an accessible motion-aware indicator", async ({
+  page,
+  context,
+}, info) => {
+  const server = serverFixture();
+  await server.attach(context);
+  let releaseSession!: () => void;
+  const sessionWait = new Promise<void>((resolve) => {
+    releaseSession = resolve;
+  });
+  await page.route("**/api/session", async (route) => {
+    await sessionWait;
+    await route.fallback();
+  });
+  let releaseLogin!: () => void;
+  const loginWait = new Promise<void>((resolve) => {
+    releaseLogin = resolve;
+  });
+  await page.route("**/api/login", async (route) => {
+    await loginWait;
+    await route.fallback();
+  });
+  let releaseWorkspace!: () => void;
+  const workspaceWait = new Promise<void>((resolve) => {
+    releaseWorkspace = resolve;
+  });
+  await page.route("**/api/workspace", async (route) => {
+    await workspaceWait;
+    await route.fallback();
+  });
+  await page.goto("/");
+  const access = page.locator(".access-layout");
+  const spinner = page.locator(".access-status .loading-indicator");
+  await expect(access).toHaveAttribute("aria-busy", "true");
+  await expect(spinner).toBeVisible();
+  await expect(spinner).toHaveAttribute("aria-hidden", "true");
+  await expect(spinner).toHaveCSS("animation-name", "workspace-loading-spin");
+  await page.screenshot({
+    path: `test-results/${info.project.name}-workspace-loading.png`,
+  });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(spinner).toHaveCSS("animation-name", "none");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  releaseSession();
+  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await expect(spinner).toHaveCount(0);
+  await page
+    .getByLabel("Owner password", { exact: true })
+    .fill("owner-test-password");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Signing in…");
+  await expect(spinner).toBeVisible();
+  await expect(access).toHaveAttribute("aria-busy", "true");
+  await page.screenshot({
+    path: `test-results/${info.project.name}-signing-in.png`,
+  });
+  releaseLogin();
+  await expect(spinner).toBeVisible();
+  releaseWorkspace();
+  await expect(
+    page.getByRole("button", { name: "Begin a manuscript" }),
+  ).toBeVisible();
+  await expect(page.locator(".workspace-access")).toHaveCount(0);
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute(
+    "href",
+    "/favicon.svg?v=4",
+  );
+});

@@ -1650,10 +1650,16 @@ body {
   color: #315c49;
 }
 
-.workspace-nav.tool-rail > .workspace-add-chapter {
+.workspace-chapter-shortcuts {
   position: absolute;
   top: calc(100% + 12px);
   left: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.workspace-nav.tool-rail .workspace-add-chapter {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1668,12 +1674,41 @@ body {
   cursor: pointer;
   box-shadow: 0 4px 14px #39482b08;
 }
-.workspace-nav.tool-rail > .workspace-add-chapter:hover {
+.workspace-nav.tool-rail .workspace-add-chapter:hover {
   background: #e8edde;
   border-color: inherit;
 }
 .workspace-add-chapter .tool-label {
   white-space: nowrap;
+}
+.workspace-chapter-navigation {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid #d2d6c8;
+  border-radius: 18px;
+  background: #faf9f3;
+  box-shadow: 0 4px 14px #39482b08;
+}
+.workspace-chapter-navigation > button {
+  display: grid;
+  place-items: center;
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #3e624b;
+}
+.workspace-chapter-navigation > button + button {
+  border-left: 1px solid #d2d6c8;
+}
+.workspace-chapter-navigation > button:not(:disabled):hover {
+  background: #e8edde;
+}
+.workspace-chapter-navigation > button:focus-visible {
+  outline-offset: -3px;
 }
 
 /* Keep the drawer above the mobile bar and its footer outside the scrolling list. */

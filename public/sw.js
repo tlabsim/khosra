@@ -14,7 +14,7 @@ self.addEventListener("install", (event) =>
       await cache.addAll([
         "/",
         "/manifest.webmanifest",
-        "/favicon.svg?v=3",
+        "/favicon.svg?v=4",
         "/fonts/NotoSerifBengali.ttf",
         "/fonts/NotoSansBengali.ttf",
         ...assets,

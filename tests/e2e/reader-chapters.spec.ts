@@ -251,3 +251,107 @@ test("guest chapter loading keeps the same fullscreen reader until the new chapt
   await page.getByRole("button", { name: "Exit fullscreen" }).click();
   await expect(reader).not.toHaveClass(/is-immersive/);
 });
+
+test("desktop chapter shortcuts sit below Add chapter and save edits before switching", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "desktop", "Desktop workspace shortcuts");
+  await manuscript(page);
+  await page
+    .getByRole("button", { name: "Back to workspace", exact: true })
+    .click();
+  const shortcuts = page.getByRole("group", { name: "Switch chapter" });
+  const previous = shortcuts.getByRole("button", { name: "Previous chapter" });
+  const next = shortcuts.getByRole("button", { name: "Next chapter" });
+  await expect(previous).toBeDisabled();
+  const add = await page.locator(".workspace-add-chapter").boundingBox();
+  const combined = await shortcuts.boundingBox();
+  expect(combined!.y).toBeGreaterThan(add!.y + add!.height);
+  expect(combined!.height).toBeLessThan(add!.height);
+  await page.locator(".paragraph-content > p").first().dblclick();
+  await page
+    .getByRole("textbox", { name: "Edit paragraph P1" })
+    .fill("Preserved before chapter switch.");
+  await next.click();
+  await expect(page.locator(".title-button h1")).toHaveText("Second chapter");
+  await expect(next).toBeDisabled();
+  await previous.click();
+  await expect(page.locator(".title-button h1")).toHaveText("First chapter");
+  await expect(page.locator(".paragraph-content > p").first()).toHaveText(
+    "Preserved before chapter switch.",
+  );
+  await expect(page.locator(".saved")).toHaveText("Saved on this device");
+  await page.reload();
+  await expect(page.locator(".paragraph-content > p").first()).toHaveText(
+    "Preserved before chapter switch.",
+  );
+  await page.getByRole("button", { name: "Flags", exact: true }).click();
+  await next.click();
+  await expect(
+    page.getByRole("button", { name: "Flags", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(next).toBeDisabled();
+  await page.screenshot({ path: "test-results/desktop-chapter-shortcuts.png" });
+});
+
+test("mobile continuous reader keeps chapter navigation visible while scrolling and in fullscreen", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "android", "Mobile continuous navigation");
+  await page.addInitScript(() => {
+    Element.prototype.requestFullscreen = () =>
+      Promise.reject(new Error("Use focus mode"));
+  });
+  await manuscript(page);
+  await page.getByLabel("Reading layout").selectOption("continuous");
+  const nav = page.getByRole("navigation", { name: "Reading chapters" });
+  const previous = nav.getByRole("button", { name: "Previous chapter" });
+  const next = nav.getByRole("button", { name: "Next chapter" });
+  await expect(previous).toBeDisabled();
+  const assertSticky = async () => {
+    const bounds = await nav.boundingBox();
+    const viewport = page.viewportSize()!;
+    expect(bounds!.y).toBeGreaterThan(viewport.height - 100);
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height + 1);
+    expect(await nav.evaluate((el) => getComputedStyle(el).position)).toBe(
+      "fixed",
+    );
+  };
+  await assertSticky();
+  await page.evaluate(() =>
+    window.scrollTo(0, document.documentElement.scrollHeight / 2),
+  );
+  await expect
+    .poll(() => page.evaluate(() => window.scrollY))
+    .toBeGreaterThan(100);
+  await assertSticky();
+  await next.click();
+  await expect(page.locator(".reading-title h1")).toHaveText("Second chapter");
+  await expect(next).toBeDisabled();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await page.getByRole("button", { name: "Enter fullscreen" }).click();
+  const reader = page.locator(".book-reader");
+  await expect(reader).toHaveClass(/is-immersive/);
+  await reader.evaluate((el) => {
+    el.scrollTop = el.scrollHeight / 2;
+  });
+  await assertSticky();
+  await previous.click();
+  await expect(page.locator(".reading-title h1")).toHaveText("First chapter");
+  await expect(reader).toHaveClass(/is-immersive/);
+  await expect.poll(() => reader.evaluate((el) => el.scrollTop)).toBe(0);
+  await reader.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  const last = await page.locator(".reading-text p").last().boundingBox();
+  const bar = await nav.boundingBox();
+  expect(last!.y + last!.height).toBeLessThanOrEqual(bar!.y);
+  await page.screenshot({
+    path: "test-results/mobile-continuous-chapter-navigation.png",
+  });
+  await page
+    .getByRole("button", { name: "Exit fullscreen", exact: true })
+    .click();
+  await page.getByLabel("Reading layout").selectOption("pages");
+  await expect(nav).not.toHaveCSS("position", "fixed");
+});

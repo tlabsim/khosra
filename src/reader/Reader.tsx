@@ -554,7 +554,12 @@ export default function Reader({
           </nav>
         )}
       </div>
-      <div ref={chapterNavigation} className="reader-navigation">
+      <div
+        ref={chapterNavigation}
+        className="reader-navigation"
+        role="navigation"
+        aria-label="Reading chapters"
+      >
         <button
           className="button quiet"
           disabled={!previous}

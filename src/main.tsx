@@ -59,7 +59,6 @@ import { Trash } from "@phosphor-icons/react/dist/csr/Trash";
 import { ArrowsClockwise } from "@phosphor-icons/react/dist/csr/ArrowsClockwise";
 import { List } from "@phosphor-icons/react/dist/csr/List";
 import { DotsThree } from "@phosphor-icons/react/dist/csr/DotsThree";
-import { Leaf } from "@phosphor-icons/react/dist/csr/Leaf";
 import { ChatCircleText } from "@phosphor-icons/react/dist/csr/ChatCircleText";
 import { ArrowUp } from "@phosphor-icons/react/dist/csr/ArrowUp";
 import { ArrowDown } from "@phosphor-icons/react/dist/csr/ArrowDown";
@@ -101,6 +100,7 @@ import {
   type HostedStatus,
 } from "./sync/hosted";
 import WorkspaceAccess from "./components/WorkspaceAccess";
+import LoadingIndicator from "./components/LoadingIndicator";
 import Materials, {
   ContextTabs,
   type ContextSection,
@@ -690,8 +690,8 @@ function App() {
   ];
   if (!loaded)
     return (
-      <div className="loading">
-        <Leaf size={36} />
+      <div className="loading" role="status" aria-busy="true">
+        <LoadingIndicator />
         <p>Opening your writing room…</p>
       </div>
     );
@@ -975,6 +975,20 @@ function App() {
           <WorkspaceNav
             onShare={() => void openSharing()}
             onAddChapter={() => setModal("chapter")}
+            chapterNavigation={
+              chapter
+                ? {
+                    previous:
+                      chapters.indexOf(chapter) > 0
+                        ? () => choose(chapters[chapters.indexOf(chapter) - 1])
+                        : undefined,
+                    next:
+                      chapters.indexOf(chapter) < chapters.length - 1
+                        ? () => choose(chapters[chapters.indexOf(chapter) + 1])
+                        : undefined,
+                  }
+                : undefined
+            }
             current={view}
             onChange={(id) => changeView(id as View)}
             items={tabs.map(([id, label, icon]) => ({

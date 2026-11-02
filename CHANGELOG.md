@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Harden ChatGPT OAuth compatibility: exact client origins on machine endpoints, CGI Bearer fallback, grant-bound audience inheritance and challenges only on authentication failures. Add credential-free error categories and a public auth revision marker; retain PKCE, owner CSRF, token expiry and refresh rotation. Document live host HTML 406 responses separately from application errors.
+- Refresh rounded favicon, installable-app icon and packaged ChatGPT icons; add accessible sign-in/workspace loading indicators with reduced-motion support.
+
+- Add compact combined previous/next chapter shortcuts below Add chapter in the desktop workspace rail. Keep continuous-reading chapter controls fixed within reach on mobile, including fullscreen, with safe-area padding and space reserved below the prose.
+
 - Keep working manuscript paragraph numbers sequential automatically after insertion, deletion, moving, recovery and proposal acceptance. Preserve paragraph UUIDs, approved snapshots and historical references through automatic reference editions; remove the manual renumber action. Normalize legacy working heads once when the workspace is ready.
 - Let MCP proposals retain their exact ancestor source across automatic numbering editions, and resolve bare paragraph references against an explicit revision when supplied. Update guide version 11 and source-reading tool descriptions to distinguish permanent UUIDs from snapshot paragraph numbers.
 

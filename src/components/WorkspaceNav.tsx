@@ -1,5 +1,7 @@
 import ShareIcon from "./ShareIcon";
 import { Plus } from "@phosphor-icons/react/dist/csr/Plus";
+import { CaretLeft } from "@phosphor-icons/react/dist/csr/CaretLeft";
+import { CaretRight } from "@phosphor-icons/react/dist/csr/CaretRight";
 import { useSyncExternalStore, type ElementType } from "react";
 const mobileQuery = "(max-width: 760px)";
 function subscribe(callback: () => void) {
@@ -16,12 +18,14 @@ export default function WorkspaceNav({
   onChange,
   onShare,
   onAddChapter,
+  chapterNavigation,
 }: {
   items: Item[];
   current: string;
   onChange: (id: string) => void;
   onShare?: () => void;
   onAddChapter: () => void;
+  chapterNavigation?: { previous?: () => void; next?: () => void };
 }) {
   const mobile = useSyncExternalStore(subscribe, isMobile);
   const order = ["flags", "review", "manuscript", "history", "context"];
@@ -65,15 +69,41 @@ export default function WorkspaceNav({
         )}
       </div>
       {!mobile && (
-        <button
-          className="workspace-add-chapter"
-          aria-label="Add chapter"
-          title="Add chapter"
-          onClick={onAddChapter}
-        >
-          <Plus size={28} aria-hidden="true" />
-          <span className="tool-label">Add chapter</span>
-        </button>
+        <div className="workspace-chapter-shortcuts">
+          <button
+            className="workspace-add-chapter"
+            aria-label="Add chapter"
+            title="Add chapter"
+            onClick={onAddChapter}
+          >
+            <Plus size={28} aria-hidden="true" />
+            <span className="tool-label">Add chapter</span>
+          </button>
+          {chapterNavigation && (
+            <div
+              className="workspace-chapter-navigation"
+              role="group"
+              aria-label="Switch chapter"
+            >
+              <button
+                aria-label="Previous chapter"
+                title="Previous chapter"
+                disabled={!chapterNavigation.previous}
+                onClick={chapterNavigation.previous}
+              >
+                <CaretLeft size={18} aria-hidden="true" />
+              </button>
+              <button
+                aria-label="Next chapter"
+                title="Next chapter"
+                disabled={!chapterNavigation.next}
+                onClick={chapterNavigation.next}
+              >
+                <CaretRight size={18} aria-hidden="true" />
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </nav>
   );
