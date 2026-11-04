@@ -236,7 +236,16 @@ it("reincorporates earlier text into current address edition", () => {
 
 describe("chapter paste references", () => {
   it("fills the initial P1 placeholder and leaves the empty revision immutable", () => {
-    const s = addChapter(emptyState(), "book", "New");
+    const initial = emptyState(),
+      bookId = uid();
+    initial.books.push({
+      id: bookId,
+      title: "Book",
+      premise: "",
+      language: "bn",
+      createdAt: now(),
+    });
+    const s = addChapter(initial, bookId, "New");
     const c = s.chapters[0],
       r = head(s, c);
     const original = structuredClone(r);

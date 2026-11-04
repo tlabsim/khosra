@@ -61,7 +61,9 @@ export default function ChapterProposalCard({
   ]);
   const positionLabel = (id: string | null) =>
     id === null
-      ? "At the beginning"
+      ? chapters.some((c) => c.code === 0)
+        ? "At the beginning (after preface)"
+        : "At the beginning"
       : `After ${state.chapters.find((c) => c.id === id)?.title ?? "unavailable chapter"}`;
   const actions = pending ? (
     <div className="proposal-decision-actions">
@@ -170,7 +172,7 @@ export default function ChapterProposalCard({
                     })
                   }
                 >
-                  <option value="">At the beginning</option>
+                  <option value="">{positionLabel(null)}</option>
                   {!anchorAvailable && (
                     <option value={draft.afterChapterId!} disabled>
                       Unavailable — choose another position

@@ -148,9 +148,9 @@ export default function ReaderSettings({
                     onChange({ ...prefs, leading: Number(e.target.value) })
                   }
                 >
-                  <option value={1.6}>Close</option>
-                  <option value={1.9}>Comfortable</option>
-                  <option value={2.2}>Open</option>
+                  <option value={1.5}>Close</option>
+                  <option value={1.75}>Comfortable</option>
+                  <option value={2}>Open</option>
                 </select>
               </label>
             </div>

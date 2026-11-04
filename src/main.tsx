@@ -6,6 +6,7 @@ import { acceptedProposalParagraphs } from "./domain/proposalPresentation";
 import { initializeAppearance } from "./appearance";
 import {
   manuscriptChapters,
+  chapterNumber,
   trashChapter,
   restoreChapter,
 } from "./domain/chapters";
@@ -111,7 +112,9 @@ import {
   rememberNavigation,
   rememberedChapter,
 } from "./storage/navigation";
+import AddChapter from "./components/AddChapter";
 import { exportName } from "./storage/exportName";
+import { manuscriptMarkdown } from "./storage/markdown";
 import "./hosted.css";
 const hosted = import.meta.env.PROD;
 import "./style.css";
@@ -768,7 +771,7 @@ function App() {
               <span>{book.title}</span>
             </p>
             <div className="chapter-list">
-              {chapters.map((c, i) => (
+              {chapters.map((c) => (
                 <button
                   key={c.id}
                   className={c.id === chapter?.id ? "selected" : ""}
@@ -780,7 +783,7 @@ function App() {
                   }}
                 >
                   <span className="chapter-index">
-                    {String(i + 1).padStart(2, "0")}
+                    {String(chapterNumber(chapters, c)).padStart(2, "0")}
                   </span>
                   <span>
                     <span className="contents-chapter-title">{c.title}</span>
@@ -1125,16 +1128,12 @@ function App() {
             onRestore={() => importRef.current?.click()}
             onExport={() =>
               download(
-                chapters
-                  .map(
-                    (c) =>
-                      `# ${c.title}\n\n${head(state, c)
-                        .paragraphs.map((p) =>
-                          p.section ? `## ${p.section}\n\n${p.text}` : p.text,
-                        )
-                        .join("\n\n")}`,
-                  )
-                  .join("\n\n"),
+                manuscriptMarkdown(
+                  chapters.map((c) => ({
+                    title: c.title,
+                    paragraphs: head(state, c).paragraphs,
+                  })),
+                ),
                 exportName(book?.title, "manuscript"),
                 "text/markdown",
               )
@@ -1228,7 +1227,7 @@ function App() {
             key={book.id}
             contentId={`${chapter.id}:${displayed?.id}`}
             title={chapter.title}
-            number={chapters.indexOf(chapter) + 1}
+            number={chapterNumber(chapters, chapter)}
             language={book.language}
             paragraphs={displayed?.paragraphs || []}
             historical={!!historical}
@@ -1250,7 +1249,7 @@ function App() {
                 <div>
                   <div className="eyebrow">
                     CHAPTER{" "}
-                    {String(chapters.indexOf(chapter) + 1).padStart(
+                    {String(chapterNumber(chapters, chapter)).padStart(
                       2,
                       "0",
                     )}{" "}
@@ -1353,7 +1352,10 @@ function App() {
                     <div className="paper-heading">
                       <span>
                         CHAPTER{" "}
-                        {String(chapters.indexOf(chapter) + 1).padStart(2, "0")}
+                        {String(chapterNumber(chapters, chapter)).padStart(
+                          2,
+                          "0",
+                        )}
                       </span>
                       <h2>{chapter.title}</h2>
                       <div className="paper-rule" />
@@ -2322,30 +2324,28 @@ function App() {
                 </button>
               </form>
             )}
-            {modal === "chapter" && (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const s = addChapter(
-                    state,
-                    book!.id,
-                    String(new FormData(e.currentTarget).get("title")),
-                  );
-                  update(s);
-                  setChapterId(s.chapters.at(-1)!.id);
-                  setModal("");
-                  setView("manuscript");
-                }}
-              >
-                <label>
-                  Chapter title
-                  <input name="title" required maxLength={300} />
-                </label>
-                <button className="button primary" type="submit">
-                  Add chapter
-                  <Plus />
-                </button>
-              </form>
+            {modal === "chapter" && book && (
+              <AddChapter
+                chapters={chapters}
+                language={book.language}
+                hasPreface={state.chapters.some(
+                  (c) => c.bookId === book.id && c.code === 0,
+                )}
+                onAdd={(title, options) =>
+                  act(() => {
+                    const s = addChapter(
+                      latest.current,
+                      book.id,
+                      title,
+                      options,
+                    );
+                    update(s);
+                    setChapterId(s.chapters.at(-1)!.id);
+                    setModal("");
+                    setView("manuscript");
+                  })
+                }
+              />
             )}
             {modal === "flag" && (
               <form
@@ -2481,6 +2481,9 @@ function App() {
                         aria-label={`Move chapter ${dir < 0 ? "earlier" : "later"}`}
                         className="button"
                         disabled={
+                          chapter!.code === 0 ||
+                          chapters[chapters.indexOf(chapter!) + dir]?.code ===
+                            0 ||
                           chapters.indexOf(chapter!) + dir < 0 ||
                           chapters.indexOf(chapter!) + dir >= chapters.length
                         }

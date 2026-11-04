@@ -11,6 +11,7 @@ import {
 } from "../src/domain/model";
 import {
   manuscriptChapters,
+  chapterNumber,
   restoreChapter,
   trashChapter,
 } from "../src/domain/chapters";
@@ -154,4 +155,83 @@ it("requires an explicit sync choice for deletion versus active edits and retain
   expect(merged.state.revisions).toContainEqual(edited.revisions.at(-1));
   const restore = reconcile(restoreChapter(deleted, c.id), deleted);
   expect(restore.conflicts.some((x) => x.id === c.id)).toBe(true);
+});
+
+it("inserts chapters at the beginning or after an active chapter without changing references or history", () => {
+  const source = fixture(),
+    bookId = source.books[0].id;
+  const history = structuredClone(source.revisions);
+  const first = addChapter(source, bookId, "New opening", {
+    afterChapterId: null,
+  });
+  const inserted = first.chapters.at(-1)!;
+  expect(manuscriptChapters(first, bookId).map((c) => c.title)).toEqual([
+    "New opening",
+    "One",
+    "Two",
+    "Three",
+  ]);
+  expect(inserted.code).toBe(4);
+  const next = addChapter(first, bookId, "Middle", {
+    afterChapterId: source.chapters[1].id,
+  });
+  expect(manuscriptChapters(next, bookId).map((c) => c.title)).toEqual([
+    "New opening",
+    "One",
+    "Two",
+    "Middle",
+    "Three",
+  ]);
+  expect(next.revisions.slice(0, history.length)).toEqual(history);
+  for (const c of source.chapters)
+    expect(next.chapters.find((x) => x.id === c.id)!.code).toBe(c.code);
+  expect(() =>
+    addChapter(source, bookId, "Stale", { afterChapterId: uid() }),
+  ).toThrow(/position/);
+  const trashed = trashChapter(source, source.chapters[1].id);
+  expect(() =>
+    addChapter(trashed, bookId, "Stale", {
+      afterChapterId: source.chapters[1].id,
+    }),
+  ).toThrow(/position/);
+  expect(() => addChapter(source, uid(), "Missing book")).toThrow(/Manuscript/);
+  validateState(next);
+});
+
+it("creates and restores a unique preface at chapter zero while regular reading numbers start at one", async () => {
+  let s = fixture();
+  const bookId = s.books[0].id;
+  s = addChapter(s, bookId, "ভূমিকা", { preface: true });
+  const preface = s.chapters.at(-1)!;
+  expect(preface.code).toBe(0);
+  s = addChapter(s, bookId, "First regular", { afterChapterId: null });
+  const ordered = manuscriptChapters(s, bookId);
+  expect(ordered.map((c) => c.title)).toEqual([
+    "ভূমিকা",
+    "First regular",
+    "One",
+    "Two",
+    "Three",
+  ]);
+  expect(ordered.map((c) => chapterNumber(ordered, c))).toEqual([
+    0, 1, 2, 3, 4,
+  ]);
+  expect(() => addChapter(s, bookId, "Duplicate", { preface: true })).toThrow(
+    /already has a preface/,
+  );
+  const trashed = trashChapter(s, preface.id);
+  expect(chapterNumber(manuscriptChapters(trashed, bookId), ordered[1])).toBe(
+    1,
+  );
+  expect(() =>
+    addChapter(trashed, bookId, "Duplicate", { preface: true }),
+  ).toThrow(/Restore/);
+  const restored = restoreChapter(trashed, preface.id);
+  expect(manuscriptChapters(restored, bookId)[0].id).toBe(preface.id);
+  expect(await importBackup(await exportBackup(restored))).toEqual(
+    validateState(restored),
+  );
+  const negative = structuredClone(restored);
+  negative.chapters[0].code = -1;
+  expect(() => validateState(negative)).toThrow();
 });

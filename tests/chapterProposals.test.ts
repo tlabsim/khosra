@@ -178,3 +178,15 @@ describe("author-confirmed new chapters", () => {
     );
   });
 });
+
+it("places a proposed opening after an existing preface", () => {
+  const { s, p } = fixture();
+  const withPreface = addChapter(s, p.bookId, "ভূমিকা", { preface: true });
+  const accepted = acceptChapterProposal(withPreface, p.id, { ...p });
+  expect(manuscriptChapters(accepted, p.bookId).map((c) => c.code)).toEqual([
+    0, 1,
+  ]);
+  expect(manuscriptChapters(accepted, p.bookId).map((c) => c.position)).toEqual(
+    [0, 1],
+  );
+});

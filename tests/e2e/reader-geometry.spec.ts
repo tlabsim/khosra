@@ -40,7 +40,7 @@ test("paper formats and margins reflow text within fixed trim proportions", asyn
     0,
   );
   await page.getByRole("button", { name: "Increase text size" }).click();
-  await page.getByLabel("Line spacing").selectOption("2.2");
+  await page.getByLabel("Line spacing").selectOption("2");
   expect((await box()).height).toBeCloseTo(original.height, 1);
   expect((await box()).width).toBeCloseTo(original.width, 1);
   const heights: number[] = [];

@@ -1,5 +1,36 @@
 import { test, expect } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 import { checkPasswordReveal } from "./password";
+
+test("settings Markdown download preserves dialogue lines and paragraph breaks", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Begin a manuscript" }).click();
+  await page.getByLabel("Working title").fill("বাংলা সংলাপ");
+  await page.getByRole("button", { name: "Create manuscript" }).click();
+  await page.getByRole("button", { name: "Chapter actions" }).click();
+  await page
+    .getByRole("button", { name: "Paste or replace chapter text", exact: true })
+    .click();
+  await page
+    .getByLabel("Chapter text", { exact: true })
+    .fill("—তুমি কোথায়?\n—এই তো।\n—চলো।\n\nতারপর তারা হাঁটল।");
+  await page.getByRole("button", { name: "Save as a new revision" }).click();
+  await expect(page.locator(".saved")).toHaveText("Saved on this device");
+  await page.getByRole("button", { name: "Settings & backups" }).click();
+  const pending = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export this book as text" }).click();
+  const download = await pending;
+  expect(download.suggestedFilename()).toMatch(
+    /^khosra-বাংলা-সংলাপ-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.md$/,
+  );
+  const markdown = await readFile((await download.path())!, "utf8");
+  expect(markdown).toContain(
+    "—তুমি কোথায়?  \n—এই তো।  \n—চলো।\n\nতারপর তারা হাঁটল।",
+  );
+});
+
 test("settings returns to the previous view and keeps connection and backup actions usable", async ({
   page,
 }, info) => {

@@ -8,7 +8,7 @@ function khosraInstructions(): string {
 /** Product documentation only: never reads workspace records or credentials. */
 function khosraGuide(): array {
  return [
-  'guideVersion'=>12,
+  'guideVersion'=>13,
   'product'=>'Khosra',
   'purpose'=>'A private, single-owner, server-backed manuscript library with a local recovery cache. The author directs the work; an LLM reads source, discusses ideas, and saves proposed prose. The author edits, reviews and approves in Khosra. Khosra does not call paid model or speech APIs.',
   'startHere'=>[
@@ -23,9 +23,10 @@ function khosraGuide(): array {
    'After you save a proposal or context index, the hosted app refreshes it automatically while connected (about every 10 seconds or on focus). The author can use Sync now, then review Proposals in Khosra. Accepted revisions save automatically. Conflicting copies pause for review; never instruct the author to overwrite blindly.',
    'A current working head and an approved revision are separate. Ordinary read_chapter returns the working head, which can be an unapproved draft. list_books includes headId and approvedId; read the exact approved revision_id when the user specifically asks for approved text.',
   ],
+  'prefaces'=>['The author can add one Preface / ভূমিকা in the Add chapter dialog. It is chapter 0 with stable reference C0; ordinary reading chapters start at 1. Existing chapter UUIDs and C references never change.', 'Discover the preface through list_books and read/edit it with the same source and proposal tools, including resolve_reference C0-P1. Models cannot create or convert a preface directly; save_chapter_proposal suggests regular chapters only.'],
   'newChapterProposals'=>[
    'When the user requests a new chapter, first call list_books and select the correct manuscript. Read relevant existing source, context and ideas before drafting. A manuscript may have zero chapters.',
-   'Call save_chapter_proposal with book_id, a fresh durable operation_id UUID, title, synopsis, rationale, after_chapter_id and complete paragraphs. Use after_chapter_id=null to place first, or an active chapter UUID in that book to place after it. For append, use the last chapter by position. Use fresh paragraph UUIDs and unique positive labels.',
+   'Call save_chapter_proposal with book_id, a fresh durable operation_id UUID, title, synopsis, rationale, after_chapter_id and complete paragraphs. Use after_chapter_id=null to place first among regular chapters (after a preface when present), or an active chapter UUID in that book to place after it. For append, use the last chapter by position. Use fresh paragraph UUIDs and unique positive labels.',
    'Saving only stores a pending suggestion. It does not create a manuscript chapter, reserve its chapter code or expose its draft through read_chapter. The author reviews it in Proposals, may edit the title, synopsis, position and prose, then confirms creation or rejection. Chapter creation is one decision, not selective paragraph acceptance.',
    'Use list_chapter_proposals with book_id, optional status and page to discover up to 100 metadata records per page; read_chapter_proposal with book_id and proposal_id retrieves the complete draft and creation receipt. After acceptance use review.chapterId with read_chapter for current manuscript text. Existing chapter proposals remain separate from revision proposals.',
    'If the anchor chapter is moved, the suggested placement still follows its UUID. If it is trashed, the author chooses another position. Approval allocates a new unused chapter code without changing existing references. The initial accepted draft is a working revision; it is not automatically marked approved.',

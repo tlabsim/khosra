@@ -24,7 +24,9 @@ export function acceptChapterProposal(
   const siblings = manuscriptChapters(s, p.bookId);
   const anchor =
     draft.afterChapterId === null
-      ? -1
+      ? siblings[0]?.code === 0
+        ? 0
+        : -1
       : siblings.findIndex((c) => c.id === draft.afterChapterId);
   if (draft.afterChapterId !== null && anchor < 0)
     throw Error(

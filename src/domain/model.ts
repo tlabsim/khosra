@@ -34,7 +34,7 @@ export const RevisionSchema = z.object({
 export const ChapterSchema = z.object({
   id: z.string().uuid(),
   bookId: z.string().uuid(),
-  code: z.number().int().positive(),
+  code: z.number().int().nonnegative(),
   title: z.string().max(300),
   position: z.number(),
   headId: z.string().uuid(),
@@ -612,20 +612,62 @@ export function acceptProposal(
     ),
   };
 }
-export function addChapter(s: State, bookId: string, title: string): State {
+export function addChapter(
+  s: State,
+  bookId: string,
+  title: string,
+  options: { afterChapterId?: string | null; preface?: boolean } = {},
+): State {
+  if (!s.books.some((b) => b.id === bookId))
+    throw Error("Manuscript is no longer available.");
+  title = title.trim();
+  if (!title || title.length > 300)
+    throw Error("Enter a chapter title (up to 300 characters).");
   const id = uid(),
     rid = uid();
   const siblings = s.chapters.filter((c) => c.bookId === bookId);
+  if (options.preface && siblings.some((c) => c.code === 0))
+    throw Error(
+      "This manuscript already has a preface. Restore it from Deleted chapters if needed.",
+    );
+  const active = siblings
+    .filter((c) => !c.deletedAt)
+    .sort(
+      (a, b) =>
+        Number(b.code === 0) - Number(a.code === 0) || a.position - b.position,
+    );
+  const anchor = options.afterChapterId;
+  const index = options.preface
+    ? 0
+    : anchor === undefined
+      ? active.length
+      : anchor === null
+        ? active[0]?.code === 0
+          ? 1
+          : 0
+        : active.findIndex((c) => c.id === anchor) + 1;
+  if (
+    anchor !== undefined &&
+    anchor !== null &&
+    !active.some((c) => c.id === anchor)
+  )
+    throw Error("The selected chapter position is no longer available.");
+  const order = active.map((c) => c.id);
+  order.splice(index, 0, id);
   return {
     ...s,
     chapters: [
-      ...s.chapters,
+      ...s.chapters.map((c) =>
+        order.includes(c.id) ? { ...c, position: order.indexOf(c.id) } : c,
+      ),
       {
         id,
         bookId,
         title,
-        code: Math.max(0, ...siblings.map((c) => c.code)) + 1,
-        position: Math.max(-1, ...siblings.map((c) => c.position)) + 1,
+        code: options.preface
+          ? 0
+          : Math.max(0, ...siblings.map((c) => c.code)) + 1,
+        position: index,
         headId: rid,
         approvedId: null,
         synopsis: "",

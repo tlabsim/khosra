@@ -41,6 +41,10 @@ Khosra is currently a **single-owner application**. Guest readers can read and c
 
 On desktop, **Contents** expands into additional columns when chapters no longer fit vertically, up to four as space permits. The list reads down each column, then across, and opens with the selected chapter visible. Very large lists scroll within the panel; mobile keeps one column.
 
+Settings → **Export this book as text** downloads the selected manuscript as Markdown. Paragraphs remain separated by blank lines; dialogue and manual line breaks within a paragraph use Markdown hard breaks so they remain on separate lines when rendered.
+
+To insert a chapter, open **Add chapter** and choose **At beginning** or **After [chapter]** under Position (the default appends). Select **Preface / ভূমিকা · Chapter 0** under Type to add a preface at the front; its title defaults to ভূমিকা for Bengali manuscripts and Preface for English. Regular reading chapters still start at 1. Each manuscript reserves one preface, including while it is in Deleted chapters; restore it rather than creating a second one. Preface references use C0, and existing chapter references and history remain unchanged.
+
 ### Iterate through text or voice chat
 
 Hosting is the recommended setup for the full workflow: the chat client needs to reach Khosra’s authenticated HTTPS endpoint. Once configured:

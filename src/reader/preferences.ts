@@ -31,7 +31,7 @@ const authorDefaults: Preferences = {
   size: 14,
   format: "a5",
   margins: "normal",
-  leading: 1.9,
+  leading: 1.75,
   flip: true,
   paper: "ivory",
   texture: "smooth",
@@ -66,9 +66,15 @@ export function readPreferences(
       margins: ["tight", "normal", "relaxed"].includes(p?.margins)
         ? p.margins
         : defaults.margins,
-      leading: [1.6, 1.9, 2.2].includes(p?.leading)
+      leading: [1.5, 1.75, 2].includes(p?.leading)
         ? p.leading
-        : defaults.leading,
+        : p?.leading === 1.6
+          ? 1.5
+          : p?.leading === 1.9 || p?.leading === 1.8
+            ? 1.75
+            : p?.leading === 2.2 || p?.leading === 2.1
+              ? 2
+              : defaults.leading,
       paper: ["ivory", "white", "sepia"].includes(p?.paper)
         ? p.paper
         : defaults.paper,
@@ -94,7 +100,7 @@ export function readGuestPreferences(viewportWidth: number): Preferences {
     paper: "sepia",
     texture: "grain",
     size: 12,
-    leading: 1.6,
+    leading: 1.5,
     selectable: false,
     drag: true,
   });

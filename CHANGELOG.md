@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Choose At beginning or After a chapter when adding chapters. Add a unique Preface / ভূমিকা as chapter 0 (C0), keep regular reading numbers from 1 and preserve existing references/history. Support guest snapshots, Trash/restore and MCP preface reads/revisions; update guide version 13.
+
+- Tighten every reading line-spacing preset slightly: Close 1.5, Comfortable 1.75 and Open 2. Map saved author/guest choices to the corresponding new spacing.
+
+- Preserve dialogue and manual line breaks in manuscript Markdown exports using explicit hard breaks; retain blank-line paragraph boundaries and chapter/subsection headings.
+
 - Store and process manuscripts independently: stream migration with a private recovery copy, manuscript-scoped MCP reads/writes and versions, atomic record-level owner saves, metadata-only library discovery and bounded initial downloads. Retain full-library offline caches, backups and compatible legacy snapshot uploads.
 - Add an owner-only global MCP diagnostics switch; preserve it through purges and isolate logging failures from manuscript operations. Skip request logging when paused or diagnostic storage is unavailable.
 - Apply the 8 MiB historical attachment quota per manuscript consistently in the client, server, UI and MCP guide.

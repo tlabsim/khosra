@@ -28,5 +28,5 @@ $result=callTool($db,'save_proposal_edits',$args);$loaded=loadWorkspace($db);$pr
 check($result['saved']&&$result['stale']&&$proposal['paragraphs'][0]['id']===$pid&&$proposal['paragraphs'][0]['label']===1,'Differential proposal preserves immutable source addresses across numbering editions');
 check($loaded['state']['chapters'][0]['headId']===$newer['id']&&$loaded['state']['chapters'][0]['approvedId']===$rid&&$loaded['state']['revisions']===$s['revisions'],'MCP submissions never change working prose, approval or earlier numbers');
 check(callTool($db,'save_proposal_edits',$args)['duplicate']===true,'Cross-edition differential retry remains idempotent');
-check(khosraGuide()['guideVersion']===12,'Discovery guide advertises automatic numbering and UUID anchors');
+check(khosraGuide()['guideVersion']===13,'Discovery guide advertises automatic numbering and UUID anchors');
 echo "Paragraph numbering and MCP checks passed.\n";

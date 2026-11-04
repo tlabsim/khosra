@@ -64,7 +64,7 @@ it("uses responsive guest defaults without changing author preferences", () => {
       paper: "sepia",
       texture: "grain",
       size: 12,
-      leading: 1.6,
+      leading: 1.5,
       selectable: false,
       drag: true,
     });
@@ -74,7 +74,7 @@ it("uses responsive guest defaults without changing author preferences", () => {
     paper: "ivory",
     texture: "smooth",
     size: 14,
-    leading: 1.9,
+    leading: 1.75,
     selectable: true,
     drag: false,
   });
@@ -100,7 +100,7 @@ it("retains saved guest choices and fills missing or invalid fields with guest d
     paper: "white",
     texture: "linen",
     size: 16,
-    leading: 2.2,
+    leading: 2,
     selectable: true,
     drag: false,
   });
@@ -112,7 +112,7 @@ it("retains saved guest choices and fills missing or invalid fields with guest d
     paper: "white",
     texture: "grain",
     size: 12,
-    leading: 1.6,
+    leading: 1.5,
   });
   vi.stubGlobal("localStorage", {
     getItem: () => {
@@ -124,6 +124,27 @@ it("retains saved guest choices and fills missing or invalid fields with guest d
     paper: "sepia",
     texture: "grain",
     size: 12,
-    leading: 1.6,
+    leading: 1.5,
   });
+});
+
+it("maps saved spacing presets to their tighter equivalents for authors and guests", () => {
+  for (const [oldLeading, leading] of [
+    [1.6, 1.5],
+    [1.9, 1.75],
+    [1.8, 1.75],
+    [2.2, 2],
+    [2.1, 2],
+  ]) {
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify({ leading: oldLeading }),
+    });
+    expect(readPreferences().leading).toBe(leading);
+    expect(readGuestPreferences(390).leading).toBe(leading);
+    vi.stubGlobal("localStorage", {
+      getItem: () => JSON.stringify({ leading }),
+    });
+    expect(readPreferences().leading).toBe(leading);
+    expect(readGuestPreferences(1440).leading).toBe(leading);
+  }
 });
