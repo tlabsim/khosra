@@ -294,10 +294,9 @@ test("desktop chapter shortcuts sit below Add chapter and save edits before swit
   await page.screenshot({ path: "test-results/desktop-chapter-shortcuts.png" });
 });
 
-test("mobile continuous reader keeps chapter navigation visible while scrolling and in fullscreen", async ({
+test("continuous reader keeps chapter navigation visible while scrolling and in fullscreen", async ({
   page,
 }, info) => {
-  test.skip(info.project.name !== "android", "Mobile continuous navigation");
   await page.addInitScript(() => {
     Element.prototype.requestFullscreen = () =>
       Promise.reject(new Error("Use focus mode"));
@@ -311,6 +310,8 @@ test("mobile continuous reader keeps chapter navigation visible while scrolling 
   const assertSticky = async () => {
     const bounds = await nav.boundingBox();
     const viewport = page.viewportSize()!;
+    expect(bounds!.x).toBe(0);
+    expect(bounds!.width).toBeGreaterThanOrEqual(viewport.width - 20);
     expect(bounds!.y).toBeGreaterThan(viewport.height - 100);
     expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height + 1);
     expect(await nav.evaluate((el) => getComputedStyle(el).position)).toBe(
@@ -347,7 +348,7 @@ test("mobile continuous reader keeps chapter navigation visible while scrolling 
   const bar = await nav.boundingBox();
   expect(last!.y + last!.height).toBeLessThanOrEqual(bar!.y);
   await page.screenshot({
-    path: "test-results/mobile-continuous-chapter-navigation.png",
+    path: `test-results/${info.project.name}-continuous-chapter-navigation.png`,
   });
   await page
     .getByRole("button", { name: "Exit fullscreen", exact: true })

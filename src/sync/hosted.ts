@@ -1,3 +1,4 @@
+import { equalValue } from "../domain/equal";
 import type { State } from "../domain/model";
 import { reconcile } from "./reconcile";
 import { ServerRequestError, SyncConflict } from "./client";
@@ -14,9 +15,9 @@ export type HostedStatus = {
 export type HostedAdapter = {
   local: () => State;
   persist: () => Promise<void>;
-  apply: (state: State, expected: string) => Promise<boolean>;
+  apply: (state: State, expected: State) => Promise<boolean>;
   canApply: () => boolean;
-  baseline: () => Promise<string | undefined>;
+  baseline: () => Promise<State | undefined>;
   acknowledge: (remote: RemoteWorkspace) => Promise<void>;
   session: () => Promise<unknown>;
   login: (password: string) => Promise<unknown>;
@@ -26,7 +27,6 @@ export type HostedAdapter = {
   conflict: (remote: RemoteWorkspace) => void;
   status: (status: HostedStatus) => void;
 };
-const serialize = (state: State) => JSON.stringify(state);
 
 /** One serialized sync actor. Acknowledgements always describe the exact sent/read state. */
 export class HostedWorkspace {
@@ -164,14 +164,12 @@ export class HostedWorkspace {
     await this.adapter.persist();
     const baseline = await this.adapter.baseline();
     if (!this.live(generation)) return;
-    const local = this.adapter.local(),
-      localText = serialize(local),
-      remoteText = serialize(remote.state);
-    if (localText === remoteText) {
+    const local = this.adapter.local();
+    if (equalValue(local, remote.state)) {
       await this.adapter.acknowledge(remote);
       if (this.live(generation))
         this.ready(
-          serialize(this.adapter.local()) === localText
+          this.adapter.local() === local
             ? "Saved to server"
             : "Saving to server…",
         );
@@ -182,7 +180,7 @@ export class HostedWorkspace {
       (!baseline ||
         (remote.version === "0" &&
           !remote.state.books.length &&
-          baseline !== remoteText))
+          !equalValue(baseline, remote.state)))
     ) {
       this.adoption = remote;
       this.show({
@@ -192,25 +190,25 @@ export class HostedWorkspace {
       });
       return;
     }
-    if ((!local.books.length && !baseline) || localText === baseline) {
+    if ((!local.books.length && !baseline) || equalValue(local, baseline)) {
       if (!this.adapter.canApply()) {
         this.ready(
           "Saved on this device · finish editing to sync server changes",
         );
         return;
       }
-      if (await this.adapter.apply(remote.state, localText)) {
+      if (await this.adapter.apply(remote.state, local)) {
         if (!this.live(generation)) return;
         await this.adapter.acknowledge(remote);
         if (this.live(generation)) {
-          const clean = serialize(this.adapter.local()) === remoteText;
+          const clean = equalValue(this.adapter.local(), remote.state);
           this.ready(clean ? "Saved to server" : "Saving to server…");
           if (!clean) this.queued = true;
         }
       } else this.queued = true;
       return;
     }
-    if (baseline !== remoteText) {
+    if (!equalValue(baseline, remote.state)) {
       if (!this.adapter.canApply()) {
         this.ready(
           "Saved on this device · finish editing to sync server changes",
@@ -222,7 +220,7 @@ export class HostedWorkspace {
         this.review(remote);
         return;
       }
-      if (!(await this.adapter.apply(result.state, localText))) {
+      if (!(await this.adapter.apply(result.state, local))) {
         this.queued = true;
         return;
       }
@@ -238,7 +236,7 @@ export class HostedWorkspace {
         version: String(result.version),
       });
       if (!this.live(generation)) return;
-      if (serialize(this.adapter.local()) !== serialize(sending)) {
+      if (this.adapter.local() !== sending) {
         this.queued = true;
         this.ready("Saving to server…");
       } else this.ready("Saved to server");
@@ -262,7 +260,7 @@ export class HostedWorkspace {
   }
   async resolve(state: State, remote: RemoteWorkspace) {
     if (!this.authenticated) return;
-    const expected = serialize(this.adapter.local());
+    const expected = this.adapter.local();
     if (!(await this.adapter.apply(state, expected))) return;
     await this.adapter.acknowledge(remote);
     this.blocked = null;
@@ -292,11 +290,13 @@ export class HostedWorkspace {
       if (
         this.authenticated &&
         !this.blocked &&
-        serialize(this.adapter.local()) !== (await this.adapter.baseline())
+        !equalValue(this.adapter.local(), await this.adapter.baseline())
       )
         await this.sync();
-      const pending =
-        serialize(this.adapter.local()) !== (await this.adapter.baseline());
+      const pending = !equalValue(
+        this.adapter.local(),
+        await this.adapter.baseline(),
+      );
       ++this.generation;
       clearTimeout(this.timer);
       await this.adapter.logout();

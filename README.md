@@ -39,6 +39,8 @@ Khosra is currently a **single-owner application**. Guest readers can read and c
 
 ## Everyday use
 
+In continuous reading, previous/next chapter buttons stay fixed at the bottom on both desktop and mobile, including fullscreen.
+
 On desktop, **Contents** expands into additional columns when chapters no longer fit vertically, up to four as space permits. The list reads down each column, then across, and opens with the selected chapter visible. Very large lists scroll within the panel; mobile keeps one column.
 
 Settings → **Export this book as text** downloads the selected manuscript as Markdown. Paragraphs remain separated by blank lines; dialogue and manual line breaks within a paragraph use Markdown hard breaks so they remain on separate lines when rendered.
@@ -265,7 +267,7 @@ The MCP URL is `https://YOUR_DOMAIN/api/mcp`. It uses stateless Streamable HTTP 
 
 ## Technology
 
-React, TypeScript and Vite provide the interface; Dexie/IndexedDB stores the local workspace. A PHP API with PDO SQLite (or MySQL) handles owner access, synchronization, MCP/OAuth and guest invitations. A service worker caches static application assets and self-hosted fonts, excluding API responses.
+React, TypeScript and Vite provide the interface; Dexie/IndexedDB stores the local workspace. The browser retains the full offline library, but shares identical immutable history paragraphs, bounds queued saves, and reuses verified sync snapshots during idle polls. Local database upgrades migrate older recovery/cache records automatically without pruning history. A PHP API with PDO SQLite (or MySQL) handles owner access, synchronization, MCP/OAuth and guest invitations. A service worker caches static application assets and self-hosted fonts, excluding API responses.
 
 ## Attribution
 

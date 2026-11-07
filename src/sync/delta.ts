@@ -1,3 +1,4 @@
+import { equalValue } from "../domain/equal";
 import {
   emptyState,
   validateState,
@@ -41,8 +42,7 @@ export type Delta = {
     >
   >;
 };
-const same = (a: unknown, b: unknown) =>
-  JSON.stringify(a) === JSON.stringify(b);
+const same = equalValue;
 const rows = (s: State, key: Collection) => s[key] as unknown as Row[];
 const object = (v: unknown): Record<string, unknown> => {
   if (!v || typeof v !== "object" || Array.isArray(v))

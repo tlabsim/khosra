@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Use a white continuous-reading chapter bar on mobile and desktop, with more compact desktop controls and less reserved space. Remove obsolete generated assets from the staged release.
+
+- Reduce browser memory and idle-sync work for large libraries: share equal frozen history blocks, validate reference ancestry with reversible indexes, cache verified sync snapshots and move recovery/derived snapshots out of JSON metadata into structured IndexedDB records. Preserve complete archives, hash checks, durable retries and cross-tab CAS.
+- Bound local save queues to the in-flight and newest full snapshot, retain every revision, avoid whole-library reads for device-version checks, and memoize chapter history during typing.
+- Keep previous/next chapter navigation fixed within reach on desktop continuous reading as well as mobile, including fullscreen and safe-area spacing.
+
+
 - Choose At beginning or After a chapter when adding chapters. Add a unique Preface / ভূমিকা as chapter 0 (C0), keep regular reading numbers from 1 and preserve existing references/history. Support guest snapshots, Trash/restore and MCP preface reads/revisions; update guide version 13.
 
 - Tighten every reading line-spacing preset slightly: Close 1.5, Comfortable 1.75 and Open 2. Map saved author/guest choices to the corresponding new spacing.

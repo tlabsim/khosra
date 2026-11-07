@@ -1,3 +1,7 @@
+import { compactHistory } from "./domain/compactHistory";
+import { SnapshotWriter } from "./storage/snapshotWriter";
+import { equalValue } from "./domain/equal";
+import { readBaseline, writeBaseline } from "./storage/baseline";
 import McpDiagnostics from "./components/McpDiagnostics";
 import ContentsDrawer from "./components/ContentsDrawer";
 import ChapterCleanup from "./components/ChapterCleanup";
@@ -89,7 +93,8 @@ import {
 } from "./domain/model";
 import {
   readState,
-  saveState,
+  saveNormalizedState,
+  assertDeviceVersion,
   exportBackup,
   importBackup,
   download,
@@ -175,6 +180,7 @@ function App() {
     state: State;
     version: string;
   } | null>(null);
+  const [localWriter] = useState(() => new SnapshotWriter(saveNormalizedState));
   const editTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef(state),
     writeQueue = useRef(Promise.resolve()),
@@ -220,34 +226,31 @@ function App() {
             throw new DeviceSaveError(String(localSaveError.current));
           const expected = latest.current,
             queue = writeQueue.current;
-          const cached = await db.workspace.get("owner");
-          // A keystroke may have queued another local save while IndexedDB was reading.
-          if (expected !== latest.current || queue !== writeQueue.current)
-            continue;
-          if (
-            cached &&
-            JSON.stringify(validateState(cached.state)) !==
-              JSON.stringify(expected)
-          ) {
+          try {
+            await assertDeviceVersion();
+          } catch (cause) {
+            if (expected !== latest.current || queue !== writeQueue.current)
+              continue;
             const error = new DeviceSaveError(
-              "Another tab updated this device’s workspace. Download a device backup if needed, then reload this page.",
+              String(cause).includes("Another tab changed")
+                ? "Another tab updated this device’s workspace. Download a device backup if needed, then reload this page."
+                : String(cause),
             );
             localSaveError.current = error;
             throw error;
           }
+          if (expected !== latest.current || queue !== writeQueue.current)
+            continue;
           return;
         }
       },
       canApply: () => !syncBlocked.current,
       apply: async (next, expected) => {
-        if (JSON.stringify(latest.current) !== expected || syncBlocked.current)
-          return false;
-        const normalized = validateState(next);
+        if (latest.current !== expected || syncBlocked.current) return false;
+        const normalized = compactHistory(validateState(next));
         latest.current = normalized;
         setState(normalized);
-        writeQueue.current = writeQueue.current.then(() =>
-          saveState(normalized),
-        );
+        writeQueue.current = localWriter.enqueue(normalized);
         try {
           await writeQueue.current;
         } catch (error) {
@@ -258,16 +261,8 @@ function App() {
         }
         return true;
       },
-      baseline: async () => (await db.meta.get("serverState"))?.value,
-      acknowledge: async (remote) => {
-        await db.transaction("rw", db.meta, async () => {
-          await db.meta.put({ id: "serverVersion", value: remote.version });
-          await db.meta.put({
-            id: "serverState",
-            value: JSON.stringify(remote.state),
-          });
-        });
-      },
+      baseline: readBaseline,
+      acknowledge: writeBaseline,
       session: () => server.request("session"),
       login: server.login,
       logout: () => server.request("logout", {}),
@@ -311,7 +306,10 @@ function App() {
     return () => clearTimeout(timer);
   }, [notice]);
   const book = state.books.find((b) => b.id === bookId) || state.books[0];
-  const chapters = manuscriptChapters(state, book?.id || "");
+  const chapters = useMemo(
+    () => manuscriptChapters(state, book?.id || ""),
+    [state.chapters, book?.id],
+  );
   const deletedChapters = state.chapters.filter(
     (c) => c.bookId === book?.id && c.deletedAt,
   );
@@ -346,13 +344,18 @@ function App() {
     () => acceptedProposalParagraphs(state.revisions, displayed),
     [state.revisions, displayed],
   );
-  const chapterRevisions = state.revisions.filter(
-    (r) => r.chapterId === chapter?.id,
+  const chapterRevisions = useMemo(
+    () => state.revisions.filter((r) => r.chapterId === chapter?.id),
+    [state.revisions, chapter?.id],
   );
-  const recentHistory = historyGroups(chapterRevisions).slice(0, 3);
-  const visibleCurrentId = current
-    ? visibleHead(chapterRevisions, current.id)
-    : "";
+  const recentHistory = useMemo(
+    () => historyGroups(chapterRevisions).slice(0, 3),
+    [chapterRevisions],
+  );
+  const visibleCurrentId = useMemo(
+    () => (current ? visibleHead(chapterRevisions, current.id) : ""),
+    [chapterRevisions, current],
+  );
   const flags = state.flags.filter((f) => f.chapterId === chapter?.id);
   const pending = state.proposals.filter(
     (p) => p.status === "pending" && chapters.some((c) => c.id === p.chapterId),
@@ -371,12 +374,12 @@ function App() {
     : 0;
   function update(next: State) {
     try {
-      const normalized = validateState(next);
+      const normalized = compactHistory(validateState(next));
       latest.current = normalized;
       setState(normalized);
       setSaveStatus("Saving locally…");
-      writeQueue.current = writeQueue.current
-        .then(() => saveState(normalized))
+      writeQueue.current = localWriter
+        .enqueue(normalized)
         .then(() => {
           localSaveError.current = null;
           setSaveStatus("Saved on this device");
@@ -561,8 +564,8 @@ function App() {
       if (hosted && central.current) {
         await central.current.sync();
         if (central.current.status.phase !== "ready") return;
-        const saved = (await db.meta.get("serverState"))?.value;
-        if (saved !== JSON.stringify(latest.current)) {
+        const saved = await readBaseline();
+        if (!equalValue(saved, latest.current)) {
           setError(
             "Wait until this workspace is saved to the server before creating a reading link.",
           );

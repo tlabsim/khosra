@@ -691,21 +691,23 @@
   box-shadow: none;
 }
 
-/* Keep chapter shortcuts within reach while scrolling on a phone. */
-@media screen and (max-width: 760px) {
+/* Keep continuous-reading chapter shortcuts in reach at every screen size. */
+@media screen {
   .book-reader.reader-page.is-continuous {
     padding-bottom: calc(88px + env(safe-area-inset-bottom));
   }
-  .book-reader.is-continuous .reader-navigation {
+  .book-reader.reader-page.is-continuous .reader-navigation {
     position: fixed;
     inset: auto 0 0;
+    max-width: none;
+    width: auto;
     z-index: 6;
     display: flex;
     gap: 0;
     margin: 0;
     padding: 6px 12px calc(6px + env(safe-area-inset-bottom));
     border-top: 1px solid #9aa58f66;
-    background: var(--page-paper);
+    background: #fff;
     box-shadow: 0 -4px 18px #263d2810;
   }
   .book-reader.is-continuous .reader-navigation .button {
@@ -720,5 +722,21 @@
   }
   .book-reader.is-continuous .reader-navigation .button + .button {
     border-left: 1px solid #9aa58f66;
+  }
+}
+
+@media screen and (min-width: 761px) {
+  .book-reader.reader-page.is-continuous {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom));
+  }
+  .book-reader.reader-page.is-continuous .reader-navigation {
+    justify-content: center;
+    padding: 3px 12px calc(3px + env(safe-area-inset-bottom));
+  }
+  .book-reader.is-continuous .reader-navigation .button {
+    flex: 0 1 220px;
+    min-height: 34px;
+    padding: 4px 16px;
+    font-size: 13px;
   }
 }

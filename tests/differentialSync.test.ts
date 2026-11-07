@@ -349,7 +349,7 @@ it("detects a same-version server reset and repairs only a corrupt derived cache
   expect((await pull()).state).toEqual(remote.state());
   const cache = await db.meta.get("syncCache");
   const corrupt = JSON.parse(cache!.value);
-  corrupt.state.books[0].title = "Corrupt";
+  corrupt.localHash = "corrupt";
   await db.meta.put({ id: "syncCache", value: JSON.stringify(corrupt) });
   expect((await pull()).state).toEqual(remote.state());
   expect((await db.workspace.get("owner"))!.state).toEqual(recovery);
@@ -493,4 +493,27 @@ it("a derived-cache quota failure cannot block a committed save or evict author 
   expect(await db.meta.get("syncCache")).toBeUndefined();
   expect((await db.workspace.get("owner"))!.state).toEqual(next);
   expect((await pull()).state).toEqual(next);
+});
+
+it("reuses a verified unchanged sync snapshot between idle polls", async () => {
+  await server(fixture());
+  await pull(); // Bootstrap and verify the derived snapshot once.
+  const first = await pull(),
+    second = await pull();
+  expect(second.state).toBe(first.state);
+});
+
+it("migrates legacy JSON sync cache atomically into structured IndexedDB records", async () => {
+  const source = fixture();
+  await server(source);
+  await pull();
+  const before = (await readSyncCache())!;
+  await db.meta.put({ id: "syncCache", value: JSON.stringify(before.cache) });
+  await db.cacheStates.delete("sync");
+  const migrated = (await readSyncCache())!;
+  expect(migrated.cache.state).toEqual(before.cache.state);
+  expect(
+    JSON.parse((await db.meta.get("syncCache"))!.value).state,
+  ).toBeUndefined();
+  expect((await db.cacheStates.get("sync"))!.state).toEqual(before.cache.state);
 });

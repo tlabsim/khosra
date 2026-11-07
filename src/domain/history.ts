@@ -3,6 +3,7 @@ import type { Revision } from "./model";
 export function isEmptyCleanup(revision: Revision, parent?: Revision): boolean {
   if (
     !parent ||
+    revision.paragraphs.length >= parent.paragraphs.length ||
     revision.source !== "author" ||
     revision.edition !== parent.edition
   )

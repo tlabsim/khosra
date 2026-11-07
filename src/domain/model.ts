@@ -1,3 +1,4 @@
+import { validateReferences } from "./validateReferences";
 import {
   ChapterCleanupSchema,
   validateChapterCleanups,
@@ -194,6 +195,9 @@ export function validateState(value: unknown): State {
     ].every(unique)
   )
     throw Error("Duplicate record IDs.");
+  const bookById = new Map(s.books.map((b) => [b.id, b]));
+  const chapterById = new Map(s.chapters.map((c) => [c.id, c]));
+  const revisionById = new Map(s.revisions.map((r) => [r.id, r]));
   validateMaterials(s);
   validateChapterCleanups(s);
   for (const p of s.chapterProposals) {
@@ -238,46 +242,35 @@ export function validateState(value: unknown): State {
       );
     codes.add(code);
     if (
-      !s.books.some((b) => b.id === c.bookId) ||
-      !s.revisions.some((r) => r.id === c.headId && r.chapterId === c.id)
+      !bookById.has(c.bookId) ||
+      revisionById.get(c.headId)?.chapterId !== c.id
     )
       throw Error("Broken chapter references.");
-    if (
-      c.approvedId &&
-      !s.revisions.some((r) => r.id === c.approvedId && r.chapterId === c.id)
-    )
+    if (c.approvedId && revisionById.get(c.approvedId)?.chapterId !== c.id)
       throw Error("Broken approved reference.");
   }
   for (const r of s.revisions) {
-    if (
-      r.parentId &&
-      !s.revisions.some(
-        (x) => x.id === r.parentId && x.chapterId === r.chapterId,
-      )
-    )
+    if (r.parentId && revisionById.get(r.parentId)?.chapterId !== r.chapterId)
       throw Error("Broken parent revision.");
     if (
-      !s.chapters.some((c) => c.id === r.chapterId) ||
+      !chapterById.has(r.chapterId) ||
       !unique(r.paragraphs) ||
       new Set(r.paragraphs.map((p) => p.label)).size !== r.paragraphs.length
     )
       throw Error("Invalid revision.");
   }
   for (const f of s.flags) {
-    const r = s.revisions.find(
-      (r) => r.id === f.revisionId && r.chapterId === f.chapterId,
-    );
+    const r = revisionById.get(f.revisionId);
     if (
       !r ||
+      r.chapterId !== f.chapterId ||
       f.paragraphIds.some((id) => !r.paragraphs.some((p) => p.id === id))
     )
       throw Error("Broken flag anchor.");
   }
   for (const p of s.proposals) {
     if (
-      !s.revisions.some(
-        (r) => r.id === p.baseRevisionId && r.chapterId === p.chapterId,
-      ) ||
+      revisionById.get(p.baseRevisionId)?.chapterId !== p.chapterId ||
       !unique(p.paragraphs) ||
       new Set(p.paragraphs.map((x) => x.label)).size !== p.paragraphs.length
     )
@@ -333,56 +326,7 @@ export function validateState(value: unknown): State {
     )
       throw Error("Invalid context source or evidence.");
   }
-  type Index = {
-    addresses: Map<number, string>;
-    identities: Map<string, number>;
-  };
-  const indexes = new Map<string, Index>(),
-    visiting = new Set<string>();
-  const indexRevision = (r: Revision): Index => {
-    const cached = indexes.get(r.id);
-    if (cached) return cached;
-    if (visiting.has(r.id)) throw Error("Cyclic revision history.");
-    visiting.add(r.id);
-    const parent = s.revisions.find((x) => x.id === r.parentId);
-    const inherited =
-      parent && parent.edition === r.edition
-        ? indexRevision(parent)
-        : undefined;
-    const index: Index = {
-      addresses: new Map(inherited?.addresses),
-      identities: new Map(inherited?.identities),
-    };
-    for (const p of r.paragraphs) {
-      if (
-        (index.addresses.has(p.label) &&
-          index.addresses.get(p.label) !== p.id) ||
-        (index.identities.has(p.id) && index.identities.get(p.id) !== p.label)
-      )
-        throw Error(
-          "Historical paragraph references cannot be reassigned within an edition. Preserve source UUIDs and numbers; current numbering is automatic.",
-        );
-      index.addresses.set(p.label, p.id);
-      index.identities.set(p.id, p.label);
-    }
-    visiting.delete(r.id);
-    indexes.set(r.id, index);
-    return index;
-  };
-  for (const r of s.revisions) indexRevision(r);
-  for (const p of s.proposals) {
-    const base = s.revisions.find((r) => r.id === p.baseRevisionId)!;
-    const index = indexRevision(base);
-    for (const block of [...p.paragraphs, ...(p.review?.paragraphs ?? [])]) {
-      if (
-        (index.addresses.has(block.label) &&
-          index.addresses.get(block.label) !== block.id) ||
-        (index.identities.has(block.id) &&
-          index.identities.get(block.id) !== block.label)
-      )
-        throw Error("Proposal changes stable paragraph references.");
-    }
-  }
+  validateReferences(s.revisions, s.proposals);
   return s;
 }
 export function head(s: State, c: Chapter) {

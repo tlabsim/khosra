@@ -229,8 +229,7 @@ export async function pull() {
 export async function push(state: State, expectedVersion?: string) {
   const base =
     expectedVersion ?? (await db.meta.get("serverVersion"))?.value ?? "0";
-  const serialized = JSON.stringify(state);
-  const targetHash = await digest(serialized);
+  const targetHash = await digest(JSON.stringify(state));
   const pending = await db.meta.get("pendingPush");
   const cached =
     workspaceTransport?.differential === 1 ? await readSyncCache() : undefined;
@@ -239,8 +238,11 @@ export async function push(state: State, expectedVersion?: string) {
     body: Record<string, unknown> | undefined;
   if (pending) {
     const parsed = JSON.parse(pending.value);
+    const legacyMatch =
+      typeof parsed.payload === "string" &&
+      parsed.payload === JSON.stringify(state);
     if (
-      (parsed.targetHash === targetHash || parsed.payload === serialized) &&
+      (parsed.targetHash === targetHash || legacyMatch) &&
       parsed.base === base
     ) {
       operationId = parsed.id;
@@ -248,7 +250,7 @@ export async function push(state: State, expectedVersion?: string) {
       if (parsed.body && parsed.endpoint) {
         body = parsed.body;
         endpoint = parsed.endpoint;
-      } else if (parsed.payload === serialized)
+      } else if (legacyMatch)
         body = { state, baseVersion: Number(base), operationId };
     }
   }

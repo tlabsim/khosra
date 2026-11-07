@@ -46,19 +46,19 @@ function setup(
 ) {
   let current = local,
     server = remote,
-    base = baseline ? JSON.stringify(baseline) : undefined;
+    base = baseline;
   const adapter: HostedAdapter = {
     local: () => current,
     persist: vi.fn(async () => {}),
     canApply: () => true,
     apply: vi.fn(async (s, expected) => {
-      if (JSON.stringify(current) !== expected) return false;
+      if (current !== expected) return false;
       current = s;
       return true;
     }),
     baseline: async () => base,
     acknowledge: vi.fn(async (r) => {
-      base = JSON.stringify(r.state);
+      base = r.state;
     }),
     session: vi.fn(async () => ({})),
     login: vi.fn(async () => ({})),
@@ -278,7 +278,7 @@ it("shows upload-size failures while retaining the unsynced manuscript and basel
   expect(t.actor.status.message).toContain("rejected the upload size");
   expect(t.local()).toEqual(local);
   expect(t.remote().state).toEqual(base);
-  expect(t.baseline()).toBe(JSON.stringify(base));
+  expect(t.baseline()).toBe(base);
 });
 it("only offers offline cache after a network failure, never after 401", async () => {
   const base = fixture(),
@@ -399,17 +399,29 @@ it("syncs automatic legacy numbering as a new revision while acknowledging the e
   source.chapters[0].approvedId = old.id;
   const t = setup(emptyState(), { state: source, version: "1" });
   await t.actor.start();
-  expect(t.baseline()).toBe(JSON.stringify(source));
+  expect(t.baseline()).toBe(source);
   const ordered = orderCurrentParagraphNumbers(t.local());
   t.setLocal(ordered);
   await t.actor.sync();
   expect(t.adapter.conflict).not.toHaveBeenCalled();
   expect(t.remote().version).toBe("2");
   expect(t.remote().state).toEqual(ordered);
-  expect(t.baseline()).toBe(JSON.stringify(ordered));
+  expect(t.baseline()).toBe(ordered);
   expect(t.remote().state.revisions.find((r) => r.id === old.id)).toEqual(old);
   expect(t.remote().state.chapters[0].approvedId).toBe(old.id);
   expect(
     head(t.remote().state, t.remote().state.chapters[0]).paragraphs[0].label,
   ).toBe(1);
+});
+
+it("acknowledges a validated clone without queuing another save", async () => {
+  const t = setup();
+  t.adapter.apply = vi.fn(async (s, expected) => {
+    if (t.local() !== expected) return false;
+    t.setLocal(structuredClone(s));
+    return true;
+  });
+  await t.actor.start();
+  expect(t.actor.status.message).toBe("Saved to server");
+  expect(t.adapter.push).not.toHaveBeenCalled();
 });

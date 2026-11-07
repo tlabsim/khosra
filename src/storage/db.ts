@@ -1,11 +1,28 @@
+import { compactHistory } from "../domain/compactHistory";
 import Dexie, { type Table } from "dexie";
 import { emptyState, validateState, type State } from "../domain/model";
 class KhosraDB extends Dexie {
   workspace!: Table<{ id: string; state: State; version?: number }, string>;
+  baselines!: Table<
+    { id: string; state: State; version: string; token?: string },
+    string
+  >;
+  cacheStates!: Table<{ id: string; state: State; token: string }, string>;
   meta!: Table<{ id: string; value: string }, string>;
   constructor() {
     super("khosra-studio-v2");
     this.version(1).stores({ workspace: "id", meta: "id" });
+    this.version(2)
+      .stores({ workspace: "id,version", meta: "id", baselines: "id" })
+      .upgrade((tx) =>
+        tx
+          .table("workspace")
+          .toCollection()
+          .modify((row) => {
+            row.version ??= 0;
+          }),
+      );
+    this.version(3).stores({ cacheStates: "id" });
   }
 }
 export const db = new KhosraDB();
@@ -13,16 +30,29 @@ let localVersion = 0;
 export async function readState() {
   const row = await db.workspace.get("owner");
   localVersion = row?.version || 0;
-  return row ? validateState(row.state) : emptyState();
+  return row ? compactHistory(validateState(row.state)) : emptyState();
+}
+/** Check the version index without cloning the entire stored manuscript library. */
+export async function assertDeviceVersion() {
+  const keys = await db.workspace
+    .where("version")
+    .equals(localVersion)
+    .primaryKeys();
+  if (
+    !keys.includes("owner") &&
+    (localVersion !== 0 || (await db.workspace.count()) !== 0)
+  )
+    throw Error(
+      "Another tab changed this workspace. Export your unsaved work, then reload and reconcile.",
+    );
 }
 export async function saveState(state: State) {
-  const normalized = validateState(state);
+  return saveNormalizedState(compactHistory(validateState(state)));
+}
+/** App boundary has already validated this immutable snapshot. */
+export async function saveNormalizedState(normalized: State) {
   await db.transaction("rw", db.workspace, async () => {
-    const stored = await db.workspace.get("owner");
-    if ((stored?.version || 0) !== localVersion)
-      throw Error(
-        "Another tab changed this workspace. Export your unsaved work, then reload and reconcile.",
-      );
+    await assertDeviceVersion();
     const version = localVersion + 1;
     await db.workspace.put({ id: "owner", state: normalized, version });
     localVersion = version;
