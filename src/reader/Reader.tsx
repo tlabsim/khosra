@@ -81,6 +81,10 @@ export default function Reader({
   const touch = useRef<{ x: number; y: number } | null>(null);
   const paged = prefs.mode !== "continuous";
   const spread = prefs.mode === "spread" && width >= 760 ? 2 : 1;
+  // Chapter zero opens on the recto; the empty verso has no folio.
+  const leadingBlank = number === 0 && paged && spread === 2 ? 1 : 0;
+  const numberedPages = Math.max(1, pages - leadingBlank);
+  const folio = (index: number) => index + 1 - leadingBlank;
   const geometry = pageGeometry(
     width,
     spread,
@@ -231,7 +235,17 @@ export default function Reader({
     return () => {
       active = false;
     };
-  }, [height, spread, prefs, paragraphs, title, paged, column, gap]);
+  }, [
+    height,
+    spread,
+    prefs,
+    paragraphs,
+    title,
+    paged,
+    column,
+    gap,
+    leadingBlank,
+  ]);
   const goTo = (target: number) => {
     const to = Math.max(
       0,
@@ -301,6 +315,9 @@ export default function Reader({
   );
   const content = (
     <>
+      {leadingBlank === 1 && (
+        <div className="reading-blank-verso" aria-hidden="true" />
+      )}
       <header className="reading-title">
         <span lang={language}>
           {language === "bn"
@@ -379,9 +396,9 @@ export default function Reader({
           <ReadingProgress
             key={contentId}
             paged={paged}
-            page={page}
-            pages={pages}
-            spread={spread}
+            page={Math.max(0, page - leadingBlank)}
+            pages={numberedPages}
+            spread={page === 0 ? spread - leadingBlank : spread}
             hasText={paragraphs.some((p) => p.text.trim() || p.section?.trim())}
             root={root}
             text={text}
@@ -498,14 +515,15 @@ export default function Reader({
                 gap={gap}
                 spread={spread}
                 scale={geometry.scale}
+                folioOffset={leadingBlank}
                 done={finishTurn}
               />
             )}
             {paged && (
               <div className="reading-folios" aria-hidden="true">
-                <span>{page + 1}</span>
+                <span>{folio(page) > 0 ? folio(page) : ""}</span>
                 {spread === 2 && (
-                  <span>{page + 2 <= pages ? page + 2 : ""}</span>
+                  <span>{page + 2 <= pages ? folio(page + 1) : ""}</span>
                 )}
               </div>
             )}
@@ -533,14 +551,22 @@ export default function Reader({
                 {Array.from({ length: Math.ceil(pages / spread) }, (_, i) => (
                   <option key={i} value={i * spread}>
                     {spread === 2
-                      ? `${i * spread + 1}–${Math.min(pages, i * spread + 2)}`
+                      ? [
+                          Math.max(1, folio(i * spread)),
+                          Math.min(numberedPages, folio(i * spread + 1)),
+                        ]
+                          .filter(
+                            (value, index, values) =>
+                              index === 0 || value !== values[0],
+                          )
+                          .join("–")
                       : i + 1}
                   </option>
                 ))}
               </select>
               <span aria-live="polite" aria-atomic="true">
                 {" "}
-                of {pages} pages
+                of {numberedPages} pages
               </span>
             </label>
             <button

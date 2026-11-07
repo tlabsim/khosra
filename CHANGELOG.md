@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Open the preface on the right-hand page in two-page reading, leaving an unnumbered blank facing page. Keep short prefaces to one numbered page and preserve single-page/continuous reading.
+
 - Use a white continuous-reading chapter bar on mobile and desktop, with more compact desktop controls and less reserved space. Remove obsolete generated assets from the staged release.
 
 - Reduce browser memory and idle-sync work for large libraries: share equal frozen history blocks, validate reference ancestry with reversible indexes, cache verified sync snapshots and move recovery/derived snapshots out of JSON metadata into structured IndexedDB records. Preserve complete archives, hash checks, durable retries and cross-tab CAS.

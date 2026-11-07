@@ -1,59 +1,68 @@
 import { test, expect, type Page } from "@playwright/test";
 import type { State } from "../../src/domain/model";
-async function manuscript(page: Page, language = "bn") {
+async function manuscript(
+  page: Page,
+  language = "bn",
+  preface = false,
+  repeats = 150,
+) {
   await page.goto("/");
   await page.getByRole("button", { name: "Begin a manuscript" }).click();
   await page.getByLabel("Working title").fill("Across chapters");
   await page.getByLabel("Manuscript language").selectOption(language);
   await page.getByRole("button", { name: "Create manuscript" }).click();
   await expect(page.locator(".saved")).toHaveText("Saved on this device");
-  await page.evaluate(async () => {
-    const database = await new Promise<IDBDatabase>((resolve) => {
-      const req = indexedDB.open("khosra-studio-v2");
-      req.onsuccess = () => resolve(req.result);
-    });
-    const tx = database.transaction("workspace", "readwrite"),
-      store = tx.objectStore("workspace"),
-      req = store.get("owner");
-    req.onsuccess = () => {
-      const row = req.result as { state: State; version: number },
-        s = row.state,
-        first = s.chapters[0],
-        original = s.revisions[0];
-      first.title = "First chapter";
-      original.paragraphs[0].text =
-        "প্রথম অধ্যায়ের গল্প নদীর পাশের গ্রামে শুরু হয়। ".repeat(150);
-      const id = crypto.randomUUID(),
-        rid = crypto.randomUUID();
-      s.chapters.push({
-        ...first,
-        id,
-        title: "Second chapter",
-        code: 2,
-        position: 1,
-        headId: rid,
+  await page.evaluate(
+    async ({ preface, repeats }) => {
+      const database = await new Promise<IDBDatabase>((resolve) => {
+        const req = indexedDB.open("khosra-studio-v2");
+        req.onsuccess = () => resolve(req.result);
       });
-      s.revisions.push({
-        ...original,
-        id: rid,
-        chapterId: id,
-        paragraphs: [
-          {
-            id: crypto.randomUUID(),
-            label: 1,
-            section: "",
-            text: "দ্বিতীয় অধ্যায়ে একটি নতুন সূত্র পাওয়া যায়। ".repeat(150),
-          },
-        ],
+      const tx = database.transaction("workspace", "readwrite"),
+        store = tx.objectStore("workspace"),
+        req = store.get("owner");
+      req.onsuccess = () => {
+        const row = req.result as { state: State; version: number },
+          s = row.state,
+          first = s.chapters[0],
+          original = s.revisions[0];
+        first.title = "First chapter";
+        if (preface) first.code = 0;
+        original.paragraphs[0].text =
+          "প্রথম অধ্যায়ের গল্প নদীর পাশের গ্রামে শুরু হয়। ".repeat(repeats);
+        const id = crypto.randomUUID(),
+          rid = crypto.randomUUID();
+        s.chapters.push({
+          ...first,
+          id,
+          title: "Second chapter",
+          code: 2,
+          position: 1,
+          headId: rid,
+        });
+        s.revisions.push({
+          ...original,
+          id: rid,
+          chapterId: id,
+          paragraphs: [
+            {
+              id: crypto.randomUUID(),
+              label: 1,
+              section: "",
+              text: "দ্বিতীয় অধ্যায়ে একটি নতুন সূত্র পাওয়া যায়। ".repeat(150),
+            },
+          ],
+        });
+        store.put({ ...row, version: row.version + 1 });
+      };
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
       });
-      store.put({ ...row, version: row.version + 1 });
-    };
-    await new Promise<void>((resolve, reject) => {
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-    });
-    database.close();
-  });
+      database.close();
+    },
+    { preface, repeats },
+  );
   await page.reload();
   await page.getByRole("button", { name: "Read", exact: true }).click();
   await page.evaluate(() => document.fonts.ready);
@@ -355,4 +364,63 @@ test("continuous reader keeps chapter navigation visible while scrolling and in 
     .click();
   await page.getByLabel("Reading layout").selectOption("pages");
   await expect(nav).not.toHaveCSS("position", "fixed");
+});
+
+test("short preface opens on the right without adding a numbered blank page", async ({
+  page,
+}, info) => {
+  await manuscript(page, "bn", true, 1);
+  await page.getByLabel("Reading layout").selectOption("spread");
+  const blank = page.locator(".reading-blank-verso");
+  const rightHand = info.project.name === "desktop";
+  await expect(blank).toHaveCount(rightHand ? 1 : 0);
+  const title = await page.locator(".reading-title").boundingBox();
+  const paper = await page.locator(".reading-sheet").boundingBox();
+  if (rightHand) expect(title!.x).toBeGreaterThan(paper!.x + paper!.width / 2);
+  await expect(page.getByLabel("Go to page").locator("option")).toHaveText([
+    "1",
+  ]);
+  await expect(page.locator(".page-navigation")).toContainText("of 1 pages");
+  await expect(
+    page.getByRole("button", { name: "Next page", exact: true }),
+  ).toBeDisabled();
+  await expect(page.locator(".reading-folios > span")).toHaveText(
+    rightHand ? ["", "1"] : ["1"],
+  );
+  await page.screenshot({
+    path: `test-results/${info.project.name}-preface-right-opening.png`,
+  });
+  await page.getByLabel("Reading layout").selectOption("pages");
+  await expect(blank).toHaveCount(0);
+  await expect(page.locator(".reading-folios > span")).toHaveText(["1"]);
+  await page.getByLabel("Reading layout").selectOption("continuous");
+  await expect(blank).toHaveCount(0);
+  await expect(page.locator(".reading-text p")).toHaveCount(1);
+  await page.getByRole("button", { name: "Next chapter", exact: true }).click();
+  await page.getByLabel("Reading layout").selectOption("spread");
+  await expect(blank).toHaveCount(0);
+});
+
+test("long preface paginates and turns back to its right-hand opening", async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== "desktop", "Needs two visible pages");
+  await manuscript(page, "bn", true);
+  await page.getByLabel("Reading layout").selectOption("spread");
+  await expect
+    .poll(() => page.getByLabel("Go to page").locator("option").count())
+    .toBeGreaterThan(1);
+  await expect(page.getByLabel("Go to page")).toHaveValue("0");
+  await expect(page.locator(".reading-folios > span")).toHaveText(["", "1"]);
+  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await expect(page.locator(".reading-folios > span")).toHaveText(["2", "3"]);
+  await expect(page.locator(".page-turn-scene")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Previous page", exact: true })
+    .click();
+  await expect(page.locator(".page-turn-scene")).toHaveCount(0);
+  await expect(page.locator(".reading-folios > span")).toHaveText(["", "1"]);
+  const title = await page.locator(".reading-title").boundingBox();
+  const paper = await page.locator(".reading-sheet").boundingBox();
+  expect(title!.x).toBeGreaterThan(paper!.x + paper!.width / 2);
 });

@@ -72,6 +72,10 @@
   margin: 1em 0 0.65em;
   break-after: avoid;
 }
+.reading-blank-verso {
+  height: 1px;
+  break-after: column;
+}
 .reading-title {
   text-align: center;
   margin: 12px 0 2em;

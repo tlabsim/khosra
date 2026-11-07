@@ -16,6 +16,7 @@ export default function PageTurn({
   gap,
   spread,
   scale,
+  folioOffset = 0,
   done,
 }: {
   turn: Turn;
@@ -26,6 +27,7 @@ export default function PageTurn({
   gap: number;
   spread: number;
   scale: number;
+  folioOffset?: number;
   done: () => void;
 }) {
   const scene = useRef<HTMLDivElement>(null),
@@ -67,7 +69,8 @@ export default function PageTurn({
       crop.append(clone);
       const folio = document.createElement("span");
       folio.className = "turn-folio";
-      folio.textContent = String(page + 1);
+      folio.textContent =
+        page + 1 > folioOffset ? String(page + 1 - folioOffset) : "";
       target.replaceChildren(crop, folio);
     };
     const turningSide = forward ? spread - 1 : 0;
@@ -94,7 +97,7 @@ export default function PageTurn({
     };
     el.addEventListener("animationcancel", cancel);
     return () => el.removeEventListener("animationcancel", cancel);
-  }, [turn, column, gap, spread, scale]);
+  }, [turn, column, gap, spread, scale, folioOffset]);
   return (
     <div
       ref={scene}
