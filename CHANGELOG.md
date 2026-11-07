@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Remove the mobile reader’s outer side gutters in continuous, single-page and narrow-screen two-page layouts, including fullscreen and guest reading; retain text insets and toolbar touch targets.
+
 - Open the preface on the right-hand page in two-page reading, leaving an unnumbered blank facing page. Keep short prefaces to one numbered page and preserve single-page/continuous reading.
 
 - Use a white continuous-reading chapter bar on mobile and desktop, with more compact desktop controls and less reserved space. Remove obsolete generated assets from the staged release.

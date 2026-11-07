@@ -744,3 +744,19 @@
     font-size: 13px;
   }
 }
+
+
+/* On phones the paper reaches both viewport edges in every reading layout. */
+@media screen and (max-width: 760px) {
+  .book-reader.reader-page {
+    width: 100%;
+    padding-inline: 0;
+  }
+  .book-reader .reading-toolbar,
+  .book-reader .spread-hint {
+    padding-inline: 8px;
+  }
+  .book-reader.is-continuous .reading-sheet {
+    border-inline: 0;
+  }
+}
