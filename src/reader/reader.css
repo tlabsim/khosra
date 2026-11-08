@@ -657,22 +657,32 @@
   }
 }
 
-/* Inset the visible button within the existing 44px toolbar. */
+/* Give the compact control row a little breathing room. */
+.book-reader .reading-toolbar {
+  padding-block: 4px;
+}
+
+/* Match the visible surfaces and touch targets throughout the reader toolbar. */
+.book-reader .reading-toolbar > select,
+.book-reader .reading-toolbar > button,
+.book-reader .reading-toolbar label > select,
 .book-reader .reading-toolbar .reader-settings-trigger {
-  position: relative;
-  height: 32px;
-  min-height: 32px;
-  margin: 6px 4px;
+  box-sizing: border-box;
+  height: 36px;
+  min-height: 36px;
+  margin-block: 0;
+}
+.book-reader .reading-toolbar > button {
+  width: 36px;
+  min-width: 36px;
+}
+.book-reader .reading-toolbar .reader-settings-trigger {
   padding-block: 6px;
   border: 0;
   box-shadow: none;
 }
-/* Keep a 44px pointer target while the visible surface leaves room for progress. */
-.book-reader .reading-toolbar .reader-settings-trigger::after {
-  content: "";
-  position: absolute;
-  inset: -6px 0;
-}
+.book-reader.is-immersive .reading-toolbar > button,
+.book-reader.is-immersive .reading-toolbar label > select,
 .book-reader.is-immersive .reading-toolbar .reader-settings-trigger {
   border-radius: 6px;
 }
@@ -807,7 +817,6 @@
 }
 .book-reader.is-screen-sized .reader-page-picker select {
   max-width: 84px;
-  min-height: 44px;
   padding-inline: 6px;
 }
 .book-reader .adapt-screen-toggle[aria-pressed="true"] {
@@ -872,5 +881,32 @@
 @media (prefers-reduced-motion: reduce) {
   .book-reader.is-screen-sized .reading-toolbar {
     transition: none;
+  }
+}
+
+/* A short, flat transition keeps single-page phone reading calm and legible. */
+@media (max-width: 600px) and (prefers-reduced-motion: no-preference) {
+  .book-reader.is-screen-sized .turn-single .turn-leaf {
+    animation: screen-page-away 240ms ease-out both;
+    --screen-turn-shift: -16px;
+  }
+  .book-reader.is-screen-sized .turn-single.turn-backward .turn-leaf {
+    --screen-turn-shift: 16px;
+  }
+  .book-reader.is-screen-sized
+    .turn-single
+    :is(.turn-back, .turn-ground-shadow),
+  .book-reader.is-screen-sized .turn-single .turn-front::after {
+    display: none;
+  }
+}
+@keyframes screen-page-away {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(var(--screen-turn-shift));
   }
 }

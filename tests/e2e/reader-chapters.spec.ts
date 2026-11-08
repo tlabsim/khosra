@@ -684,6 +684,40 @@ test("screen-sized paper fills portrait and narrow landscape viewports and persi
       path: `test-results/${info.project.name}-screen-${width}x${height}.png`,
     });
   }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(sheet).not.toHaveClass(/is-spread/);
+  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  const leaf = page.locator(".turn-single .turn-leaf");
+  await expect(leaf).toHaveCSS("animation-name", "screen-page-away");
+  await leaf.evaluate((el) => {
+    const animation = el.getAnimations()[0];
+    animation.pause();
+    animation.currentTime = 120;
+  });
+  await expect(leaf).toHaveCSS("--screen-turn-shift", "-16px");
+  const opacity = await leaf.evaluate((el) =>
+    Number(getComputedStyle(el).opacity),
+  );
+  expect(opacity).toBeGreaterThan(0);
+  expect(opacity).toBeLessThan(1);
+  await page.screenshot({
+    path: `test-results/${info.project.name}-screen-phone-turn.png`,
+  });
+  await leaf.evaluate((el) => el.getAnimations()[0].finish());
+  await expect(leaf).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Previous page", exact: true })
+    .click();
+  await expect(leaf).toHaveCSS("--screen-turn-shift", "16px");
+  await expect(leaf).toHaveCount(0);
+  await expect(page.getByLabel("Go to page")).toHaveValue("0");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await expect(page.locator(".page-turn-scene")).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Previous page", exact: true })
+    .click();
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   const nextPage = page.getByRole("button", { name: "Next page", exact: true });
   for (let i = 0; i < 8; i++) {
     await page.keyboard.press("Tab");

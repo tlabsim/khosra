@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add a subtle directional slide/fade for adaptive single-page reading on phones, retaining reduced-motion and page-animation preferences.
+- Align reader page pickers, Preferences and icon toggles to matching compact 36px control heights, with a little space above and below the row.
+
 - Restore centered per-page folios in screen-sized reading, move its page picker into the toolbar, and add the supplied Fluent icon as a one-click adaptive-size toggle before Fullscreen.
 - Add Cancel edits beside Done: restore the session-opening prose across autosaves, clear and splits/joins using a new immutable revision; retain abandoned drafts and reject unexpected chapter updates.
 
