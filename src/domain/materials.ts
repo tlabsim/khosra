@@ -93,7 +93,7 @@ export function fileBytes(file: MaterialFile): Uint8Array {
   return Uint8Array.from(decodedFile(file), (c) => c.charCodeAt(0));
 }
 export function validateMaterials(s: {
-  books: { id: string }[];
+  books: { id: string; coverFileId?: string | null }[];
   chapters: { id: string; bookId: string }[];
   materials: Material[];
   files: MaterialFile[];
@@ -119,6 +119,12 @@ export function validateMaterials(s: {
         "Attachments exceed the 8 MiB manuscript limit (including history).",
       );
     totals.set(f.bookId, total);
+  }
+  for (const book of s.books) {
+    if (!book.coverFileId) continue;
+    const cover = files.get(book.coverFileId);
+    if (!cover || cover.bookId !== book.id || !cover.mime.startsWith("image/"))
+      throw Error("Invalid manuscript cover attachment.");
   }
   const versions = new Map(s.materials.map((m) => [m.id, m]));
   for (const m of s.materials) {
@@ -169,6 +175,7 @@ export function applyMaterialDeletions<
     materials: Material[];
     files: MaterialFile[];
     materialDeletions: MaterialDeletion[];
+    books?: { coverFileId?: string | null }[];
   },
 >(state: T): T {
   const deleted = new Set(state.materialDeletions.map((d) => d.itemId));
@@ -176,7 +183,10 @@ export function applyMaterialDeletions<
     state.materials.filter((m) => deleted.has(m.itemId)).map((m) => m.fileId),
   );
   const materials = state.materials.filter((m) => !deleted.has(m.itemId));
-  const referenced = new Set(materials.map((m) => m.fileId));
+  const referenced = new Set([
+    ...materials.map((m) => m.fileId),
+    ...(state.books ?? []).map((b) => b.coverFileId),
+  ]);
   return {
     ...state,
     materials,

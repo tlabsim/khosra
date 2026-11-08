@@ -95,7 +95,7 @@ for (const fallback of [false, true])
     await expect
       .poll(() => page.getByLabel("Go to page").locator("option").count())
       .toBeGreaterThan(1);
-    await page.getByLabel("Go to page").selectOption("1");
+    await page.getByLabel("Go to page").selectOption({ value: "1" });
     await page
       .getByRole("button", { name: "Next chapter", exact: true })
       .click();
@@ -383,7 +383,7 @@ test("short preface opens on the right without adding a numbered blank page", as
   await expect(page.locator(".page-navigation")).toContainText("of 1 pages");
   await expect(
     page.getByRole("button", { name: "Next page", exact: true }),
-  ).toBeDisabled();
+  ).toBeEnabled();
   await expect(page.locator(".reading-folios > span")).toHaveText(
     rightHand ? ["", "1"] : ["1"],
   );
@@ -424,3 +424,67 @@ test("long preface paginates and turns back to its right-hand opening", async ({
   const paper = await page.locator(".reading-sheet").boundingBox();
   expect(title!.x).toBeGreaterThan(paper!.x + paper!.width / 2);
 });
+
+for (const layout of ["pages", "spread"])
+  test(`page controls cross chapters and return to the final ${layout} view`, async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      Element.prototype.requestFullscreen = () =>
+        Promise.reject(new Error("Use focus mode"));
+    });
+    await manuscript(page);
+    await page.getByLabel("Reading layout").selectOption(layout);
+    await page.getByRole("button", { name: "Enter fullscreen" }).click();
+    const selector = page.getByLabel("Go to page");
+    await expect
+      .poll(() => selector.locator("option").count())
+      .toBeGreaterThan(1);
+    let last: string | null = null;
+    const nextPage = page.getByRole("button", {
+      name: "Next page",
+      exact: true,
+    });
+    const previousPage = page.getByRole("button", {
+      name: "Previous page",
+      exact: true,
+    });
+    // Fullscreen may repaginate after ResizeObserver measures the toolbar.
+    await expect
+      .poll(async () => {
+        last = await selector.locator("option").last().getAttribute("value");
+        await selector.selectOption({ value: last! });
+        return nextPage.getAttribute("title");
+      })
+      .toBe("Next chapter");
+    await expect(nextPage).toBeEnabled();
+    await nextPage.click();
+    await expect(page.locator(".reading-title h1")).toHaveText(
+      "Second chapter",
+    );
+    await expect(page.locator(".book-reader")).toHaveClass(/is-immersive/);
+    await expect(selector).toHaveValue("0");
+    await expect(previousPage).toBeEnabled();
+    await expect(previousPage).toHaveAttribute("title", "Previous chapter");
+    await previousPage.click();
+    await expect(page.locator(".reading-title h1")).toHaveText("First chapter");
+    await expect(selector).toHaveValue(last!);
+    await selector.selectOption("0");
+    await expect(previousPage).toBeDisabled();
+    await page
+      .getByRole("button", { name: "Next chapter", exact: true })
+      .click();
+    await expect(page.locator(".reading-title h1")).toHaveText(
+      "Second chapter",
+    );
+    await expect
+      .poll(async () => {
+        const secondLast = await selector
+          .locator("option")
+          .last()
+          .getAttribute("value");
+        await selector.selectOption({ value: secondLast! });
+        return nextPage.isDisabled();
+      })
+      .toBe(true);
+  });

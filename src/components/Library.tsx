@@ -64,6 +64,7 @@ export default function Library({
               ),
             0,
           );
+          const cover = state.files.find((f) => f.id === b.coverFileId);
           return (
             <button
               className={`library-book cover-${i % 3}`}
@@ -71,17 +72,33 @@ export default function Library({
               onClick={() => onOpen(b)}
               aria-label={`Open ${b.title}`}
             >
-              <span className="book-cover">
-                <span className="cover-mark">
-                  <Leaf size={22} weight="light" />
-                </span>
-                <strong lang={b.language}>{b.title}</strong>
-                <span className="cover-rule" />
-                <span className="cover-language">
-                  {b.language === "bn" ? "বাংলা" : "English"}
-                </span>
+              <span className={`book-cover ${cover ? "has-cover-image" : ""}`}>
+                {cover ? (
+                  <img
+                    className="manuscript-cover-image"
+                    src={`data:${cover.mime};base64,${cover.data}`}
+                    alt=""
+                    loading="lazy"
+                  />
+                ) : (
+                  <>
+                    <span className="cover-mark">
+                      <Leaf size={22} weight="light" />
+                    </span>
+                    <strong lang={b.language}>{b.title}</strong>
+                    <span className="cover-rule" />
+                    <span className="cover-language">
+                      {b.language === "bn" ? "বাংলা" : "English"}
+                    </span>
+                  </>
+                )}
                 <span className="cover-spine" />
               </span>
+              {cover && (
+                <strong className="custom-cover-title" lang={b.language}>
+                  {b.title}
+                </strong>
+              )}
               <span className="book-caption">
                 <span>
                   {chapters.length}{" "}

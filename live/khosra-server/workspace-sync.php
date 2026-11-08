@@ -17,7 +17,7 @@ const SYNC_FIELDS=[
  'materialDeletions'=>['itemId','bookId','createdAt'],
  'chapterCleanups'=>['chapterId','createdAt','proposalIds','contextIds','chapterProposalIds'],
 ];
-const SYNC_OPTIONAL=['chapters'=>['deletedAt'],'flags'=>['audio'],'proposals'=>['review'],'chapterProposals'=>['review']];
+const SYNC_OPTIONAL=['books'=>['coverFileId'],'chapters'=>['deletedAt'],'flags'=>['audio'],'proposals'=>['review'],'chapterProposals'=>['review']];
 function syncFields(array $value,array $required,array $optional=[]):void {
  if(array_diff($required,array_keys($value))||array_diff(array_keys($value),array_merge($required,$optional)))fail(422,'Invalid differential sync fields.');
 }

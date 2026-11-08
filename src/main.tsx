@@ -1,3 +1,5 @@
+import BookDetails from "./components/BookDetails";
+import { updateBookDetails } from "./domain/bookDetails";
 import { compactHistory } from "./domain/compactHistory";
 import { SnapshotWriter } from "./storage/snapshotWriter";
 import { equalValue } from "./domain/equal";
@@ -772,6 +774,15 @@ function App() {
             >
               <BookBookmark size={20} aria-hidden="true" />
               <span>{book.title}</span>
+              <button
+                type="button"
+                className="icon contents-book-edit"
+                aria-label="Edit manuscript details"
+                title="Edit manuscript details"
+                onClick={() => setModal("bookDetails")}
+              >
+                <PencilSimple size={16} />
+              </button>
             </p>
             <div className="chapter-list">
               {chapters.map((c) => (
@@ -2165,7 +2176,7 @@ function App() {
           }}
         >
           <section
-            className={`modal${modal === "actions" ? " chapter-actions-modal" : modal === "paste" ? " paste-chapter-modal" : ""}`}
+            className={`modal${modal === "bookDetails" ? " book-details-modal" : ""}${modal === "actions" ? " chapter-actions-modal" : modal === "paste" ? " paste-chapter-modal" : ""}`}
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
@@ -2202,6 +2213,7 @@ function App() {
               {
                 {
                   book: "New manuscript",
+                  bookDetails: "Manuscript details",
                   chapter: "New chapter",
                   flag: "New flag",
                   rename: "Chapter details",
@@ -2288,6 +2300,27 @@ function App() {
                     );
                   })
                 }
+              />
+            )}
+            {modal === "bookDetails" && book && (
+              <BookDetails
+                key={book.id}
+                book={book}
+                files={state.files}
+                onCancel={() => setModal("")}
+                onSave={(original, details, upload) => {
+                  finishActiveParagraph();
+                  update(
+                    updateBookDetails(
+                      latest.current,
+                      original,
+                      details,
+                      upload,
+                    ),
+                  );
+                  setModal("");
+                  setNotice("Manuscript details updated");
+                }}
               />
             )}
             {modal === "book" && (

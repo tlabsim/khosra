@@ -44,6 +44,7 @@ export const ChapterSchema = z.object({
   deletedAt: z.string().datetime().optional(),
 });
 export const BookSchema = z.object({
+  coverFileId: z.string().uuid().nullable().optional(),
   id: z.string().uuid(),
   title: z.string().min(1).max(300),
   premise: z.string(),

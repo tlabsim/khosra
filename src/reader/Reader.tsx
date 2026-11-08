@@ -75,6 +75,10 @@ export default function Reader({
   const contentGeneration = useRef(0);
   const queued = useRef<number | null>(null);
   const navigate = useRef<(page: number) => void>(() => {});
+  const chapterDestination = useRef<{ from: string; end: boolean } | null>(
+    null,
+  );
+  const openAtEnd = useRef(false);
 
   const viewport = useRef<HTMLDivElement>(null);
   const text = useRef<HTMLElement>(null);
@@ -189,6 +193,10 @@ export default function Reader({
     queued.current = null;
     touch.current = null;
     setTurn(null);
+    openAtEnd.current =
+      !!chapterDestination.current?.end &&
+      chapterDestination.current.from !== contentId;
+    chapterDestination.current = null;
     setPage(0);
     root.current?.scrollTo(0, 0);
     window.scrollTo(0, 0);
@@ -223,19 +231,23 @@ export default function Reader({
       queued.current = null;
       setTurn(null);
       setPages(count);
+      const last = Math.floor((count - 1) / spread) * spread;
+      const openingAtEnd = openAtEnd.current;
       setPage((p) =>
-        Math.min(
-          Math.floor(p / spread) * spread,
-          Math.floor((count - 1) / spread) * spread,
-        ),
+        openingAtEnd ? last : Math.min(Math.floor(p / spread) * spread, last),
       );
     };
     measure();
-    void document.fonts.ready.then(measure);
+    void document.fonts.ready.then(() => {
+      if (!active) return;
+      measure();
+      openAtEnd.current = false;
+    });
     return () => {
       active = false;
     };
   }, [
+    contentId,
     height,
     spread,
     prefs,
@@ -273,7 +285,16 @@ export default function Reader({
     } else setTurn(null);
     setPage(to);
   };
-  const move = (direction: number) => goTo(page + direction * spread);
+  const move = (direction: number) => {
+    if (loading) return;
+    if (direction < 0 && page === 0 && previous) {
+      chapterDestination.current = { from: contentId, end: true };
+      previous();
+    } else if (direction > 0 && page + spread >= pages && next) {
+      chapterDestination.current = { from: contentId, end: false };
+      next();
+    } else goTo(page + direction * spread);
+  };
   useEffect(() => {
     navigate.current = goTo;
   });
@@ -309,7 +330,17 @@ export default function Reader({
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [paged, pages, spread, page, prefs.flip]);
+  }, [
+    paged,
+    pages,
+    spread,
+    page,
+    prefs.flip,
+    previous,
+    next,
+    contentId,
+    loading,
+  ]);
   const mouseTurn = useMousePageTurn(paged && prefs.drag, (direction) =>
     move(direction),
   );
@@ -534,7 +565,15 @@ export default function Reader({
             <button
               className="icon"
               aria-label="Previous page"
-              disabled={page === 0}
+              title={
+                page === 0 && previous ? "Previous chapter" : "Previous page"
+              }
+              aria-description={
+                page === 0 && previous
+                  ? "Open the previous chapter at its last page"
+                  : undefined
+              }
+              disabled={loading || (page === 0 && !previous)}
               onClick={() => move(-1)}
             >
               <ArrowLeft size={21} />
@@ -572,7 +611,15 @@ export default function Reader({
             <button
               className="icon"
               aria-label="Next page"
-              disabled={page + spread >= pages}
+              title={
+                page + spread >= pages && next ? "Next chapter" : "Next page"
+              }
+              aria-description={
+                page + spread >= pages && next
+                  ? "Open the next chapter at its first page"
+                  : undefined
+              }
+              disabled={loading || (page + spread >= pages && !next)}
               onClick={() => move(1)}
             >
               <ArrowRight size={21} />
@@ -589,12 +636,22 @@ export default function Reader({
         <button
           className="button quiet"
           disabled={!previous}
-          onClick={previous}
+          onClick={() => {
+            chapterDestination.current = null;
+            previous?.();
+          }}
         >
           <ArrowLeft />
           Previous chapter
         </button>
-        <button className="button quiet" disabled={!next} onClick={next}>
+        <button
+          className="button quiet"
+          disabled={!next}
+          onClick={() => {
+            chapterDestination.current = null;
+            next?.();
+          }}
+        >
           Next chapter
           <ArrowRight />
         </button>

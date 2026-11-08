@@ -61,8 +61,22 @@ export function reconcile(local: State, remote: State, choices: Choices = {}) {
         id: a.id,
         kind: "book",
         title: a.title,
-        local: a.premise,
-        server: b.premise,
+        local: [
+          a.title,
+          a.language === "bn" ? "বাংলা" : "English",
+          a.premise,
+          a.coverFileId
+            ? `Cover: ${local.files.find((f) => f.id === a.coverFileId)?.name ?? "Image"}`
+            : "No cover image",
+        ].join("\n"),
+        server: [
+          b.title,
+          b.language === "bn" ? "বাংলা" : "English",
+          b.premise,
+          b.coverFileId
+            ? `Cover: ${remote.files.find((f) => f.id === b.coverFileId)?.name ?? "Image"}`
+            : "No cover image",
+        ].join("\n"),
       });
     return choices[a.id] === "local" ? a : b;
   });

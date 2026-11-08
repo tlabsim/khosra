@@ -24,6 +24,8 @@ Khosra is currently a **single-owner application**. Guest readers can read and c
 
 ## What you can do
 
+To rename a manuscript, open **Contents** and choose the pencil beside its name. **Manuscript details** also edits the premise, language and an optional cover image for the Library (PNG/JPEG/WebP up to 2 MiB). Save changes to sync them; Cancel leaves the manuscript unchanged.
+
 | Area | Features |
 | --- | --- |
 | Organize | Multiple manuscripts, premises, outlines, chapter ordering, optional subsection headings and recoverable chapter Trash |

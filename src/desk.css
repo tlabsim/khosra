@@ -1875,3 +1875,133 @@ body {
   color: #526347;
   font-weight: 500;
 }
+
+/* Manuscript details stay discoverable by keyboard and on touch devices. */
+.contents-book-title {
+  align-items: center;
+}
+.contents-book-edit {
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  opacity: 1;
+}
+@media (hover: hover) and (pointer: fine) {
+  .contents-book-edit {
+    opacity: 0;
+  }
+  .contents-book-title:hover .contents-book-edit,
+  .contents-book-title:focus-within .contents-book-edit {
+    opacity: 1;
+  }
+}
+.book-details-cover {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin: 16px 0 24px;
+}
+.book-cover-preview {
+  flex: 0 0 96px;
+  height: 128px;
+  display: grid;
+  place-items: center;
+  background: #edf0e7;
+  border: 1px solid #d7d8cf;
+  border-radius: 4px;
+  overflow: hidden;
+  color: #74836c;
+}
+.book-cover-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.book-details-cover > div:last-child {
+  min-width: 0;
+}
+.book-details-cover input {
+  width: 100%;
+  font-size: 12px;
+}
+.book-details-cover .caption {
+  margin: 8px 0;
+}
+.book-details-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid #d7d8cf;
+  padding-top: 20px;
+  margin-top: 24px;
+}
+.book-cover.has-cover-image {
+  padding: 0;
+  overflow: hidden;
+}
+.book-cover.has-cover-image::after {
+  display: none;
+}
+.manuscript-cover-image {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  inset: 0;
+  object-fit: cover;
+}
+.custom-cover-title {
+  display: block;
+  font: 20px/1.5 var(--serif);
+  margin: 18px 0 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 480px) {
+  .book-details-cover {
+    gap: 12px;
+  }
+  .book-cover-preview {
+    flex-basis: 72px;
+    height: 96px;
+  }
+  .book-details-actions .button {
+    flex: 1;
+  }
+}
+
+.contents-book-edit {
+  position: relative;
+}
+.contents-book-edit::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+}
+
+.modal.book-details-modal {
+  max-width: 640px;
+  padding: 24px;
+}
+.book-details-modal h2 {
+  margin: 0 0 22px;
+}
+.book-details-modal .book-details-form {
+  gap: 14px;
+}
+.book-details-modal .book-details-cover {
+  margin: 0;
+}
+.book-details-modal .book-details-actions {
+  position: sticky;
+  bottom: -24px;
+  z-index: 1;
+  background: #fbfbf5;
+  margin: 4px -24px -24px;
+  padding: 14px 24px;
+}
+
+.book-details-field {
+  display: grid;
+  gap: 8px;
+}

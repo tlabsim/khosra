@@ -116,6 +116,7 @@ function preserveHistory(array $old,array $new):void {
  $removableFiles=[];
  foreach($old['materials']??[] as $m)if(($deleted[$m['itemId']]??null)===$m['bookId']&&$m['fileId']!==null)$removableFiles[$m['fileId']]=true;
  foreach($new['materials']??[] as $m)if($m['fileId']!==null)unset($removableFiles[$m['fileId']]);
+ foreach($new['books']??[] as $b)if(($b['coverFileId']??null)!==null)unset($removableFiles[$b['coverFileId']]);
  foreach(['books','chapters','revisions','flags','proposals','contexts','chapterProposals','materials','files','materialDeletions','chapterCleanups'] as $key){
   $lookup=array_column($new[$key]??[],null,'id');
   foreach($old[$key]??[] as $r){

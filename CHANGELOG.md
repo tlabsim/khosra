@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Continue across chapters with paged reader arrows, swipes, drag and arrow keys: Next at the last page opens the next chapter, and Previous at the first page opens the prior chapter’s final page/spread. Disable only at book boundaries or while loading a guest chapter; retain fullscreen.
+
+- Edit manuscript details from the pencil beside its title in Contents: rename, premise, language and optional private cover image. Preserve chapter identities/history, reject stale detail edits, and sync/backup covers using existing attachment limits. Show custom covers in the Library; keep edit access visible on touch and keyboard focus.
+
 - Remove the mobile reader’s outer side gutters in continuous, single-page and narrow-screen two-page layouts, including fullscreen and guest reading; retain text insets and toolbar touch targets.
 
 - Open the preface on the right-hand page in two-page reading, leaving an unnumbered blank facing page. Keep short prefaces to one numbered page and preserve single-page/continuous reading.
