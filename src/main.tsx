@@ -156,7 +156,6 @@ function App() {
     [modal, setModal] = useState(""),
     [shareOpen, setShareOpen] = useState(false),
     [editing, setEditing] = useState<string | null>(null),
-    [editText, setEditText] = useState(""),
     [editFocus, setEditFocus] = useState({ at: 0 }),
     [selection, setSelection] = useState<{ ids: string[]; quote: string }>({
       ids: [],
@@ -183,6 +182,13 @@ function App() {
     version: string;
   } | null>(null);
   const [localWriter] = useState(() => new SnapshotWriter(saveNormalizedState));
+  // A keystroke must not rerender the library and every manuscript paragraph.
+  // The native editor owns its visible value; this ref keeps synchronous save,
+  // split/join, navigation and backup actions on the latest draft.
+  const editDraft = useRef("");
+  function setEditText(value: string) {
+    editDraft.current = value;
+  }
   const editTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef(state),
     writeQueue = useRef(Promise.resolve()),
@@ -376,7 +382,16 @@ function App() {
     : 0;
   function update(next: State) {
     try {
-      const normalized = compactHistory(validateState(next));
+      publishValidated(validateState(next));
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+  // commit() already validates a new immutable revision. Do not run the same
+  // whole-library validation again when publishing a paragraph autosave.
+  function publishValidated(next: State) {
+    try {
+      const normalized = compactHistory(next);
       latest.current = normalized;
       setState(normalized);
       setSaveStatus("Saving locally…");
@@ -472,7 +487,7 @@ function App() {
     )
       session.current = { chapterId: c.id, last: t, ids: [now()] };
     session.current.last = t;
-    update(
+    publishValidated(
       commit(
         s,
         c.id,
@@ -490,7 +505,7 @@ function App() {
   }
   function finishParagraph(p: Paragraph) {
     if (editTimer.current) clearTimeout(editTimer.current);
-    saveParagraph(p, editText);
+    saveParagraph(p, editDraft.current);
     setEditing(null);
   }
   function changeParagraph(
@@ -501,7 +516,7 @@ function App() {
     let changed = false;
     act(() => {
       if (editTimer.current) clearTimeout(editTimer.current);
-      saveParagraph(p, editText);
+      saveParagraph(p, editDraft.current);
       const s = latest.current,
         c = s.chapters.find((x) => x.id === chapter!.id)!,
         r = head(s, c);
@@ -1455,7 +1470,7 @@ function App() {
                               <ParagraphEditor
                                 key={p.id}
                                 label={p.label}
-                                value={editText}
+                                initialValue={editDraft.current}
                                 focus={editFocus}
                                 onChange={(value) => {
                                   setEditText(value);
@@ -1469,7 +1484,7 @@ function App() {
                                 onClear={() => {
                                   if (editTimer.current)
                                     clearTimeout(editTimer.current);
-                                  saveParagraph(p, editText);
+                                  saveParagraph(p, editDraft.current);
                                   saveParagraph(p, "");
                                   setEditText("");
                                 }}
@@ -1481,7 +1496,7 @@ function App() {
                                       splitParagraph(
                                         ps,
                                         p.id,
-                                        editText,
+                                        editDraft.current,
                                         start,
                                         end,
                                         label,
@@ -1496,7 +1511,7 @@ function App() {
                                       joinParagraph(
                                         ps,
                                         p.id,
-                                        editText,
+                                        editDraft.current,
                                         direction,
                                       ),
                                     "Author joined paragraphs",
@@ -1520,10 +1535,10 @@ function App() {
                                 onFlag={() => {
                                   if (editTimer.current)
                                     clearTimeout(editTimer.current);
-                                  saveParagraph(p, editText);
+                                  saveParagraph(p, editDraft.current);
                                   setSelection({
                                     ids: [p.id],
-                                    quote: editText,
+                                    quote: editDraft.current,
                                   });
                                   setModal("flag");
                                 }}
@@ -2172,7 +2187,8 @@ function App() {
         <div
           className="modal-backdrop"
           onClick={() => {
-            if (modal !== "actions" && modal !== "paste") setModal("");
+            if (!["actions", "paste", "bookDetails", "rename"].includes(modal))
+              setModal("");
           }}
         >
           <section
@@ -2454,7 +2470,18 @@ function App() {
                     defaultValue={chapter?.synopsis}
                   />
                 </label>
-                <button className="button primary">Save details</button>
+                <div className="button-row">
+                  <button
+                    type="button"
+                    className="button"
+                    onClick={() => setModal("")}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="button primary">
+                    Save details
+                  </button>
+                </div>
               </form>
             )}
             {modal === "actions" && (

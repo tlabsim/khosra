@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Keep paragraph typing local to the native textarea instead of rerendering the workspace for every character. Coalesce resizing, retain synchronous draft access for saves/structural edits, and remove duplicate validation of already-validated author commits.
+- Keep manuscript and chapter detail dialogs open on outside clicks; retain explicit close/Escape actions and add Cancel to chapter details.
+
 - Continue across chapters with paged reader arrows, swipes, drag and arrow keys: Next at the last page opens the next chapter, and Previous at the first page opens the prior chapter’s final page/spread. Disable only at book boundaries or while loading a guest chapter; retain fullscreen.
 
 - Edit manuscript details from the pencil beside its title in Contents: rename, premise, language and optional private cover image. Preserve chapter identities/history, reject stale detail edits, and sync/backup covers using existing attachment limits. Show custom covers in the Library; keep edit access visible on touch and keyboard focus.

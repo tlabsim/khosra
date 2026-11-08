@@ -78,3 +78,46 @@ test("manuscript details can be edited from Contents, cancelled, reloaded and di
   await edit.click();
   await expect(modal.getByAltText("Manuscript cover preview")).toHaveCount(0);
 });
+
+test("detail dialogs keep unsaved fields when their backdrop is clicked", async ({
+  page,
+}, info) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Begin a manuscript" }).click();
+  await page.getByLabel("Working title").fill("Original name");
+  await page.getByRole("button", { name: "Create manuscript" }).click();
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  if (info.project.name === "desktop")
+    await page.locator(".contents-book-title").hover();
+  await page.getByRole("button", { name: "Edit manuscript details" }).click();
+  const manuscript = page.getByRole("dialog", { name: "Manuscript details" });
+  await manuscript
+    .getByLabel("Manuscript name")
+    .fill("Unsaved manuscript title");
+  await page.locator(".modal-backdrop").click({ position: { x: 3, y: 3 } });
+  await expect(manuscript).toBeVisible();
+  await expect(manuscript.getByLabel("Manuscript name")).toHaveValue(
+    "Unsaved manuscript title",
+  );
+  await manuscript.getByRole("button", { name: "Cancel", exact: true }).click();
+  await page.getByRole("button", { name: "Close contents" }).click();
+  await page.getByRole("button", { name: "Rename chapter" }).click();
+  const chapter = page.getByRole("dialog", { name: "Chapter details" });
+  await chapter
+    .getByLabel("Title", { exact: true })
+    .fill("Unsaved chapter title");
+  await page.locator(".modal-backdrop").click({ position: { x: 3, y: 3 } });
+  await expect(chapter).toBeVisible();
+  await expect(chapter.getByLabel("Title", { exact: true })).toHaveValue(
+    "Unsaved chapter title",
+  );
+  await chapter.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(
+    page
+      .getByRole("heading", { name: "Untitled chapter", exact: true })
+      .first(),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Rename chapter" }).click();
+  await page.keyboard.press("Escape");
+  await expect(chapter).toHaveCount(0);
+});

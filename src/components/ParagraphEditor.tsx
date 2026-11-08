@@ -8,7 +8,7 @@ import { Flag } from "@phosphor-icons/react/dist/csr/Flag";
 import "./paragraph-editor.css";
 export default function ParagraphEditor(props: {
   label: number;
-  value: string;
+  initialValue: string;
   focus: { at: number };
   onChange: (value: string) => void;
   onFinish: () => void;
@@ -19,6 +19,34 @@ export default function ParagraphEditor(props: {
   onFlag: () => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const initial = useRef(props.initialValue);
+  const [hasText, setHasText] = useState(!!props.initialValue);
+  const hasTextRef = useRef(!!props.initialValue);
+  const resizeFrame = useRef<number | null>(null);
+  const shrink = useRef(false);
+  const previousLength = useRef(props.initialValue.length);
+  function updateHasText(value: string) {
+    const next = !!value;
+    if (next !== hasTextRef.current) {
+      hasTextRef.current = next;
+      setHasText(next);
+    }
+  }
+  function scheduleResize(allowShrink = false) {
+    shrink.current ||= allowShrink;
+    if (resizeFrame.current !== null) return;
+    resizeFrame.current = requestAnimationFrame(() => {
+      resizeFrame.current = null;
+      const el = textarea.current;
+      if (!el) return;
+      // Most insertions do not change the number of wrapped lines. Avoid
+      // collapsing the editor (and reflowing the page) on every character.
+      if (shrink.current) el.style.height = "0px";
+      shrink.current = false;
+      if (el.scrollHeight > el.clientHeight)
+        el.style.height = `${el.scrollHeight + 2}px`;
+    });
+  }
   const cancelButton = useRef<HTMLButtonElement>(null);
   useLayoutEffect(() => {
     if (confirmDelete) cancelButton.current?.focus();
@@ -29,17 +57,32 @@ export default function ParagraphEditor(props: {
   const latest = useRef(props);
   latest.current = props;
   useLayoutEffect(() => {
-    const el = textarea.current!;
-    el.style.height = "0px";
-    el.style.height = `${el.scrollHeight + 2}px`;
-  }, [props.value]);
-  useLayoutEffect(() => {
     transitioning.current = false;
     const el = textarea.current!;
+    el.value = latest.current.initialValue;
+    previousLength.current = el.value.length;
+    updateHasText(el.value);
+    el.style.height = "0px";
+    el.style.height = `${el.scrollHeight + 2}px`;
     el.focus();
     el.setSelectionRange(props.focus.at, props.focus.at);
     el.scrollIntoView({ block: "nearest" });
   }, [props.focus]);
+  useEffect(() => {
+    const el = textarea.current!;
+    let width = el.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (el.clientWidth === width) return;
+      width = el.clientWidth;
+      scheduleResize(true);
+    });
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      if (resizeFrame.current !== null)
+        cancelAnimationFrame(resizeFrame.current);
+    };
+  }, []);
   function split(start: number, end: number) {
     transitioning.current = true;
     if (!latest.current.onSplit(start, end)) transitioning.current = false;
@@ -87,9 +130,15 @@ export default function ParagraphEditor(props: {
         className="paragraph-editor"
         aria-label={`Edit paragraph P${props.label}`}
         aria-describedby={confirmDelete ? undefined : "paragraph-keyboard-hint"}
-        value={props.value}
+        defaultValue={initial.current}
         readOnly={confirmDelete}
-        onChange={(event) => props.onChange(event.target.value)}
+        onChange={(event) => {
+          const value = event.currentTarget.value;
+          props.onChange(value);
+          updateHasText(value);
+          scheduleResize(value.length < previousLength.current);
+          previousLength.current = value.length;
+        }}
         onKeyUp={() => {
           shift.current = false;
         }}
@@ -120,8 +169,7 @@ export default function ParagraphEditor(props: {
           const direction =
             event.key === "Backspace" && el.selectionStart === 0
               ? -1
-              : event.key === "Delete" &&
-                  el.selectionStart === props.value.length
+              : event.key === "Delete" && el.selectionStart === el.value.length
                 ? 1
                 : 0;
           if (direction) {
@@ -200,10 +248,15 @@ export default function ParagraphEditor(props: {
               className="icon"
               title="Clear text (keep paragraph)"
               aria-label={`Clear text in P${props.label}`}
-              disabled={!props.value}
+              disabled={!hasText}
               onClick={() => {
+                const el = textarea.current!;
+                el.value = "";
+                previousLength.current = 0;
+                updateHasText("");
+                scheduleResize(true);
                 props.onClear();
-                textarea.current?.focus();
+                el.focus();
               }}
             >
               <Eraser size={17} />
