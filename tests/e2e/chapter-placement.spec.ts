@@ -58,10 +58,14 @@ test("insert chapters and a chapter-zero preface without shifting regular readin
     .click();
   await expect(page.locator(".chapter-banner .eyebrow")).toContainText("00");
   await page.getByRole("button", { name: "Read", exact: true }).click();
-  await expect(page.locator(".reading-title > span")).toHaveText("অধ্যায় ০");
+  await expect(page.locator(".reading-text .reading-title > span")).toHaveCount(
+    0,
+  );
   await page.getByRole("button", { name: "Next chapter", exact: true }).click();
-  await expect(page.locator(".reading-title > span")).toHaveText("অধ্যায় ১");
-  await expect(page.locator(".reading-title h1")).toHaveText(
+  await expect(page.locator(".reading-text .reading-title > span")).toHaveText(
+    "অধ্যায় ১",
+  );
+  await expect(page.locator(".reading-text .reading-title h1")).toHaveText(
     "Inserted opening",
   );
   await page.getByRole("button", { name: "Back to workspace" }).click();

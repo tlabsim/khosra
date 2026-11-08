@@ -4,6 +4,7 @@ import { Plus } from "@phosphor-icons/react/dist/csr/Plus";
 import { Trash } from "@phosphor-icons/react/dist/csr/Trash";
 import { X } from "@phosphor-icons/react/dist/csr/X";
 import { Eraser } from "@phosphor-icons/react/dist/csr/Eraser";
+import { ArrowUUpLeft } from "@phosphor-icons/react/dist/csr/ArrowUUpLeft";
 import { Flag } from "@phosphor-icons/react/dist/csr/Flag";
 import "./paragraph-editor.css";
 export default function ParagraphEditor(props: {
@@ -12,6 +13,7 @@ export default function ParagraphEditor(props: {
   focus: { at: number };
   onChange: (value: string) => void;
   onFinish: () => void;
+  onCancel: () => boolean;
   onClear: () => void;
   onSplit: (start: number, end: number) => boolean;
   onJoin: (direction: -1 | 1) => boolean;
@@ -23,7 +25,8 @@ export default function ParagraphEditor(props: {
   const [hasText, setHasText] = useState(!!props.initialValue);
   const hasTextRef = useRef(!!props.initialValue);
   const resizeFrame = useRef<number | null>(null);
-  const shrink = useRef(false);
+  const measurement = useRef<HTMLTextAreaElement>(null);
+  const needsShrink = useRef(false);
   const previousLength = useRef(props.initialValue.length);
   function updateHasText(value: string) {
     const next = !!value;
@@ -32,19 +35,27 @@ export default function ParagraphEditor(props: {
       setHasText(next);
     }
   }
+  function resize(allowShrink = true) {
+    const el = textarea.current;
+    const measure = measurement.current;
+    if (!el || !measure) return;
+    // Insertions that still fit need no second typesetting pass.
+    if (!allowShrink && el.scrollHeight <= el.clientHeight) return;
+    // Both textareas inherit identical typography. Only the isolated copy
+    // collapses for measurement; the live editor keeps its height and caret.
+    const width = getComputedStyle(el).width;
+    if (measure.style.width !== width) measure.style.width = width;
+    measure.value = el.value;
+    const height = `${measure.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+    if (el.style.height !== height) el.style.height = height;
+  }
   function scheduleResize(allowShrink = false) {
-    shrink.current ||= allowShrink;
+    needsShrink.current ||= allowShrink;
     if (resizeFrame.current !== null) return;
     resizeFrame.current = requestAnimationFrame(() => {
       resizeFrame.current = null;
-      const el = textarea.current;
-      if (!el) return;
-      // Most insertions do not change the number of wrapped lines. Avoid
-      // collapsing the editor (and reflowing the page) on every character.
-      if (shrink.current) el.style.height = "0px";
-      shrink.current = false;
-      if (el.scrollHeight > el.clientHeight)
-        el.style.height = `${el.scrollHeight + 2}px`;
+      resize(needsShrink.current);
+      needsShrink.current = false;
     });
   }
   const cancelButton = useRef<HTMLButtonElement>(null);
@@ -62,8 +73,7 @@ export default function ParagraphEditor(props: {
     el.value = latest.current.initialValue;
     previousLength.current = el.value.length;
     updateHasText(el.value);
-    el.style.height = "0px";
-    el.style.height = `${el.scrollHeight + 2}px`;
+    resize();
     el.focus();
     el.setSelectionRange(props.focus.at, props.focus.at);
     el.scrollIntoView({ block: "nearest" });
@@ -179,6 +189,14 @@ export default function ParagraphEditor(props: {
           }
         }}
       />
+      <textarea
+        ref={measurement}
+        className="paragraph-editor paragraph-editor-measure"
+        aria-hidden="true"
+        inert
+        tabIndex={-1}
+        readOnly
+      />
       <div
         className={
           "paragraph-edit-controls" +
@@ -219,6 +237,17 @@ export default function ParagraphEditor(props: {
             <button className="button quiet compact" onClick={props.onFinish}>
               <Check size={17} />
               Done
+            </button>
+            <button
+              className="button quiet compact"
+              title="Restore the text from when this editing session began"
+              onClick={() => {
+                transitioning.current = true;
+                if (!props.onCancel()) transitioning.current = false;
+              }}
+            >
+              <ArrowUUpLeft size={17} />
+              Cancel edits
             </button>
             <button
               className="button quiet compact"

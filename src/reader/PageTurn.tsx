@@ -5,6 +5,7 @@ export type Turn = {
   to: number;
   direction: number;
   snapshot: HTMLElement;
+  sourceFolioOffset?: number;
 };
 /** Full paper faces, including their original text insets and folios. All copies are inert. */
 export default function PageTurn({
@@ -53,6 +54,7 @@ export default function PageTurn({
       target: HTMLElement | null,
       page: number,
       side: number,
+      offset = folioOffset,
     ) => {
       if (!target) return;
       const clone = source.cloneNode(true) as HTMLElement;
@@ -69,8 +71,7 @@ export default function PageTurn({
       crop.append(clone);
       const folio = document.createElement("span");
       folio.className = "turn-folio";
-      folio.textContent =
-        page + 1 > folioOffset ? String(page + 1 - folioOffset) : "";
+      folio.textContent = page + 1 > offset ? String(page + 1 - offset) : "";
       target.replaceChildren(crop, folio);
     };
     const turningSide = forward ? spread - 1 : 0;
@@ -79,7 +80,13 @@ export default function PageTurn({
     el.style.left = `${64 + turningSide * faceWidth}px`;
     el.style.top = "64px";
     scene.current.style.setProperty("--leaf-width", `${faceWidth}px`);
-    copy(turn.snapshot, front.current, turn.from + turningSide, turningSide);
+    copy(
+      turn.snapshot,
+      front.current,
+      turn.from + turningSide,
+      turningSide,
+      turn.sourceFolioOffset ?? folioOffset,
+    );
     if (current.current)
       copy(
         current.current,
@@ -90,7 +97,13 @@ export default function PageTurn({
     if (stationary.current) {
       const side = forward ? 0 : 1;
       stationary.current.style.cssText = `left:${64 + side * faceWidth}px;top:64px;width:${faceWidth}px;height:${faceHeight}px`;
-      copy(turn.snapshot, stationary.current, turn.from + side, side);
+      copy(
+        turn.snapshot,
+        stationary.current,
+        turn.from + side,
+        side,
+        turn.sourceFolioOffset ?? folioOffset,
+      );
     }
     const cancel = (event: AnimationEvent) => {
       if (event.target === el) done();

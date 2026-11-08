@@ -27,6 +27,12 @@ import {
 } from "./domain/paragraphRecovery";
 import ParagraphEditor from "./components/ParagraphEditor";
 import {
+  startParagraphSession,
+  checkParagraphSession,
+  cancelParagraphSession,
+  type ParagraphSession,
+} from "./domain/paragraphSession";
+import {
   splitParagraph,
   joinParagraph,
   deleteParagraph,
@@ -186,6 +192,7 @@ function App() {
   // The native editor owns its visible value; this ref keeps synchronous save,
   // split/join, navigation and backup actions on the latest draft.
   const editDraft = useRef("");
+  const editSession = useRef<ParagraphSession | null>(null);
   function setEditText(value: string) {
     editDraft.current = value;
   }
@@ -467,15 +474,33 @@ function App() {
     setEditing(null);
   }
   function manualEdit(p: Paragraph) {
+    finishActiveParagraph();
+    editSession.current = startParagraphSession(latest.current, chapter!.id);
     setEditing(p.id);
     setEditText(p.text);
     setEditFocus({ at: p.text.length });
     setSelection({ ids: [], quote: "" });
   }
+  function publishParagraphChange(next: State) {
+    const opened = editSession.current;
+    if (opened) checkParagraphSession(latest.current, opened);
+    publishValidated(next);
+    const newHead =
+      opened && next.chapters.find((c) => c.id === opened.chapterId)?.headId;
+    if (opened && newHead) {
+      if (
+        latest.current.chapters.find((c) => c.id === opened.chapterId)
+          ?.headId !== newHead
+      )
+        throw Error("The editing change could not be applied safely.");
+      editSession.current = { ...opened, headId: newHead };
+    }
+  }
   function saveParagraph(p: Paragraph, text: string) {
     if (!chapter) return;
     const s = latest.current,
       c = s.chapters.find((c) => c.id === chapter.id)!;
+    if (editSession.current) checkParagraphSession(s, editSession.current);
     const r = head(s, c);
     const existing = r.paragraphs.find((x) => x.id === p.id);
     if (!existing || existing.text === text) return;
@@ -487,7 +512,7 @@ function App() {
     )
       session.current = { chapterId: c.id, last: t, ids: [now()] };
     session.current.last = t;
-    publishValidated(
+    publishParagraphChange(
       commit(
         s,
         c.id,
@@ -506,7 +531,31 @@ function App() {
   function finishParagraph(p: Paragraph) {
     if (editTimer.current) clearTimeout(editTimer.current);
     saveParagraph(p, editDraft.current);
+    editSession.current = null;
     setEditing(null);
+  }
+  function cancelParagraph(p: Paragraph): boolean {
+    let cancelled = false;
+    act(() => {
+      if (editTimer.current) clearTimeout(editTimer.current);
+      if (!editSession.current)
+        throw Error("The editing session is unavailable.");
+      checkParagraphSession(latest.current, editSession.current);
+      // Save even a not-yet-autosaved draft before restoring its source.
+      saveParagraph(p, editDraft.current);
+      const restored = cancelParagraphSession(
+        latest.current,
+        editSession.current!,
+      );
+      if (restored !== latest.current) publishParagraphChange(restored);
+      editSession.current = null;
+      setEditing(null);
+      setNotice(
+        "Edits cancelled. Changed text remains recoverable in History.",
+      );
+      cancelled = true;
+    });
+    return cancelled;
   }
   function changeParagraph(
     p: Paragraph,
@@ -522,7 +571,8 @@ function App() {
         r = head(s, c);
       const result = operation(r.paragraphs, nextParagraphLabel(s, c));
       if (!result) return;
-      update(commit(s, c.id, r.id, result.paragraphs, message));
+      publishParagraphChange(commit(s, c.id, r.id, result.paragraphs, message));
+      if (!result.activeId) editSession.current = null;
       setEditing(result.activeId);
       setEditText(
         result.paragraphs.find((x) => x.id === result.activeId)?.text || "",
@@ -534,19 +584,24 @@ function App() {
   }
   function addParagraph(after?: string) {
     if (!chapter || !current) return;
+    finishActiveParagraph();
+    const s = latest.current;
+    const c = s.chapters.find((entry) => entry.id === chapter.id)!;
+    const r = head(s, c);
+    editSession.current = startParagraphSession(s, c.id);
     const p = {
       id: uid(),
-      label: nextParagraphLabel(state, chapter),
+      label: nextParagraphLabel(s, c),
       text: "",
       section: "",
     };
-    const ps = [...current.paragraphs];
+    const ps = [...r.paragraphs];
     ps.splice(
       after ? ps.findIndex((p) => p.id === after) + 1 : ps.length,
       0,
       p,
     );
-    update(commit(state, chapter.id, current.id, ps, "Paragraph inserted"));
+    publishParagraphChange(commit(s, c.id, r.id, ps, "Paragraph inserted"));
     setEditing(p.id);
     setEditText("");
     setEditFocus({ at: 0 });
@@ -1477,7 +1532,7 @@ function App() {
                                   if (editTimer.current)
                                     clearTimeout(editTimer.current);
                                   editTimer.current = setTimeout(
-                                    () => saveParagraph(p, value),
+                                    () => act(() => saveParagraph(p, value)),
                                     650,
                                   );
                                 }}
@@ -1488,7 +1543,8 @@ function App() {
                                   saveParagraph(p, "");
                                   setEditText("");
                                 }}
-                                onFinish={() => finishParagraph(p)}
+                                onFinish={() => act(() => finishParagraph(p))}
+                                onCancel={() => cancelParagraph(p)}
                                 onSplit={(start, end) =>
                                   changeParagraph(
                                     p,

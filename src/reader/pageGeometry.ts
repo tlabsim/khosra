@@ -39,3 +39,35 @@ export function pageGeometry(
     textHeight: height - insetY * 2,
   };
 }
+
+/** Screen-sized paper uses CSS pixels directly, without a physical trim or zoom. */
+export function screenGeometry(
+  availableWidth: number,
+  availableHeight: number,
+  spread: number,
+  margins: PageMargins,
+) {
+  const width = Math.max(1, availableWidth),
+    height = Math.max(1, availableHeight);
+  const pageWidth = width / spread;
+  const insetX = Math.min(
+    pageWidth / 4,
+    Math.max(24, Math.min(64, pageWidth * marginFactors[margins])),
+  );
+  const insetY = Math.min(
+    height / 4,
+    Math.max(48, Math.min(64, height * marginFactors[margins])),
+  );
+  return {
+    width,
+    height,
+    insetX,
+    insetY,
+    scale: 1,
+    displayWidth: width,
+    displayHeight: height,
+    gap: insetX * 2,
+    column: pageWidth - insetX * 2,
+    textHeight: height - insetY * 2,
+  };
+}

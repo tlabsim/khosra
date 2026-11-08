@@ -148,3 +148,11 @@ it("maps saved spacing presets to their tighter equivalents for authors and gues
     expect(readGuestPreferences(1440).leading).toBe(leading);
   }
 });
+
+it("persists screen-sized paper independently for owner and guest readers", () => {
+  vi.stubGlobal("localStorage", {
+    getItem: () => JSON.stringify({ format: "screen", mode: "pages" }),
+  });
+  expect(readPreferences().format).toBe("screen");
+  expect(readGuestPreferences(390).format).toBe("screen");
+});

@@ -278,3 +278,79 @@ test("recent history shows three concise chapter entries and opens earlier revis
     page.getByRole("heading", { name: "Revision history" }),
   ).toBeVisible();
 });
+
+test("Cancel edits restores the opening text after autosave, splitting and clearing", async ({
+  page,
+}, info) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Begin a manuscript" }).click();
+  await page.getByLabel("Working title").fill("Cancel editing fixture");
+  await page.getByRole("button", { name: "Create manuscript" }).click();
+  await page.getByRole("button", { name: "Write first paragraph" }).click();
+  const editor = page.getByRole("textbox", { name: /Edit paragraph P/ });
+  await editor.fill("Original বাংলা text.");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(page.locator(".saved")).toHaveText("Saved on this device");
+  const base = await state(page),
+    original = base.revisions.find((r) => r.id === base.chapters[0].headId)!;
+  await page.locator(".paragraph-content > p").first().dblclick();
+  await editor.fill("Autosaved abandoned text.");
+  await expect
+    .poll(async () => {
+      const s = await state(page);
+      return s.revisions.find((r) => r.id === s.chapters[0].headId)!
+        .paragraphs[0].text;
+    })
+    .toBe("Autosaved abandoned text.");
+  await page.screenshot({
+    path: `test-results/${info.project.name}-cancel-paragraph-tools.png`,
+  });
+  await page.getByRole("button", { name: "Cancel edits", exact: true }).click();
+  await expect(page.locator(".paragraph-content > p").first()).toHaveText(
+    "Original বাংলা text.",
+  );
+  await page.locator(".paragraph-content > p").first().dblclick();
+  await editor.fill("Draft before splitting.");
+  await editor.evaluate((el) =>
+    (el as HTMLTextAreaElement).setSelectionRange(6, 6),
+  );
+  await editor.press("Enter");
+  await expect(page.locator(".paragraph-row")).toHaveCount(2);
+  await editor.fill("Unsaved split ending.");
+  await page.getByRole("button", { name: /Clear text in P/ }).click();
+  await page.getByRole("button", { name: "Cancel edits", exact: true }).click();
+  await expect(page.locator(".paragraph-row")).toHaveCount(1);
+  await expect(page.locator(".paragraph-content > p").first()).toHaveText(
+    "Original বাংলা text.",
+  );
+  await expect(page.locator(".saved")).toHaveText("Saved on this device");
+  const restored = await state(page),
+    current = restored.revisions.find(
+      (r) => r.id === restored.chapters[0].headId,
+    )!;
+  expect(current.paragraphs).toEqual(original.paragraphs);
+  expect(
+    restored.revisions.some((r) =>
+      r.paragraphs.some((p) => p.text === "Autosaved abandoned text."),
+    ),
+  ).toBe(true);
+  expect(
+    restored.revisions.some((r) =>
+      r.paragraphs.some((p) => p.text === "Unsaved split ending."),
+    ),
+  ).toBe(true);
+  await page.reload();
+  await expect(page.locator(".paragraph-content > p").first()).toHaveText(
+    "Original বাংলা text.",
+  );
+  // Done establishes a new baseline for the next editing session.
+  await page.locator(".paragraph-content > p").first().dblclick();
+  await editor.fill("Kept by Done.");
+  await page.getByRole("button", { name: "Done", exact: true }).click();
+  await page.locator(".paragraph-content > p").first().dblclick();
+  await editor.fill("Immediate unsaved change.");
+  await page.getByRole("button", { name: "Cancel edits", exact: true }).click();
+  await expect(page.locator(".paragraph-content > p").first()).toHaveText(
+    "Kept by Done.",
+  );
+});

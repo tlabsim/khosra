@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 import {
   pageFormats,
   pageGeometry,
+  screenGeometry,
   type PageFormat,
   type PageMargins,
 } from "../src/reader/pageGeometry";
@@ -41,4 +42,26 @@ it("margins affect text area but not trim or display size", () => {
   ).toBe(1);
   expect(sizes[0].column).toBeGreaterThan(sizes[1].column);
   expect(sizes[1].textHeight).toBeGreaterThan(sizes[2].textHeight);
+});
+
+it("fits screen paper exactly with equal landscape halves and positive text bounds", () => {
+  for (const [width, height] of [
+    [390, 844],
+    [844, 390],
+    [667, 375],
+    [1441, 900],
+    [200, 100],
+  ]) {
+    const spread = width > height ? 2 : 1;
+    for (const margins of ["tight", "normal", "relaxed"] as const) {
+      const g = screenGeometry(width, height, spread, margins);
+      expect(g.scale).toBe(1);
+      expect(g.displayWidth).toBe(width);
+      expect(g.displayHeight).toBe(height);
+      expect(g.column).toBeGreaterThan(0);
+      expect(g.textHeight).toBeGreaterThan(0);
+      expect(g.column + 2 * g.insetX).toBeCloseTo(width / spread);
+      expect(g.textHeight + 2 * g.insetY).toBe(height);
+    }
+  }
 });

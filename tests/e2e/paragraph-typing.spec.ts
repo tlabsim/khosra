@@ -92,6 +92,82 @@ test("typing updates the active paragraph without recounting or rendering the wh
   );
   expect(result.text).toBe(result.before + " দ্রুত typing");
   expect(result.recounts).toBe(0);
+  const resizeProfile = await editor.evaluate(async (element) => {
+    const el = element as HTMLTextAreaElement;
+    const set = Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      "value",
+    )!.set!;
+    const frame = window.requestAnimationFrame.bind(window);
+    const resizeMs: number[] = [];
+    window.requestAnimationFrame = (callback) =>
+      frame((time) => {
+        const start = performance.now();
+        callback(time);
+        resizeMs.push(performance.now() - start);
+      });
+    let collapses = 0;
+    const observer = new MutationObserver((records) => {
+      collapses += records.filter((r) =>
+        /height:\s*0px/.test(r.oldValue ?? ""),
+      ).length;
+    });
+    observer.observe(el, {
+      attributes: true,
+      attributeFilter: ["style"],
+      attributeOldValue: true,
+    });
+    const paintMs: number[] = [];
+    try {
+      for (let i = 0; i < 12; i++) {
+        const start = performance.now();
+        const deleting = i >= 6;
+        set.call(el, deleting ? el.value.slice(0, -1) : el.value + " ");
+        el.dispatchEvent(
+          new InputEvent("input", {
+            bubbles: true,
+            inputType: deleting ? "deleteContentBackward" : "insertText",
+            data: deleting ? null : " ",
+          }),
+        );
+        await new Promise<void>((resolve) =>
+          frame(() => frame(() => resolve())),
+        );
+        paintMs.push(performance.now() - start);
+      }
+    } finally {
+      window.requestAnimationFrame = frame;
+      observer.disconnect();
+    }
+    return { resizeMs, paintMs, collapses };
+  });
+  console.log(
+    `${info.project.name} space/delete frames`,
+    JSON.stringify(resizeProfile),
+  );
+  expect(resizeProfile.collapses).toBe(0);
+  // Actual key events must preserve caret/undo and resize wrapped prose both ways.
+  const short = await editor.evaluate(
+    (el) => el.getBoundingClientRect().height,
+  );
+  await editor.fill((result.text + "\n").repeat(8));
+  await expect
+    .poll(() => editor.evaluate((el) => el.getBoundingClientRect().height))
+    .toBeGreaterThan(short);
+  await editor.fill(result.text);
+  await editor.press("ControlOrMeta+Home");
+  await editor.press("Delete");
+  await editor.press("ControlOrMeta+End");
+  await editor.press("Space");
+  await editor.press("Backspace");
+  await expect(editor).toHaveValue(result.text.slice(1));
+  await expect
+    .poll(() => editor.evaluate((el) => el.getBoundingClientRect().height))
+    .toBeLessThanOrEqual(short + 1);
+  expect(
+    await editor.evaluate((el) => el.scrollHeight <= el.clientHeight + 1),
+  ).toBe(true);
+  await editor.fill(result.text);
   await editor.press("Escape");
   await expect(page.locator(".saved")).toHaveText("Saved on this device");
   await page.reload();

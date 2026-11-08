@@ -99,7 +99,7 @@ for (const fallback of [false, true])
     await page
       .getByRole("button", { name: "Next chapter", exact: true })
       .click();
-    await expect(page.locator(".reading-title h1")).toHaveText(
+    await expect(page.locator(".reading-text .reading-title h1")).toHaveText(
       "Second chapter",
     );
     await expect(reader).toHaveClass(/is-immersive/);
@@ -127,7 +127,9 @@ for (const fallback of [false, true])
     await page
       .getByRole("button", { name: "Previous chapter", exact: true })
       .click();
-    await expect(page.locator(".reading-title h1")).toHaveText("First chapter");
+    await expect(page.locator(".reading-text .reading-title h1")).toHaveText(
+      "First chapter",
+    );
     await expect(reader).toHaveClass(/is-immersive/);
     await expect(page.getByLabel("Go to page")).toHaveValue("0");
     await page.getByLabel("Reading layout").selectOption("continuous");
@@ -140,7 +142,7 @@ for (const fallback of [false, true])
     await page
       .getByRole("button", { name: "Next chapter", exact: true })
       .click();
-    await expect(page.locator(".reading-title h1")).toHaveText(
+    await expect(page.locator(".reading-text .reading-title h1")).toHaveText(
       "Second chapter",
     );
     await expect(reader).toHaveClass(/is-immersive/);
@@ -336,7 +338,9 @@ test("continuous reader keeps chapter navigation visible while scrolling and in 
     .toBeGreaterThan(100);
   await assertSticky();
   await next.click();
-  await expect(page.locator(".reading-title h1")).toHaveText("Second chapter");
+  await expect(page.locator(".reading-text .reading-title h1")).toHaveText(
+    "Second chapter",
+  );
   await expect(next).toBeDisabled();
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await page.getByRole("button", { name: "Enter fullscreen" }).click();
@@ -347,7 +351,9 @@ test("continuous reader keeps chapter navigation visible while scrolling and in 
   });
   await assertSticky();
   await previous.click();
-  await expect(page.locator(".reading-title h1")).toHaveText("First chapter");
+  await expect(page.locator(".reading-text .reading-title h1")).toHaveText(
+    "First chapter",
+  );
   await expect(reader).toHaveClass(/is-immersive/);
   await expect.poll(() => reader.evaluate((el) => el.scrollTop)).toBe(0);
   await reader.evaluate((el) => {
@@ -371,10 +377,15 @@ test("short preface opens on the right without adding a numbered blank page", as
 }, info) => {
   await manuscript(page, "bn", true, 1);
   await page.getByLabel("Reading layout").selectOption("spread");
+  await expect(page.locator(".reading-text .reading-title > span")).toHaveCount(
+    0,
+  );
   const blank = page.locator(".reading-blank-verso");
   const rightHand = info.project.name === "desktop";
   await expect(blank).toHaveCount(rightHand ? 1 : 0);
-  const title = await page.locator(".reading-title").boundingBox();
+  const title = await page
+    .locator(".reading-text .reading-title")
+    .boundingBox();
   const paper = await page.locator(".reading-sheet").boundingBox();
   if (rightHand) expect(title!.x).toBeGreaterThan(paper!.x + paper!.width / 2);
   await expect(page.getByLabel("Go to page").locator("option")).toHaveText([
@@ -399,6 +410,9 @@ test("short preface opens on the right without adding a numbered blank page", as
   await page.getByRole("button", { name: "Next chapter", exact: true }).click();
   await page.getByLabel("Reading layout").selectOption("spread");
   await expect(blank).toHaveCount(0);
+  await expect(page.locator(".reading-text .reading-title > span")).toHaveText(
+    "অধ্যায় ১",
+  );
 });
 
 test("long preface paginates and turns back to its right-hand opening", async ({
@@ -420,7 +434,9 @@ test("long preface paginates and turns back to its right-hand opening", async ({
     .click();
   await expect(page.locator(".page-turn-scene")).toHaveCount(0);
   await expect(page.locator(".reading-folios > span")).toHaveText(["", "1"]);
-  const title = await page.locator(".reading-title").boundingBox();
+  const title = await page
+    .locator(".reading-text .reading-title")
+    .boundingBox();
   const paper = await page.locator(".reading-sheet").boundingBox();
   expect(title!.x).toBeGreaterThan(paper!.x + paper!.width / 2);
 });
@@ -459,7 +475,7 @@ for (const layout of ["pages", "spread"])
       .toBe("Next chapter");
     await expect(nextPage).toBeEnabled();
     await nextPage.click();
-    await expect(page.locator(".reading-title h1")).toHaveText(
+    await expect(page.locator(".reading-text .reading-title h1")).toHaveText(
       "Second chapter",
     );
     await expect(page.locator(".book-reader")).toHaveClass(/is-immersive/);
@@ -467,14 +483,16 @@ for (const layout of ["pages", "spread"])
     await expect(previousPage).toBeEnabled();
     await expect(previousPage).toHaveAttribute("title", "Previous chapter");
     await previousPage.click();
-    await expect(page.locator(".reading-title h1")).toHaveText("First chapter");
+    await expect(page.locator(".reading-text .reading-title h1")).toHaveText(
+      "First chapter",
+    );
     await expect(selector).toHaveValue(last!);
     await selector.selectOption("0");
     await expect(previousPage).toBeDisabled();
     await page
       .getByRole("button", { name: "Next chapter", exact: true })
       .click();
-    await expect(page.locator(".reading-title h1")).toHaveText(
+    await expect(page.locator(".reading-text .reading-title h1")).toHaveText(
       "Second chapter",
     );
     await expect
@@ -488,3 +506,207 @@ for (const layout of ["pages", "spread"])
       })
       .toBe(true);
   });
+
+for (const layout of ["pages", "spread"]) {
+  test(`chapter switches animate old and new paper faces in ${layout}`, async ({
+    page,
+  }, info) => {
+    await manuscript(page, "en", true, 1);
+    await page.getByLabel("Reading layout").selectOption(layout);
+    await expect(
+      page.locator(".reading-text .reading-title > span"),
+    ).toHaveCount(0);
+    // Freeze the animation as soon as its leaf is mounted, before protocol latency.
+    await page.evaluate(() => {
+      const observer = new MutationObserver(() => {
+        const scene = document.querySelector(".page-turn-scene");
+        if (!scene) return;
+        for (const animation of scene.getAnimations({ subtree: true })) {
+          animation.pause();
+          animation.currentTime = 300;
+        }
+      });
+      observer.observe(document.querySelector(".book-reader")!, {
+        childList: true,
+        subtree: true,
+      });
+      Object.assign(window, {
+        stopTurnObservation: () => observer.disconnect(),
+      });
+    });
+    await page.getByRole("button", { name: "Next page", exact: true }).click();
+    await expect(page.locator(".page-turn-scene")).toHaveClass(/turn-forward/);
+    await expect(page.locator(".turn-front h1")).toHaveText("First chapter");
+    await expect(page.locator(".turn-back h1")).toHaveText("Second chapter");
+    await expect(
+      page.locator(".reading-text .reading-title > span"),
+    ).toHaveText("CHAPTER 01");
+    await page.screenshot({
+      path: `test-results/${info.project.name}-${layout}-chapter-turn.png`,
+    });
+    await page.evaluate(() => {
+      for (const a of document
+        .querySelector(".page-turn-scene")!
+        .getAnimations({ subtree: true }))
+        a.finish();
+    });
+    await expect(page.locator(".page-turn-scene")).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "Previous page", exact: true })
+      .click();
+    await expect(page.locator(".page-turn-scene")).toHaveClass(/turn-backward/);
+    await expect(page.locator(".turn-front h1")).toHaveText("Second chapter");
+    await expect(page.locator(".turn-back h1")).toHaveText("First chapter");
+    await expect(page.locator(".turn-back .turn-folio")).toHaveText("1");
+    await page.evaluate(() => {
+      (
+        window as unknown as { stopTurnObservation: () => void }
+      ).stopTurnObservation();
+      for (const a of document
+        .querySelector(".page-turn-scene")!
+        .getAnimations({ subtree: true }))
+        a.finish();
+    });
+    await expect(page.locator(".page-turn-scene")).toHaveCount(0);
+    // Cancel a frozen chapter flip by changing layout, then navigate again.
+    await page.evaluate(() => {
+      const observer = new MutationObserver(() => {
+        const scene = document.querySelector(".page-turn-scene");
+        if (!scene) return;
+        for (const a of scene.getAnimations({ subtree: true })) a.pause();
+      });
+      observer.observe(document.querySelector(".book-reader")!, {
+        childList: true,
+        subtree: true,
+      });
+      Object.assign(window, {
+        stopTurnObservation: () => observer.disconnect(),
+      });
+    });
+    await page
+      .getByRole("button", { name: "Next chapter", exact: true })
+      .click();
+    await expect(page.locator(".page-turn-scene")).toHaveCount(1);
+    await page.getByLabel("Reading layout").selectOption("continuous");
+    await expect(page.locator(".page-turn-scene")).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "Previous chapter", exact: true })
+      .click();
+    await expect(page.locator(".reading-text h1")).toHaveText("First chapter");
+    await page.evaluate(() =>
+      (
+        window as unknown as { stopTurnObservation: () => void }
+      ).stopTurnObservation(),
+    );
+    await page.getByLabel("Reading layout").selectOption(layout);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page
+      .getByRole("button", { name: "Next chapter", exact: true })
+      .click();
+    await expect(page.locator(".reading-text h1")).toHaveText("Second chapter");
+    await expect(page.locator(".page-turn-scene")).toHaveCount(0);
+    await expect(page.getByLabel("Go to page")).toHaveValue("0");
+  });
+}
+
+test("screen-sized paper fills portrait and narrow landscape viewports and persists", async ({
+  page,
+}, info) => {
+  await manuscript(page);
+  const original = await page.locator(".reading-text p").allTextContents();
+  const adapt = page.getByRole("button", {
+    name: "Adapt to screen size",
+    exact: true,
+  });
+  const fullscreen = page.getByRole("button", {
+    name: "Enter fullscreen",
+    exact: true,
+  });
+  await expect(adapt).toHaveAttribute("aria-pressed", "false");
+  const adaptBox = await adapt.boundingBox(),
+    fullscreenBox = await fullscreen.boundingBox();
+  expect(adaptBox!.x + adaptBox!.width).toBeLessThanOrEqual(fullscreenBox!.x);
+  await adapt.click();
+  await expect(adapt).toHaveAttribute("aria-pressed", "true");
+  const root = page.locator(".book-reader"),
+    sheet = page.locator(".reading-sheet");
+  for (const [width, height] of [
+    [390, 844],
+    [667, 375],
+    [1280, 720],
+    [900, 1200],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await expect(root).toHaveClass(/is-screen-sized/);
+    await expect
+      .poll(() => sheet.evaluate((el) => [el.clientWidth, el.clientHeight]))
+      .toEqual([width, height]);
+    if (width > height) await expect(sheet).toHaveClass(/is-spread/);
+    else await expect(sheet).not.toHaveClass(/is-spread/);
+    const sizes = await page.evaluate(() => {
+      const reader = document.querySelector<HTMLElement>(".book-reader")!;
+      const paper = document.querySelector<HTMLElement>(".reading-sheet")!;
+      const text = document.querySelector<HTMLElement>(".reading-text")!;
+      return {
+        rootX: reader.getBoundingClientRect().x,
+        rootY: reader.getBoundingClientRect().y,
+        overflow: reader.scrollHeight - reader.clientHeight,
+        column: parseFloat(getComputedStyle(text).columnWidth),
+        inset: parseFloat(getComputedStyle(paper).paddingLeft),
+      };
+    });
+    expect(sizes.rootX).toBe(0);
+    expect(sizes.rootY).toBe(0);
+    expect(sizes.overflow).toBeLessThanOrEqual(1);
+    expect(sizes.column + 2 * sizes.inset).toBeCloseTo(
+      width / (width > height ? 2 : 1),
+      0,
+    );
+    const folios = page.locator(".reading-folios > span");
+    await expect(folios).toHaveText(width > height ? ["1", "2"] : ["1"]);
+    for (let index = 0; index < (await folios.count()); index++) {
+      await expect(folios.nth(index)).toBeVisible();
+      const bounds = await folios.nth(index).boundingBox();
+      const center =
+        width > height ? width * (index === 0 ? 0.25 : 0.75) : width / 2;
+      expect(bounds!.x + bounds!.width / 2).toBeCloseTo(center, 0);
+      expect(height - bounds!.y - bounds!.height).toBeLessThan(18);
+    }
+    const next = page.getByRole("button", { name: "Next page", exact: true });
+    const box = await next.boundingBox();
+    expect(box!.x + box!.width).toBe(width);
+    expect(box!.y + box!.height / 2).toBeCloseTo(height / 2, 0);
+    expect(box!.width).toBe(44);
+    await expect(next.locator("svg")).toHaveCSS("opacity", "0.18");
+    await expect(page.locator(".reading-text p")).toHaveText(original);
+    await page.mouse.move(0, height - 1);
+    await page.screenshot({
+      path: `test-results/${info.project.name}-screen-${width}x${height}.png`,
+    });
+  }
+  const nextPage = page.getByRole("button", { name: "Next page", exact: true });
+  for (let i = 0; i < 8; i++) {
+    await page.keyboard.press("Tab");
+    if (await nextPage.evaluate((el) => el === document.activeElement)) break;
+  }
+  await expect(nextPage).toBeFocused();
+  await expect(
+    page.getByRole("button", { name: "Next page", exact: true }).locator("svg"),
+  ).toHaveCSS("opacity", "0.7");
+  await page.getByRole("button", { name: "Next page", exact: true }).click();
+  await expect(page.getByLabel("Go to page")).not.toHaveValue("0");
+  await expect(page.locator(".page-turn-scene")).toHaveCount(0);
+  await page.reload();
+  await page.getByRole("button", { name: "Read", exact: true }).click();
+  await expect(root).toHaveClass(/is-screen-sized/);
+  await page.getByRole("button", { name: "Exit screen-sized reading" }).click();
+  await expect(root).not.toHaveClass(/is-screen-sized/);
+  expect(await page.evaluate(() => document.body.style.overflow)).not.toBe(
+    "hidden",
+  );
+  await page.getByLabel("Reading settings").click();
+  await page.getByLabel("Page format").selectOption("screen");
+  await page.getByRole("button", { name: "Close reading preferences" }).click();
+  await page.keyboard.press("Escape");
+  await expect(root).not.toHaveClass(/is-screen-sized/);
+});

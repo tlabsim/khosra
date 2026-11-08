@@ -14,7 +14,7 @@ export type Preferences = {
   mode: "continuous" | "pages" | "spread";
   fullscreenZoom: FullscreenZoom;
   size: number;
-  format: PageFormat;
+  format: PageFormat | "screen";
   margins: PageMargins;
   leading: number;
   flip: boolean;
@@ -60,9 +60,10 @@ export function readPreferences(
         Number.isInteger(p?.size) && p.size >= minTextSize && p.size <= 32
           ? Math.min(maxTextSize, p.size)
           : defaults.size,
-      format: Object.hasOwn(pageFormats, p?.format)
-        ? p.format
-        : defaults.format,
+      format:
+        p?.format === "screen" || Object.hasOwn(pageFormats, p?.format)
+          ? p.format
+          : defaults.format,
       margins: ["tight", "normal", "relaxed"].includes(p?.margins)
         ? p.margins
         : defaults.margins,

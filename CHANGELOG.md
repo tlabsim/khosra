@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Restore centered per-page folios in screen-sized reading, move its page picker into the toolbar, and add the supplied Fluent icon as a one-click adaptive-size toggle before Fullscreen.
+- Add Cancel edits beside Done: restore the session-opening prose across autosaves, clear and splits/joins using a new immutable revision; retain abandoned drafts and reject unexpected chapter updates.
+
+- Add Adapt to screen size paper: fill the reader viewport with one portrait page or two equal landscape pages at any width, with subtle semicircular edge navigation and persistent owner/guest choices.
+
+- Measure paragraph editor wrapping in an isolated hidden textarea, keeping the live editor stable during Space, Backspace/Delete and clearing.
+- Hide the chapter-number label above Preface titles in reading mode. Animate paged chapter switches using outgoing/incoming paper faces, retaining preface folios, fullscreen, guest loading and reduced-motion behavior.
+
 - Keep paragraph typing local to the native textarea instead of rerendering the workspace for every character. Coalesce resizing, retain synchronous draft access for saves/structural edits, and remove duplicate validation of already-validated author commits.
 - Keep manuscript and chapter detail dialogs open on outside clicks; retain explicit close/Escape actions and add Cancel to chapter details.
 

@@ -745,7 +745,6 @@
   }
 }
 
-
 /* On phones the paper reaches both viewport edges in every reading layout. */
 @media screen and (max-width: 760px) {
   .book-reader.reader-page {
@@ -758,5 +757,120 @@
   }
   .book-reader.is-continuous .reading-sheet {
     border-inline: 0;
+  }
+}
+
+/* Screen-sized paper fills the viewport; orientation alone chooses the spread. */
+.book-reader.reader-page.is-screen-sized {
+  max-width: none;
+  padding: 0 !important;
+  overflow: hidden;
+}
+.book-reader.is-screen-sized .reading-stage {
+  width: 100%;
+  height: 100%;
+  max-width: none !important;
+  margin: 0;
+}
+.book-reader.is-screen-sized .reading-paper-frame {
+  margin: 0;
+  outline: 0;
+  box-shadow: none;
+}
+.book-reader.is-screen-sized .reading-toolbar {
+  position: absolute;
+  top: env(safe-area-inset-top, 0px);
+  left: auto;
+  right: 8px;
+  width: auto !important;
+  max-width: none !important;
+  margin: 0;
+  opacity: 0.25;
+  transition: opacity 0.15s ease;
+}
+.book-reader.is-screen-sized .reading-toolbar:is(:hover, :focus-within) {
+  opacity: 1;
+}
+.book-reader.is-screen-sized .reading-mode,
+.book-reader.is-screen-sized .reader-navigation {
+  display: none;
+}
+.book-reader.is-screen-sized .page-navigation {
+  margin: 0;
+}
+.book-reader .reader-page-picker {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 400;
+  margin: 0;
+}
+.book-reader.is-screen-sized .reader-page-picker select {
+  max-width: 84px;
+  min-height: 44px;
+  padding-inline: 6px;
+}
+.book-reader .adapt-screen-toggle[aria-pressed="true"] {
+  background: rgb(47 89 74 / 12%);
+}
+@media (max-width: 600px) {
+  .book-reader.is-screen-sized .reader-settings-trigger > span {
+    display: none;
+  }
+}
+.book-reader.is-screen-sized .page-navigation > .icon {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 88px;
+  min-height: 88px;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: rgb(60 70 55 / 2%);
+  color: var(--page-ink);
+  z-index: 8;
+}
+.book-reader.is-screen-sized .page-navigation > .icon:first-child {
+  left: 0;
+  right: auto;
+  border-radius: 0 44px 44px 0;
+}
+.book-reader.is-screen-sized .page-navigation > .icon:last-child {
+  left: auto;
+  right: 0;
+  border-radius: 44px 0 0 44px;
+}
+.book-reader.is-screen-sized .page-navigation > .icon svg {
+  opacity: 0.18;
+}
+.book-reader.is-screen-sized
+  .page-navigation
+  > .icon:enabled:is(:hover, :focus-visible) {
+  background: rgb(60 70 55 / 12%);
+}
+.book-reader.is-screen-sized
+  .page-navigation
+  > .icon:enabled:is(:hover, :focus-visible)
+  svg {
+  opacity: 0.7;
+}
+.book-reader.is-screen-sized .page-navigation > .icon:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: -2px;
+}
+.book-reader.is-screen-sized .reader-screen-notice {
+  position: absolute;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding: 4px 8px;
+  background: var(--page-paper);
+}
+@media (prefers-reduced-motion: reduce) {
+  .book-reader.is-screen-sized .reading-toolbar {
+    transition: none;
   }
 }

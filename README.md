@@ -274,3 +274,11 @@ React, TypeScript and Vite provide the interface; Dexie/IndexedDB stores the loc
 ## Attribution
 
 The Share glyph is from Microsoft Fluent UI System Icons (MIT); its license ships as `Fluent-UI-System-Icons-LICENSE.txt`. Phosphor Icons and bundled libraries retain their licenses in the production `THIRD-PARTY-NOTICES.txt`. Self-hosted Noto Sans Bengali and Noto Serif Bengali use the SIL Open Font License, included under `public/fonts/`. No font CDN is required.
+
+### Screen-sized reading
+
+In reading mode, open **Preferences → Page format → Adapt to screen size**. Paper fills the viewport, with one page in portrait and equal facing pages in landscape, including landscape phones. Subtle semicircular edge controls turn pages and continue between chapters; hover or keyboard focus makes them clearer. Settings and the exit control remain at the top right. Escape also exits this view. The choice is saved separately for owner and guest readers.
+
+While editing, **Cancel edits** (beside Done) restores the text from when that editing session opened, including autosaves and splits/joins before Done. Cancelled drafts remain recoverable in History. Done, leaving the paragraph or navigating away finishes the current session; reopening starts a new baseline.
+
+The reader toolbar also has an icon-only **Adapt to screen size** shortcut immediately before Fullscreen. Adaptive pages retain centered bottom page numbers; the page picker sits in the toolbar.

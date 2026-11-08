@@ -10,7 +10,7 @@ import {
 } from "./preferences";
 import { Minus } from "@phosphor-icons/react/dist/csr/Minus";
 import { Plus } from "@phosphor-icons/react/dist/csr/Plus";
-import { pageFormats, type PageFormat, type PageMargins } from "./pageGeometry";
+import { pageFormats, type PageMargins } from "./pageGeometry";
 import "./reader-settings.css";
 import { lockScroll } from "../scrollLock";
 export default function ReaderSettings({
@@ -158,26 +158,28 @@ export default function ReaderSettings({
           <section className="reader-preferences-section">
             <h3>Paper</h3>
             <div className="reader-preferences-fields two-fields reader-page-fields">
-              {prefs.mode !== "continuous" && (
-                <label>
-                  Page format
-                  <select
-                    value={prefs.format}
-                    onChange={(e) =>
-                      onChange({
-                        ...prefs,
-                        format: e.target.value as PageFormat,
-                      })
-                    }
-                  >
-                    {Object.entries(pageFormats).map(([value, format]) => (
-                      <option key={value} value={value}>
-                        {format.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
+              <label>
+                Page format
+                <select
+                  value={prefs.format}
+                  onChange={(e) =>
+                    onChange({
+                      ...prefs,
+                      format: e.target.value as Preferences["format"],
+                      ...(e.target.value === "screen"
+                        ? { mode: "pages" as const }
+                        : {}),
+                    })
+                  }
+                >
+                  <option value="screen">Adapt to screen size</option>
+                  {Object.entries(pageFormats).map(([value, format]) => (
+                    <option key={value} value={value}>
+                      {format.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
               <label>
                 Margins
                 <select
@@ -246,7 +248,7 @@ export default function ReaderSettings({
           </section>
           <section className="reader-preferences-section">
             <h3>Reading</h3>
-            {prefs.mode !== "continuous" && (
+            {prefs.mode !== "continuous" && prefs.format !== "screen" && (
               <label className="reader-fullscreen-zoom">
                 Fullscreen zoom
                 <select

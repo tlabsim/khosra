@@ -12,6 +12,7 @@ import { ArrowsOut } from "@phosphor-icons/react/dist/csr/ArrowsOut";
 import { ArrowsIn } from "@phosphor-icons/react/dist/csr/ArrowsIn";
 import { lockScroll } from "../scrollLock";
 import ReaderSettings from "./ReaderSettings";
+import AdaptScreenIcon from "../components/AdaptScreenIcon";
 import ReadingProgress from "./ReadingProgress";
 import { useMousePageTurn } from "./useMousePageTurn";
 import {
@@ -21,7 +22,12 @@ import {
 } from "./preferences";
 import type { Paragraph } from "../domain/model";
 import "./reader.css";
-import { pageGeometry, marginFactors, pageFormats } from "./pageGeometry";
+import {
+  pageGeometry,
+  screenGeometry,
+  marginFactors,
+  pageFormats,
+} from "./pageGeometry";
 import PageTurn, { type Turn } from "./PageTurn";
 
 export default function Reader({
@@ -70,42 +76,74 @@ export default function Reader({
   const [nativeFullscreen, setNativeFullscreen] = useState(false);
   const [focusMode, setFocusMode] = useState(false);
   const [screenNotice, setScreenNotice] = useState("");
-  const immersive = nativeFullscreen || focusMode;
+  const screenSized = prefs.format === "screen" && prefs.mode !== "continuous";
+  const [screenSize, setScreenSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
+  const screenRestore = useRef({
+    format: prefs.format === "screen" ? ("a5" as const) : prefs.format,
+    mode: prefs.mode,
+  });
+  function changePreferences(next: Preferences) {
+    if (next.format === "screen" && prefs.format !== "screen")
+      screenRestore.current = { format: prefs.format, mode: prefs.mode };
+    setPrefs(next);
+  }
+  const immersive = nativeFullscreen || focusMode || screenSized;
   const turning = useRef(false);
   const contentGeneration = useRef(0);
   const queued = useRef<number | null>(null);
   const navigate = useRef<(page: number) => void>(() => {});
-  const chapterDestination = useRef<{ from: string; end: boolean } | null>(
+  const navigateChapter = useRef<(direction: -1 | 1, end: boolean) => void>(
+    () => {},
+  );
+  const queuedChapter = useRef<{ direction: -1 | 1; end: boolean } | null>(
     null,
   );
+  const chapterDestination = useRef<{
+    from: string;
+    end: boolean;
+    animation: Omit<Turn, "id" | "to"> | null;
+  } | null>(null);
+  const chapterAnimation = useRef<Omit<Turn, "id" | "to"> | null>(null);
   const openAtEnd = useRef(false);
 
   const viewport = useRef<HTMLDivElement>(null);
   const text = useRef<HTMLElement>(null);
   const touch = useRef<{ x: number; y: number } | null>(null);
   const paged = prefs.mode !== "continuous";
-  const spread = prefs.mode === "spread" && width >= 760 ? 2 : 1;
+  const spread = screenSized
+    ? screenSize.width > screenSize.height
+      ? 2
+      : 1
+    : prefs.mode === "spread" && width >= 760
+      ? 2
+      : 1;
   // Chapter zero opens on the recto; the empty verso has no folio.
   const leadingBlank = number === 0 && paged && spread === 2 ? 1 : 0;
   const numberedPages = Math.max(1, pages - leadingBlank);
   const folio = (index: number) => index + 1 - leadingBlank;
-  const geometry = pageGeometry(
-    width,
-    spread,
-    prefs.format,
-    prefs.margins,
-    immersive
-      ? prefs.fullscreenZoom === "page"
-        ? fullscreenHeight / (pageFormats[prefs.format].height * 96)
-        : prefs.fullscreenZoom === "width"
-          ? Infinity
-          : (fullscreenHeight / (pageFormats[prefs.format].height * 96)) *
-            (Number(prefs.fullscreenZoom) / 100)
-      : 1.15,
-  );
+  const physicalFormat = prefs.format === "screen" ? "a5" : prefs.format;
+  const geometry = screenSized
+    ? screenGeometry(screenSize.width, screenSize.height, spread, prefs.margins)
+    : pageGeometry(
+        width,
+        spread,
+        physicalFormat,
+        prefs.margins,
+        immersive
+          ? prefs.fullscreenZoom === "page"
+            ? fullscreenHeight / (pageFormats[physicalFormat].height * 96)
+            : prefs.fullscreenZoom === "width"
+              ? Infinity
+              : (fullscreenHeight / (pageFormats[physicalFormat].height * 96)) *
+                (Number(prefs.fullscreenZoom) / 100)
+          : 1.15,
+      );
   const { gap, column, textHeight: height } = geometry;
   useLayoutEffect(() => {
-    if (!immersive || !root.current || !stage.current) return;
+    if (!immersive || screenSized || !root.current || !stage.current) return;
     const container = root.current;
     const measure = () => {
       const top =
@@ -133,7 +171,21 @@ export default function Reader({
     if (chapterNavigation.current) observer.observe(chapterNavigation.current);
     measure();
     return () => observer.disconnect();
-  }, [immersive, paged, spread, screenNotice, loading]);
+  }, [immersive, screenSized, paged, spread, screenNotice, loading]);
+  useLayoutEffect(() => {
+    const el = root.current;
+    if (!screenSized || !el) return;
+    const measure = () =>
+      setScreenSize((previous) =>
+        previous.width === el.clientWidth && previous.height === el.clientHeight
+          ? previous
+          : { width: el.clientWidth, height: el.clientHeight },
+      );
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    measure();
+    return () => observer.disconnect();
+  }, [screenSized]);
   useLayoutEffect(() => {
     if (immersive && paged && root.current) root.current.scrollTop = 0;
   }, [immersive, paged, prefs.fullscreenZoom]);
@@ -149,7 +201,13 @@ export default function Reader({
     if (!immersive) return;
     const unlock = lockScroll(document.body);
     const escape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && focusMode && !e.defaultPrevented) {
+      if (
+        e.key === "Escape" &&
+        (focusMode || screenSized) &&
+        !e.defaultPrevented
+      ) {
+        if (screenSized)
+          setPrefs((current) => ({ ...current, ...screenRestore.current }));
         setFocusMode(false);
         setScreenNotice("");
         fullscreenButton.current?.focus();
@@ -160,7 +218,7 @@ export default function Reader({
       unlock();
       document.removeEventListener("keydown", escape);
     };
-  }, [immersive, focusMode]);
+  }, [immersive, focusMode, screenSized]);
   useEffect(() => {
     if (prefs.selectable) return;
     const selection = window.getSelection();
@@ -169,6 +227,13 @@ export default function Reader({
   }, [prefs.selectable]);
   async function toggleFullscreen() {
     setScreenNotice("");
+    if (screenSized) {
+      setPrefs({ ...prefs, ...screenRestore.current });
+      setFocusMode(false);
+      if (document.fullscreenElement === root.current)
+        await document.exitFullscreen();
+      return;
+    }
     if (document.fullscreenElement === root.current) {
       await document.exitFullscreen();
       return;
@@ -189,6 +254,7 @@ export default function Reader({
   }
   useLayoutEffect(() => {
     contentGeneration.current++;
+    queuedChapter.current = null;
     turning.current = false;
     queued.current = null;
     touch.current = null;
@@ -196,6 +262,10 @@ export default function Reader({
     openAtEnd.current =
       !!chapterDestination.current?.end &&
       chapterDestination.current.from !== contentId;
+    chapterAnimation.current =
+      chapterDestination.current?.from !== contentId
+        ? (chapterDestination.current?.animation ?? null)
+        : null;
     chapterDestination.current = null;
     setPage(0);
     root.current?.scrollTo(0, 0);
@@ -221,26 +291,54 @@ export default function Reader({
   }, [paged]);
   useLayoutEffect(() => {
     let active = true;
-    const measure = () => {
-      if (!active || !text.current || !paged) return;
+    let chapterTurnStarted = false;
+    const measure = (fontsReady = false) => {
+      if (!active || !text.current) return;
+      if (!paged) {
+        turning.current = false;
+        queued.current = null;
+        queuedChapter.current = null;
+        chapterAnimation.current = null;
+        setTurn(null);
+        return;
+      }
       const count = Math.max(
         1,
         Math.round((text.current.scrollWidth + gap) / (column + gap)),
       );
-      turning.current = false;
-      queued.current = null;
-      setTurn(null);
+      if (!chapterTurnStarted) {
+        turning.current = false;
+        queued.current = null;
+        queuedChapter.current = null;
+        setTurn(null);
+      }
       setPages(count);
       const last = Math.floor((count - 1) / spread) * spread;
       const openingAtEnd = openAtEnd.current;
       setPage((p) =>
         openingAtEnd ? last : Math.min(Math.floor(p / spread) * spread, last),
       );
+      if (fontsReady && !loading && chapterAnimation.current) {
+        const animation = chapterAnimation.current;
+        chapterAnimation.current = null;
+        if (
+          prefs.flip &&
+          !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ) {
+          chapterTurnStarted = true;
+          turning.current = true;
+          setTurn({
+            ...animation,
+            id: ++turnId.current,
+            to: openingAtEnd ? last : 0,
+          });
+        }
+      }
     };
     measure();
     void document.fonts.ready.then(() => {
       if (!active) return;
-      measure();
+      measure(true);
       openAtEnd.current = false;
     });
     return () => {
@@ -257,6 +355,7 @@ export default function Reader({
     column,
     gap,
     leadingBlank,
+    loading,
   ]);
   const goTo = (target: number) => {
     const to = Math.max(
@@ -265,6 +364,7 @@ export default function Reader({
     );
     if (to === page) return;
     if (turning.current) {
+      queuedChapter.current = null;
       queued.current = to;
       return;
     }
@@ -285,28 +385,58 @@ export default function Reader({
     } else setTurn(null);
     setPage(to);
   };
+  function openChapter(direction: -1 | 1, end = false) {
+    const destination = direction < 0 ? previous : next;
+    if (loading || !destination) return;
+    if (turning.current) {
+      queued.current = null;
+      queuedChapter.current = { direction, end };
+      return;
+    }
+    chapterDestination.current = {
+      from: contentId,
+      end,
+      animation:
+        paged &&
+        prefs.flip &&
+        text.current &&
+        !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? {
+              from: page,
+              direction,
+              snapshot: text.current.cloneNode(true) as HTMLElement,
+              sourceFolioOffset: leadingBlank,
+            }
+          : null,
+    };
+    destination();
+  }
   const move = (direction: number) => {
     if (loading) return;
     if (direction < 0 && page === 0 && previous) {
-      chapterDestination.current = { from: contentId, end: true };
-      previous();
+      openChapter(-1, true);
     } else if (direction > 0 && page + spread >= pages && next) {
-      chapterDestination.current = { from: contentId, end: false };
-      next();
+      openChapter(1);
     } else goTo(page + direction * spread);
   };
   useEffect(() => {
     navigate.current = goTo;
+    navigateChapter.current = openChapter;
   });
   function finishTurn() {
     turning.current = false;
     setTurn(null);
     const target = queued.current;
+    const chapterTarget = queuedChapter.current;
     queued.current = null;
+    queuedChapter.current = null;
     const generation = contentGeneration.current;
-    if (target !== null)
+    if (chapterTarget || target !== null)
       requestAnimationFrame(() => {
-        if (generation === contentGeneration.current) navigate.current(target);
+        if (generation !== contentGeneration.current) return;
+        if (chapterTarget)
+          navigateChapter.current(chapterTarget.direction, chapterTarget.end);
+        else if (target !== null) navigate.current(target);
       });
   }
 
@@ -350,11 +480,13 @@ export default function Reader({
         <div className="reading-blank-verso" aria-hidden="true" />
       )}
       <header className="reading-title">
-        <span lang={language}>
-          {language === "bn"
-            ? `অধ্যায় ${new Intl.NumberFormat("bn", { useGrouping: false }).format(number)}`
-            : `CHAPTER ${String(number).padStart(2, "0")}`}
-        </span>
+        {number !== 0 && (
+          <span lang={language}>
+            {language === "bn"
+              ? `অধ্যায় ${new Intl.NumberFormat("bn", { useGrouping: false }).format(number)}`
+              : `CHAPTER ${String(number).padStart(2, "0")}`}
+          </span>
+        )}
         <h1>{title}</h1>
         <i />
       </header>
@@ -373,11 +505,45 @@ export default function Reader({
       ))}
     </>
   );
+  const pagePicker = (
+    <label className="reader-page-picker">
+      <span className="sr-only">Go to page</span>
+      <select
+        aria-label="Go to page"
+        value={page}
+        onChange={(e) => {
+          goTo(Number(e.target.value));
+        }}
+      >
+        {Array.from({ length: Math.ceil(pages / spread) }, (_, i) => (
+          <option key={i} value={i * spread}>
+            {spread === 2
+              ? [
+                  Math.max(1, folio(i * spread)),
+                  Math.min(numberedPages, folio(i * spread + 1)),
+                ]
+                  .filter(
+                    (value, index, values) =>
+                      index === 0 || value !== values[0],
+                  )
+                  .join("–")
+              : i + 1}
+          </option>
+        ))}
+      </select>
+      {!screenSized && (
+        <span aria-live="polite" aria-atomic="true">
+          {" "}
+          of {numberedPages} pages
+        </span>
+      )}
+    </label>
+  );
   return (
     <main
       ref={root}
       aria-busy={loading || undefined}
-      className={`reader-page book-reader ${paged ? "is-paged" : "is-continuous"} ${prefs.mode === "spread" ? "wants-spread" : ""} ${prefs.flip ? "with-flip" : ""} paper-${prefs.paper} texture-${prefs.texture} ${prefs.selectable ? "" : "text-unselectable"} ${prefs.showIds ? "show-paragraph-ids" : ""} ${immersive ? "is-immersive" : ""}`}
+      className={`reader-page book-reader ${paged ? "is-paged" : "is-continuous"} ${screenSized ? "is-screen-sized" : ""} ${prefs.mode === "spread" || (screenSized && spread === 2) ? "wants-spread" : ""} ${prefs.flip ? "with-flip" : ""} paper-${prefs.paper} texture-${prefs.texture} ${prefs.selectable ? "" : "text-unselectable"} ${prefs.showIds ? "show-paragraph-ids" : ""} ${immersive ? "is-immersive" : ""}`}
     >
       <div
         ref={toolbar}
@@ -396,29 +562,63 @@ export default function Reader({
           <span className="sr-only">Reading layout</span>
           <select
             aria-label="Reading layout"
-            value={prefs.mode}
+            value={screenSized ? "screen" : prefs.mode}
             onChange={(e) => {
               setPrefs({
                 ...prefs,
                 mode: e.target.value as Preferences["mode"],
+                ...(screenSized
+                  ? { format: screenRestore.current.format }
+                  : {}),
               });
               setPage(0);
             }}
           >
+            {screenSized && <option value="screen">Automatic · screen</option>}
             <option value="continuous">Continuous</option>
             <option value="pages">Single page</option>
             <option value="spread">Two pages</option>
           </select>
         </label>
+        {screenSized && pagePicker}
         {historical && (
           <span className="reading-version">Historical revision</span>
         )}
-        <ReaderSettings guest={guest} prefs={prefs} onChange={setPrefs} />
+        <ReaderSettings
+          guest={guest}
+          prefs={prefs}
+          onChange={changePreferences}
+        />
+        <button
+          className="icon fullscreen-toggle adapt-screen-toggle"
+          aria-label="Adapt to screen size"
+          title="Adapt to screen size"
+          aria-pressed={screenSized}
+          onClick={() => {
+            if (screenSized) setPrefs({ ...prefs, ...screenRestore.current });
+            else
+              changePreferences({ ...prefs, format: "screen", mode: "pages" });
+          }}
+        >
+          <AdaptScreenIcon />
+        </button>
         <button
           ref={fullscreenButton}
           className="icon fullscreen-toggle"
-          aria-label={immersive ? "Exit fullscreen" : "Enter fullscreen"}
-          title={immersive ? "Exit fullscreen" : "Enter fullscreen"}
+          aria-label={
+            screenSized
+              ? "Exit screen-sized reading"
+              : immersive
+                ? "Exit fullscreen"
+                : "Enter fullscreen"
+          }
+          title={
+            screenSized
+              ? "Exit screen-sized reading"
+              : immersive
+                ? "Exit fullscreen"
+                : "Enter fullscreen"
+          }
           onClick={() => void toggleFullscreen()}
         >
           {immersive ? <ArrowsIn size={21} /> : <ArrowsOut size={21} />}
@@ -446,7 +646,7 @@ export default function Reader({
           {screenNotice}
         </p>
       )}
-      {prefs.mode === "spread" && spread === 1 && (
+      {!screenSized && prefs.mode === "spread" && spread === 1 && (
         <p className="spread-hint">
           Two pages appear when the window is wider.
         </p>
@@ -578,36 +778,7 @@ export default function Reader({
             >
               <ArrowLeft size={21} />
             </button>
-            <label>
-              <span className="sr-only">Go to page</span>
-              <select
-                aria-label="Go to page"
-                value={page}
-                onChange={(e) => {
-                  goTo(Number(e.target.value));
-                }}
-              >
-                {Array.from({ length: Math.ceil(pages / spread) }, (_, i) => (
-                  <option key={i} value={i * spread}>
-                    {spread === 2
-                      ? [
-                          Math.max(1, folio(i * spread)),
-                          Math.min(numberedPages, folio(i * spread + 1)),
-                        ]
-                          .filter(
-                            (value, index, values) =>
-                              index === 0 || value !== values[0],
-                          )
-                          .join("–")
-                      : i + 1}
-                  </option>
-                ))}
-              </select>
-              <span aria-live="polite" aria-atomic="true">
-                {" "}
-                of {numberedPages} pages
-              </span>
-            </label>
+            {!screenSized && pagePicker}
             <button
               className="icon"
               aria-label="Next page"
@@ -636,10 +807,7 @@ export default function Reader({
         <button
           className="button quiet"
           disabled={!previous}
-          onClick={() => {
-            chapterDestination.current = null;
-            previous?.();
-          }}
+          onClick={() => openChapter(-1)}
         >
           <ArrowLeft />
           Previous chapter
@@ -647,10 +815,7 @@ export default function Reader({
         <button
           className="button quiet"
           disabled={!next}
-          onClick={() => {
-            chapterDestination.current = null;
-            next?.();
-          }}
+          onClick={() => openChapter(1)}
         >
           Next chapter
           <ArrowRight />
